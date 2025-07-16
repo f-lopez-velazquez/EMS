@@ -1,6 +1,21 @@
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open('ems-cache').then(cache => cache.addAll(['.','index.html','styles.css','app.js'])));
+self.addEventListener('install', function(e) {
+  e.waitUntil(
+    caches.open('ems-store').then(function(cache) {
+      return cache.addAll([
+        '/',
+        '/index.html',
+        '/styles.css',
+        '/app.js',
+        '/manifest.json'
+      ]);
+    })
+  );
 });
-self.addEventListener('fetch', e => {
-  e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
+
+self.addEventListener('fetch', function(e) {
+  e.respondWith(
+    caches.match(e.request).then(function(response) {
+      return response || fetch(e.request);
+    })
+  );
 });

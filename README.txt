@@ -1,11 +1,11 @@
-# EMS Cotizaciones y Reportes PWA
+EMS Cotizaciones y Reportes
+---------------------------
+Aplicación web progresiva (PWA) para gestión de cotizaciones y reportes, con soporte de imágenes, base de datos en Firebase y exportación PDF.
+- Responsive: optimizada para móvil y escritorio.
+- Instalable en Android/iOS (iconos incluidos).
+- Listo para subir a GitHub Pages (ver tips).
 
-## Despliegue
-1. Configura Firebase en app.js.
-2. Incluye carpeta icons/ con iconos.
-3. Despliega en GitHub Pages con rutas relativas.
-
-## Novedades v9
-- Prompt de borrador solo una vez por sesión.
-- Botón Eliminar junto a cada cotización/reporte en Historial.
-- Encabezado PDF solo en primera página.
+Pasos:
+1. Configura Firebase (Firestore y Storage) y coloca las credenciales en app.js
+2. Sube toda la carpeta a GitHub Pages o tu hosting preferido.
+3. ¡Listo! Puedes instalar como app desde Chrome/Android/iOS.
