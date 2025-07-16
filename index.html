@@ -7,34 +7,26 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#163960">
   <link rel="stylesheet" href="styles.css">
-  <link rel="icon" href="https://i.imgur.com/RQucHEc.png">
-  <!-- Font Awesome para iconos -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-  <!-- PDF-lib -->
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
-  <!-- Firebase (compat, para máxima compatibilidad con tu código actual) -->
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
 </head>
 <body>
-  <!-- Aviso de conexión offline/online -->
-  <div id="ems-offline-banner" style="display:none;"></div>
-
-  <!-- Contenedor principal (aquí se renderiza todo con JS) -->
-  <div id="root"></div>
-
-  <!-- Barra de progreso -->
+  <header><h1>EMS</h1>
+    <nav>
+      <button id="btn-nueva-cot">Nueva Cotización</button>
+      <button id="btn-nuevo-rep">Nuevo Reporte</button>
+      <button id="btn-historial">Historial</button>
+    </nav>
+  </header>
+  <main>
+    <section id="contenedor"></section>
+  </main>
   <div id="progress-bar" style="display:none;">
     <div class="progress-inner"></div>
   </div>
-
-  <!-- Contenedores para datalist globales (pueden ser rellenados por JS dinámicamente) -->
-  <datalist id="clientesEMS"></datalist>
-  <datalist id="conceptosEMS"></datalist>
-  <datalist id="unidadesEMS"></datalist>
-  <datalist id="descEMS"></datalist>
-
-  <!-- App JS principal -->
   <script src="app.js"></script>
 </body>
 </html>
