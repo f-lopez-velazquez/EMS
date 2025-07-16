@@ -1,10 +1,13 @@
 /* styles.css */
-body { margin: 0; font-family: Arial, sans-serif; }
-header { background: #163960; color: #fff; padding: 1rem; display: flex; align-items: center; justify-content: space-between; }
-nav button { margin: 0 0.5rem; padding: 0.5rem 1rem; background: #fff; color: #163960; border: none; border-radius: 4px; }
-#progress-bar { position: fixed; top: 0; left: 0; width: 100%; background: rgba(0,0,0,0.1); }
-.progress-inner { height: 4px; background: #163960; width: 0%; transition: width 0.3s; }
-textarea { width: 100%; min-height: 4rem; spellcheck: true; autocorrect: on; }
-.image-thumb { position: relative; display: inline-block; margin: 0.5rem; }
-.image-thumb img { max-width: 100px; max-height: 100px; display: block; }
-.image-thumb button { position: absolute; top: 0; right: 0; background: rgba(255,0,0,0.7); border: none; color: #fff; cursor: pointer; }
+body { margin:0; font-family:Arial,sans-serif; }
+header { background:#163960; color:#fff; padding:1rem; display:flex; justify-content:space-between; align-items:center; }
+nav button { margin:0 0.5rem; padding:0.5rem 1rem; background:#fff; color:#163960; border:none; border-radius:4px; }
+#contenedor { padding:1rem; }
+.record { display:flex; justify-content:space-between; align-items:center; padding:0.5rem; border-bottom:1px solid #ccc; }
+.record button { margin-left:0.5rem; }
+#progress-bar { position:fixed; top:0; left:0; width:100%; background:rgba(0,0,0,0.1); }
+.progress-inner { height:4px; background:#163960; width:0; transition:width .3s; }
+textarea { width:100%; min-height:4rem; spellcheck:true; autocorrect:on; }
+.image-thumb { position:relative; display:inline-block; margin:0.5rem; }
+.image-thumb img { max-width:100px; max-height:100px; display:block; }
+.image-thumb button { position:absolute; top:0; right:0; background:rgba(255,0,0,0.7); border:none; color:#fff; cursor:pointer; border-radius:50%; }
