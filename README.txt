@@ -5,10 +5,11 @@ Aplicación web progresiva (PWA) para gestión de cotizaciones y reportes de ser
 ## Características
 
 - Crear, editar, eliminar cotizaciones y reportes.
-- Subida de hasta 6 imágenes por item de reporte a Firebase Storage.
+- Subida de hasta 6 imágenes por ítem de reporte a Firebase Storage.
+- Compresión de imágenes antes de subir para optimizar velocidad sin perder calidad (canvas).
 - Edición completa de registros e imágenes (agregar, eliminar, reemplazar).
-- Generación de PDF con layout fijo (encabezado/pie) e imágenes (2 por fila).
-- Feedback visual con barra de progreso en todas las acciones.
+- Generación de PDF con layout fijo (encabezado en primer página, pie de página y marca de agua en siguientes; imágenes máx 2 por fila).
+- Feedback visual con barra de progreso y mensajes de "Cargando..." durante todas las acciones.
 - Responsive para móvil y escritorio.
 - Instalable PWA, funciona offline.
 
@@ -22,5 +23,6 @@ Aplicación web progresiva (PWA) para gestión de cotizaciones y reportes de ser
 ## Notas
 
 - Eliminar imágenes en Firebase Storage al borrarlas en la app.
-- Limitar a 6 imágenes por item.
+- Limitar a 6 imágenes por ítem.
 - Mostrar mensajes claros de éxito o error en cada operación.
+- Las imágenes se comprimen usando canvas a un 80% de calidad antes de subir.

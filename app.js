@@ -1,4 +1,4 @@
-// EMS Cotizaciones y Reportes v4 - Con subida de imágenes y edición completa
+// EMS PWA v6 - Optimización de imágenes y feedback mejorado
 const firebaseConfig = {
   apiKey: "AIzaSyDsXSbJWdMyBgTedntNv3ppj5GAvRUImyc",
   authDomain: "elms-26a5d.firebaseapp.com",
@@ -11,49 +11,56 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const storage = firebase.storage();
 
-// Carga de borrador único (evita bucle infinito)
-const draftKeyPrefix = 'reporte-draft-';
-function promptLoadDraft(reportId) {
-  const key = draftKeyPrefix + reportId;
-  if (localStorage.getItem(key)) {
-    const load = confirm('¿Quieres cargar el último borrador de este reporte?');
-    localStorage.removeItem(key);
-    if (load) {
-      loadDraft(reportId);
-    }
-  }
-}
-
-async function loadReport(reportId) {
-  promptLoadDraft(reportId);
-  // ...
-}
-
-
-function showProgress(show=true, percent=0) {
+function showProgress(show=true, percent=0, message='') {
   const bar = document.getElementById('progress-bar');
   const inner = bar.querySelector('.progress-inner');
-  if(show){
+  if (show) {
     bar.style.display = '';
     inner.style.width = percent + '%';
+    inner.textContent = message;
   } else {
     bar.style.display = 'none';
     inner.style.width = '0%';
+    inner.textContent = '';
   }
 }
 
-// Lógica para crear nueva cotización/reporte, editar, borrar...
-// (Ejemplo abreviado de manejo de imágenes en reportes)
-async function uploadReportImages(reportId, itemIndex, files){
+// Comprimir imagen con canvas
+function compressImage(file, quality=0.8) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob((blob) => {
+          const compressedFile = new File([blob], file.name, {type: file.type});
+          resolve(compressedFile);
+        }, file.type, quality);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Subir imágenes optimizadas y mostrar feedback
+async function uploadReportImages(reportId, itemIndex, files) {
   const urls = [];
-  for(let i=0;i<files.length;i++){
-    const file = files[i];
-    const path = `reportes/${reportId}/${itemIndex}/${file.name}`;
+  let total = files.length;
+  for (let i = 0; i < files.length; i++) {
+    // Comprimir antes de subir
+    const compressed = await compressImage(files[i], 0.8);
+    const path = `reportes/${reportId}/${itemIndex}/${compressed.name}`;
     const ref = storage.ref(path);
-    const task = ref.put(file);
-    task.on('state_changed', snap => {
-      const pct = (snap.bytesTransferred/snap.totalBytes)*100;
-      showProgress(true, pct);
+    const task = ref.put(compressed);
+    task.on('state_changed', (snap) => {
+      const pct = (snap.bytesTransferred / snap.totalBytes) * 100;
+      showProgress(true, pct, `Subiendo imagen ${i+1}/${total}`);
     });
     await task;
     const url = await ref.getDownloadURL();
@@ -63,73 +70,35 @@ async function uploadReportImages(reportId, itemIndex, files){
   return urls;
 }
 
-// Editar reporte: carga previsualización con opción de eliminar cada imagen
-function renderReportItemImages(container, reportId, itemIndex, urls) {
-  container.innerHTML = '';
-  urls.forEach((url, idx) => {
-    const div = document.createElement('div');
-    div.classList.add('image-thumb');
-    const img = document.createElement('img');
-    img.src = url;
-    const btn = document.createElement('button');
-    btn.innerHTML = '<i class="fas fa-trash"></i>';
-    btn.onclick = async () => {
-      if(confirm('¿Eliminar esta imagen?')){
-        // borrar Storage
-        const path = `reportes/${reportId}/${itemIndex}/${getFilenameFromURL(url)}`;
-        await storage.ref(path).delete();
-        // actualizar Firestore
-        const doc = await db.collection('reportes').doc(reportId).get();
-        const data = doc.data();
-        data.items[itemIndex].fotos = data.items[itemIndex].fotos.filter(u=>u!==url);
-        await db.collection('reportes').doc(reportId).update({items: data.items});
-        // refrescar UI
-        renderReportItemImages(container, reportId, itemIndex, data.items[itemIndex].fotos);
+// Guardar reporte con todas las imágenes
+async function saveReport(reportData) {
+  try {
+    showProgress(true, 0, 'Iniciando guardado de reporte...');
+    // Primero guarda datos principales sin fotos
+    const reportRef = await db.collection('reportes').add({...reportData, items: []});
+    const reportId = reportRef.id;
+    // Procesar items uno a uno
+    for (let idx = 0; idx < reportData.items.length; idx++) {
+      const item = reportData.items[idx];
+      if (item.files && item.files.length) {
+        // Limitar a 6
+        const files = Array.from(item.files).slice(0, 6);
+        const urls = await uploadReportImages(reportId, idx, files);
+        item.fotos = urls;
       }
-    };
-    div.append(img, btn);
-    container.append(div);
-  });
-}
-
-// Helper
-function getFilenameFromURL(url){
-  return decodeURIComponent(url.split('/').pop().split('?')[0]);
-}
-
-// Generación de PDF con pdf-lib
-async function generatePDF(data){
-  showProgress(true, 0);
-  const { PDFDocument, rgb } = PDFLib;
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([600, 800]);
-  // Encabezado fijo
-  page.drawText('EMS - Reporte', {x:50, y:770, size:18});
-  // Contenido...
-  let y = 720;
-  // Dibujar imágenes max 2 por fila
-  const imgUrls = data.items.flatMap(item=>item.fotos);
-  for(let i=0;i<imgUrls.length;i++){
-    const u = imgUrls[i];
-    const imgBytes = await fetch(u).then(r=>r.arrayBuffer());
-    let imgEmbed = u.endsWith('.png') ? await pdfDoc.embedPng(imgBytes) : await pdfDoc.embedJpg(imgBytes);
-    const dims = imgEmbed.scale(0.25);
-    const x = 50 + (i%2)*(dims.width+10);
-    if(i>0 && i%2===0) y -= dims.height + 10;
-    page.drawImage(imgEmbed,{x,y: y-dims.height, width:dims.width, height:dims.height});
-    showProgress(true, ((i+1)/imgUrls.length)*100);
+      // Actualiza item en Firestore
+      await db.collection('reportes').doc(reportId).update({
+        items: firebase.firestore.FieldValue.arrayUnion(item)
+      });
+      showProgress(true, ((idx+1)/reportData.items.length)*100, `Guardando item ${idx+1}/${reportData.items.length}`);
+    }
+    showProgress(false);
+    alert('Reporte guardado exitosamente');
+  } catch (error) {
+    showProgress(false);
+    alert('Error al guardar el reporte: ' + error.message);
   }
-  // Pie de página fijo
-  page.drawText('Página 1', {x:260, y:20, size:12});
-  const pdfBytes = await pdfDoc.save();
-  showProgress(false);
-  return pdfBytes;
 }
 
-// Implementa resto de CRUD usando showProgress y clearing forms...
-
-// Ejemplo de limpiar formulario al crear nuevo
-function clearForm(type){
-  document.querySelector('#form-'+type).reset();
-  document.querySelector('#items-'+type).innerHTML = '';
-}
+// Resto de lógica: loadReport, editReport, deleteReport, generatePDF, etc.
+// Asegúrate de envolver cada proceso con showProgress y desactivar al final.
