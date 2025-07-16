@@ -1222,6 +1222,7 @@ async function generatePDF(data) {
     // Encabezado solo en primera página
     if (pageCount === 1) {
       page.drawText('EMS - Reporte', {x:50,y:770,size:18});
+    });
     }
     // Pie de página fijo
     page.drawText(`Página ${pageCount}`, {x:260,y:20,size:12});
