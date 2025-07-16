@@ -11,6 +11,25 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const storage = firebase.storage();
 
+// Carga de borrador único (evita bucle infinito)
+const draftKeyPrefix = 'reporte-draft-';
+function promptLoadDraft(reportId) {
+  const key = draftKeyPrefix + reportId;
+  if (localStorage.getItem(key)) {
+    const load = confirm('¿Quieres cargar el último borrador de este reporte?');
+    localStorage.removeItem(key);
+    if (load) {
+      loadDraft(reportId);
+    }
+  }
+}
+
+async function loadReport(reportId) {
+  promptLoadDraft(reportId);
+  // ...
+}
+
+
 function showProgress(show=true, percent=0) {
   const bar = document.getElementById('progress-bar');
   const inner = bar.querySelector('.progress-inner');
