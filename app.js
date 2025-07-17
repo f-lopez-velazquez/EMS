@@ -719,159 +719,141 @@ async function eliminarReporteCompleto() {
 
 // ========== PDF DE REPORTE (AHORA TOMA LAS IMÁGENES DIRECTO DEL DOM) ==========
 async function generarPDFReporte(share = false) {
-  showProgress(true, 15, "Generando PDF...");
+  showProgress(true, 10, "Generando PDF...");
   const form = document.getElementById('repForm');
   const datos = Object.fromEntries(new FormData(form));
-  // Captura fotos del DOM
+  // Captura items del DOM, no solo del modelo
   const items = [];
-  form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
+  form.querySelectorAll('#itemsTableR tbody tr').forEach(tr => {
     const descripcion = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    const fotos = Array.from(tr.querySelectorAll("img"))
-      .map(img => img.src)
-      .filter(Boolean);
+    const fotos = Array.from(tr.querySelectorAll('.rep-img-list img')).map(img => img.src);
+    if (!descripcion && fotos.length === 0) return;
     items.push({ descripcion, fotos });
   });
 
-  // PDF
+  // PDF-lib
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
   const pageW = 595, pageH = 842;
-  const mx = 46, my = 70;
+  const mx = 56, my = 72;
   const usableW = pageW - mx * 2;
   let y = pageH - my;
 
   // Logo
-  let logoBytes, logoImg;
-  try {
-    logoBytes = await fetch(LOGO_URL).then(r=>r.arrayBuffer());
-    logoImg   = await pdfDoc.embedPng(logoBytes);
-  } catch {}
+  const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
+  const logoImg   = await pdfDoc.embedPng(logoBytes);
+
+  // Encabezado SOLO en la primera página
+  function drawHeader(page, firstPage = false) {
+    page.drawImage(logoImg, {
+      x: (pageW - 320) / 2,
+      y: (pageH - 320) / 2,
+      width: 320,
+      height: 320,
+      opacity: 0.04
+    });
+    if (firstPage) {
+      const logoH = 54;
+      page.drawImage(logoImg, { x: mx, y: y - logoH + 6, width: logoH, height: logoH });
+      const leftX = mx + logoH + 16;
+      page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y, size: 17, font: helvB, color: rgb(0.11,0.20,0.37) });
+      page.drawText("Reporte de Servicio", { x: leftX, y: y - 20, size: 12, font: helvB, color: rgb(0.97,0.54,0.11) });
+      page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 38, size: 11, font: helv, color: rgb(0.16,0.18,0.22) });
+      page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 100, y: y, size: 11, font: helvB, color: rgb(0.13,0.22,0.38) });
+      page.drawText(`Fecha: ${datos.fecha||""}`, { x: mx + usableW - 100, y: y - 20, size: 11, font: helvB, color: rgb(0.13,0.22,0.38) });
+      y -= 54;
+    }
+  }
 
   let page = pdfDoc.addPage([pageW, pageH]);
-  // Encabezado SOLO en primera página
-  if (logoImg) page.drawImage(logoImg, {
-    x: (pageW - 310) / 2,
-    y: (pageH - 310) / 2,
-    width: 310,
-    height: 310,
-    opacity: 0.05
-  });
-  if (logoImg) page.drawImage(logoImg, { x: mx, y: y - 48, width: 48, height: 48 });
-  page.drawText("ELECTROMOTORES SANTANA", {
-    x: mx + 58, y: y-6, size: 16, font: helvB, color: rgb(0.11,0.20,0.37)
-  });
-  page.drawText("Reporte de Servicio", {
-    x: mx + 58, y: y-26, size: 11, font: helv, color: rgb(0.52,0.35,0.09)
-  });
-  page.drawText(`No: ${datos.numero||""}`, {
-    x: mx + usableW - 138, y: y-6, size: 12, font: helvB, color: rgb(0.13,0.22,0.38)
-  });
-  page.drawText(`Fecha: ${datos.fecha||""}`, {
-    x: mx + usableW - 138, y: y-26, size: 12, font: helvB, color: rgb(0.13,0.22,0.38)
-  });
-  y -= 58;
+  drawHeader(page, true);
+  y -= 42;
 
-  for (let idx = 0; idx < items.length; idx++) {
-    let item = items[idx];
-    if (y < 140) { // Salto de página
-      page = pdfDoc.addPage([pageW, pageH]);
-      y = pageH - my;
-      // SOLO fondo de logo suave, no títulos
-      if (logoImg) page.drawImage(logoImg, {
-        x: (pageW - 310) / 2,
-        y: (pageH - 310) / 2,
-        width: 310,
-        height: 310,
-        opacity: 0.04
-      });
-    }
-    // Descripción
-    page.drawText(`• ${item.descripcion}`, { x: mx, y, size: 11.2, font: helv, color: rgb(0.19,0.21,0.24)});
-    y -= 22;
-
-    // Imágenes (máx 6 por item, 2 por fila)
-    if (item.fotos && item.fotos.length > 0) {
-      for (let f=0; f<item.fotos.length && f<6; f+=2) {
-        let imgObj1 = null, imgObj2 = null;
-        // PRIMER INTENTO: PNG
-        try {
-          let img1Arr = await fetch(item.fotos[f]).then(r=>r.arrayBuffer());
-          imgObj1 = await pdfDoc.embedPng(img1Arr);
-        } catch {
-          try {
-            let img1Arr = await fetch(item.fotos[f]).then(r=>r.arrayBuffer());
-            imgObj1 = await pdfDoc.embedJpg(img1Arr);
-          } catch {}
-        }
-        // SEGUNDO INTENTO: PNG o JPG
-        if (f+1 < item.fotos.length) {
-          try {
-            let img2Arr = await fetch(item.fotos[f+1]).then(r=>r.arrayBuffer());
-            imgObj2 = await pdfDoc.embedPng(img2Arr);
-          } catch {
-            try {
-              let img2Arr = await fetch(item.fotos[f+1]).then(r=>r.arrayBuffer());
-              imgObj2 = await pdfDoc.embedJpg(img2Arr);
-            } catch {}
-          }
-        }
-        let imgY = y;
-        if (imgObj1) page.drawImage(imgObj1, { x: mx, y: imgY-80, width: 105, height: 80 });
-        if (imgObj2) page.drawImage(imgObj2, { x: mx+120, y: imgY-80, width: 105, height: 80 });
-        y -= 90;
+  // Por cada item
+  for (const it of items) {
+    // Imágenes en pares (max 6 por item, 2 por fila)
+    for (let i = 0; i < it.fotos.length && i < 6; i += 2) {
+      // Salto de página si falta espacio
+      if (y < 170) {
+        page = pdfDoc.addPage([pageW, pageH]);
+        drawHeader(page, false);
+        y = pageH - my;
       }
-    } else {
-      y -= 6;
+      let imgsRow = it.fotos.slice(i, i+2);
+      let w = imgsRow.length === 2 ? 125 : 200;
+      let gutter = imgsRow.length === 2 ? 15 : 0;
+      let x = mx + (usableW - (w*imgsRow.length + gutter*(imgsRow.length-1))) / 2;
+
+      for (let k = 0; k < imgsRow.length; k++) {
+        try {
+          const bytes = await fetch(imgsRow[k]).then(r => r.arrayBuffer());
+          let img;
+          // Prueba PNG, si no JPG
+          try {
+            img = await pdfDoc.embedPng(bytes);
+          } catch {
+            img = await pdfDoc.embedJpg(bytes);
+          }
+          page.drawImage(img, { x, y: y - w, width: w, height: w });
+        } catch (e) {
+          // Si falla, ignora esa imagen
+        }
+        x += w + gutter;
+      }
+      y -= w + 10;
     }
-    y -= 5;
+    // Descripción centrada
+    if (it.descripcion?.trim()) {
+      if (y < 100) {
+        page = pdfDoc.addPage([pageW, pageH]);
+        drawHeader(page, false);
+        y = pageH - my;
+      }
+      page.drawText(it.descripcion, { x: mx+10, y: y, size: 11, font: helv, color: rgb(0.16,0.18,0.22) });
+      y -= 28;
+    }
   }
 
   // Notas
-  if (datos.notas) {
-    y -= 10;
-    page.drawText("Notas:", { x: mx, y, size: 10.5, font: helvB, color: rgb(0.17,0.18,0.22)});
-    y -= 14;
-    const notasArr = datos.notas.match(/.{1,100}/g) || [datos.notas];
-    notasArr.forEach(str => {
-      page.drawText(str, { x: mx + 12, y, size: 10.5, font: helv, color: rgb(0.13,0.15,0.19)});
-      y -= 15;
-    });
+  if (datos.notas?.trim()) {
+    if (y < 80) {
+      page = pdfDoc.addPage([pageW, pageH]);
+      drawHeader(page, false);
+      y = pageH - my;
+    }
+    page.drawText("Notas:", { x: mx, y, size: 12, font: helvB, color: rgb(0.15,0.18,0.22) });
+    y -= 16;
+    page.drawText(datos.notas.trim(), { x: mx + 38, y, size: 10, font: helv, maxWidth: usableW - 60 });
+    y -= 30;
   }
 
   // Pie de página
-  page.drawText(`Electromotores Santana · ${AUTHOR} · ${new Date().getFullYear()}`, { 
-    x: mx, y: 18, size: 10, font: helv, color: rgb(0.41,0.46,0.60)
-  });
-  page.drawText("Este documento es confidencial y sólo para uso del cliente.", { 
-    x: mx, y: 6, size: 8, font: helv, color: rgb(0.52,0.51,0.48)
-  });
+  page.drawText("Electromotores Santana · " + (new Date().getFullYear()), { x: mx, y: 22, size: 10, font: helv, color: rgb(0.45,0.46,0.60)});
+  page.drawText("Documento confidencial solo para uso del cliente.", { x: mx, y: 10, size: 9, font: helv, color: rgb(0.52,0.51,0.48) });
 
   // Descargar o compartir
   const pdfBytes = await pdfDoc.save();
   showProgress(false);
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
-  const file = new File([blob], `${datos.numero||"reporte"}.pdf`, { type: "application/pdf" });
+  const file = new File([blob], `Reporte_${datos.numero||"reporte"}.pdf`, { type: "application/pdf" });
 
-  if (share && navigator.share) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: "Reporte de Servicio",
-        text: `Reporte ${datos.numero||""} de Electromotores Santana`
-      });
-      return;
-    } catch {}
+  if (share && navigator.share && navigator.canShare({ files: [file] })) {
+    await navigator.share({
+      files: [file],
+      title: "Reporte de Servicio",
+      text: `Reporte ${datos.numero||""} de Electromotores Santana`
+    });
+  } else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
-  // Descargar
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${datos.numero||"reporte"}.pdf`;
-  a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
 
 // ============= PDF DE COTIZACIÓN =============
