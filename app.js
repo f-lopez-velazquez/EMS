@@ -1,4 +1,5 @@
 // EMS - Electromotores Santana - app.js
+
 // Configuración Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyDsXSbJWdMyBgTedntNv3ppj5GAvRUImyc",
@@ -16,11 +17,9 @@ const LOGO_URL = "https://i.imgur.com/RQucHEc.png";
 const AUTHOR = "Francisco López Velázquez";
 let fotosItemsReporte = [];
 
-// Utilidades
 function hoy() { return (new Date()).toISOString().slice(0, 10); }
 function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
 
-// Feedback visual
 function showProgress(show = true, percent = 0, msg = "") {
   const bar = document.getElementById("progress-bar");
   if (!bar) return;
@@ -47,7 +46,7 @@ function showOffline(show = true) {
 window.addEventListener("online", () => showOffline(false));
 window.addEventListener("offline", () => showOffline(true));
 
-// Predictivos locales (para autocompletado)
+// Predictivos
 function savePredictEMS(tipo, valor) {
   if (!valor || valor.length < 2) return;
   const key = `ems_pred_${tipo}`;
@@ -389,6 +388,7 @@ async function abrirDetalleEMS(tipo, numero) {
 }
 // ================== REPORTES ==================
 
+// Render de un item/actividad del reporte
 function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
   if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
   let fotosHtml = '';
@@ -660,7 +660,9 @@ async function enviarReporte(e) {
   let ok = true;
   form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
     let desc = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    let fotos = fotosItemsReporte[idx] || [];
+    let fotos = Array.from(tr.querySelectorAll("img"))
+      .map(img => img.src)
+      .filter(Boolean);
     if (!desc) ok = false;
     if (fotos.length > 6) fotos = fotos.slice(0,6);
     items.push({ descripcion: desc, fotos });
@@ -715,19 +717,22 @@ async function eliminarReporteCompleto() {
   renderInicio();
 }
 
-// ========== PDF DE REPORTE (TODAS LAS IMÁGENES) ==========
+// ========== PDF DE REPORTE (AHORA TOMA LAS IMÁGENES DIRECTO DEL DOM) ==========
 async function generarPDFReporte(share = false) {
   showProgress(true, 15, "Generando PDF...");
   const form = document.getElementById('repForm');
   const datos = Object.fromEntries(new FormData(form));
+  // --- ¡AQUÍ EL FIX!: Toma las fotos directo del DOM para cada fila ---
   const items = [];
   form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
     const descripcion = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    const fotos = fotosItemsReporte[idx] ? [...fotosItemsReporte[idx]] : [];
+    const fotos = Array.from(tr.querySelectorAll("img"))
+      .map(img => img.src)
+      .filter(Boolean);
     items.push({ descripcion, fotos });
   });
 
-  // PDF
+  // Resto igual...
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -743,7 +748,6 @@ async function generarPDFReporte(share = false) {
   const logoImg   = await pdfDoc.embedPng(logoBytes);
 
   let page = pdfDoc.addPage([pageW, pageH]);
-  // Encabezado SOLO en la primera página
   page.drawImage(logoImg, {
     x: (pageW - 310) / 2,
     y: (pageH - 310) / 2,
