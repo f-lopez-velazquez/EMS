@@ -1,5 +1,4 @@
-// ================== EMS PWA - app.js ==================
-
+// EMS - Electromotores Santana - app.js
 // Configuración Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyDsXSbJWdMyBgTedntNv3ppj5GAvRUImyc",
@@ -15,8 +14,9 @@ const storage = firebase.storage();
 
 const LOGO_URL = "https://i.imgur.com/RQucHEc.png";
 const AUTHOR = "Francisco López Velázquez";
+let fotosItemsReporte = [];
 
-// Utils
+// Utilidades
 function hoy() { return (new Date()).toISOString().slice(0, 10); }
 function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
 
@@ -29,11 +29,11 @@ function showProgress(show = true, percent = 0, msg = "") {
   if (inner) {
     inner.style.width = show ? `${percent || 100}%` : "0%";
     inner.innerHTML = msg ? msg : "";
-    if (!show) setTimeout(() => { inner.innerHTML = ""; }, 700);
+    if (!show) setTimeout(() => { inner.innerHTML = ""; }, 600);
   }
 }
 
-// Banner OFFLINE
+// Banner offline
 function showOffline(show = true) {
   const banner = document.getElementById("ems-offline-banner");
   if (!banner) return;
@@ -74,7 +74,7 @@ function actualizarPredictsEMS() {
   if (datalistDesc) datalistDesc.innerHTML = descs.map(v=>`<option value="${v}">`).join('');
 }
 
-// Dictado por voz universal
+// Dictado por voz
 function agregarDictadoMicros() {
   document.querySelectorAll(".mic-btn:not(.ems-mic-init)").forEach(btn => {
     btn.classList.add("ems-mic-init");
@@ -94,10 +94,9 @@ function agregarDictadoMicros() {
     };
   });
 }
-
-// -------- Render Home ----------
+// ----------- Pantalla de inicio -----------
 function renderInicio() {
-  window.editandoReporte = false;
+  fotosItemsReporte = [];
   document.getElementById("root").innerHTML = `
     <div class="ems-header">
       <img src="${LOGO_URL}" class="ems-logo">
@@ -125,8 +124,8 @@ window.onload = () => {
   renderInicio();
   if (!navigator.onLine) showOffline(true);
 };
-// ========== HISTORIAL Y BÚSQUEDA ==========
 
+// ----------- HISTORIAL Y BÚSQUEDA -----------
 async function cargarHistorialEMS(filtro = "") {
   const cont = document.getElementById("historialEMS");
   if (!cont) return;
@@ -180,8 +179,7 @@ document.addEventListener("input", e => {
   }
 });
 
-// ==================== COTIZACIONES =======================
-
+// ----------- COTIZACIONES -----------
 function renderCotItemRow(item = {}) {
   return `
     <tr>
@@ -391,9 +389,6 @@ async function abrirDetalleEMS(tipo, numero) {
 }
 // ================== REPORTES ==================
 
-let fotosItemsReporte = [];
-
-// Renderiza cada fila de actividad/item
 function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
   if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
   let fotosHtml = '';
@@ -527,7 +522,6 @@ async function abrirReporte(numero) {
   if (!doc.exists) return alert("No se encontró el reporte.");
   let datos = doc.data();
   fotosItemsReporte = [];
-  // Renderiza form vacío y luego llena items REALES:
   document.getElementById('root').innerHTML = `
     <div class="ems-header">
       <img src="${LOGO_URL}" class="ems-logo">
@@ -720,7 +714,8 @@ async function eliminarReporteCompleto() {
   alert("Reporte eliminado.");
   renderInicio();
 }
-// ========= PDF DE REPORTE robusto (todas las imágenes de todos los items) ==========
+
+// ========== PDF DE REPORTE (TODAS LAS IMÁGENES) ==========
 async function generarPDFReporte(share = false) {
   showProgress(true, 15, "Generando PDF...");
   const form = document.getElementById('repForm');
@@ -789,7 +784,7 @@ async function generarPDFReporte(share = false) {
     page.drawText(`• ${item.descripcion}`, { x: mx, y, size: 11.2, font: helv, color: rgb(0.19,0.21,0.24)});
     y -= 22;
 
-    // Imágenes (máx 6 por item, 2 por fila, JPG o PNG)
+    // Imágenes (máx 6 por item, 2 por fila)
     if (item.fotos && item.fotos.length > 0) {
       for (let f=0; f<item.fotos.length && f<6; f+=2) {
         let imgObj1 = null, imgObj2 = null;
@@ -862,8 +857,142 @@ async function generarPDFReporte(share = false) {
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
+// ============= PDF DE COTIZACIÓN =============
+async function generarPDFCotizacion(share = false) {
+  showProgress(true, 20, "Generando PDF...");
+  const form = document.getElementById('cotForm');
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
+    items.push({
+      concepto: tr.querySelector('input[name="concepto"]').value,
+      unidad: tr.querySelector('input[name="unidad"]').value,
+      cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
+      precio: Number(tr.querySelector('input[name="precio"]').value)
+    });
+  });
 
-// --- Protección cierre/feedback/predictivos ---
+  // PDF
+  const { PDFDocument, rgb, StandardFonts } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const pageW = 595, pageH = 842;
+  const mx = 46, my = 80;
+  const usableW = pageW - mx * 2;
+  let y = pageH - my;
+
+  const logoBytes = await fetch(LOGO_URL).then(r=>r.arrayBuffer());
+  const logoImg   = await pdfDoc.embedPng(logoBytes);
+
+  let page = pdfDoc.addPage([pageW, pageH]);
+  page.drawImage(logoImg, { x: mx, y: y+20, width: 60, height: 60 });
+  page.drawText("ELECTROMOTORES SANTANA", {
+    x: mx + 70, y: y+45, size: 18, font: helvB, color: rgb(0.11,0.20,0.37)
+  });
+  page.drawText("Cotización de Servicios", {
+    x: mx + 70, y: y+23, size: 12, font: helv, color: rgb(0.52,0.35,0.09)
+  });
+  page.drawText(`No: ${datos.numero||""}`, {
+    x: mx + usableW - 120, y: y+45, size: 12, font: helvB, color: rgb(0.13,0.22,0.38)
+  });
+  page.drawText(`Fecha: ${datos.fecha||""}`, {
+    x: mx + usableW - 120, y: y+23, size: 12, font: helvB, color: rgb(0.13,0.22,0.38)
+  });
+  y -= 20;
+
+  page.drawText(`Cliente: ${datos.cliente || ""}`, { x: mx, y: y, size: 12, font: helv, color: rgb(0.16,0.19,0.22)});
+  y -= 18;
+
+  // Tabla de conceptos
+  const cols = ["Concepto", "Unidad", "Cantidad", "Precio", "Total"];
+  let xcols = [mx, mx+210, mx+320, mx+400, mx+480];
+  cols.forEach((col, i) => {
+    page.drawText(col, { x: xcols[i], y: y, size: 11, font: helvB });
+  });
+  y -= 12;
+  page.drawLine({start: {x:mx, y}, end: {x:pageW-mx, y}, thickness:1, color: rgb(0.83,0.84,0.86)});
+  y -= 8;
+
+  let subtotal = 0;
+  items.forEach(it => {
+    let total = (Number(it.cantidad)||0) * (Number(it.precio)||0);
+    subtotal += total;
+    let vals = [
+      (it.concepto||"").substring(0,40),
+      it.unidad||"", 
+      it.cantidad||"",
+      it.precio? `$${Number(it.precio).toLocaleString("es-MX",{minimumFractionDigits:2})}` : "",
+      total? `$${total.toLocaleString("es-MX",{minimumFractionDigits:2})}` : ""
+    ];
+    vals.forEach((v,i) => {
+      page.drawText(String(v), { x: xcols[i], y: y, size: 10.5, font: helv });
+    });
+    y -= 17;
+    if (y < 100) { // Nueva página
+      page = pdfDoc.addPage([pageW, pageH]);
+      y = pageH - my;
+    }
+  });
+
+  // Totales
+  let iva = datos.incluyeIVA ? subtotal * 0.16 : 0;
+  let total = subtotal + iva;
+  if (iva > 0) {
+    page.drawText("IVA (16%):", { x: mx+400, y: y-2, size: 11, font: helvB });
+    page.drawText(`$${iva.toLocaleString("es-MX",{minimumFractionDigits:2})}`, { x: mx+480, y: y-2, size: 11, font: helvB });
+    y -= 16;
+  }
+  page.drawText("Total:", { x: mx+400, y: y-2, size: 13, font: helvB, color: rgb(0.1,0.19,0.34) });
+  page.drawText(`$${total.toLocaleString("es-MX",{minimumFractionDigits:2})}`, { x: mx+480, y: y-2, size: 13, font: helvB, color: rgb(0.1,0.19,0.34) });
+  y -= 28;
+
+  // Notas
+  if (datos.notas) {
+    page.drawText("Notas:", { x: mx, y, size: 10.5, font: helvB, color: rgb(0.17,0.18,0.22)});
+    y -= 14;
+    const notasArr = datos.notas.match(/.{1,100}/g) || [datos.notas];
+    notasArr.forEach(str => {
+      page.drawText(str, { x: mx + 12, y, size: 10.5, font: helv, color: rgb(0.13,0.15,0.19)});
+      y -= 15;
+    });
+  }
+
+  // Pie
+  page.drawText(`Electromotores Santana · ${AUTHOR} · ${new Date().getFullYear()}`, { 
+    x: mx, y: 22, size: 10, font: helv, color: rgb(0.41,0.46,0.60)
+  });
+  page.drawText("Documento confidencial solo para uso del cliente.", { 
+    x: mx, y: 8, size: 8, font: helv, color: rgb(0.52,0.51,0.48)
+  });
+
+  // Descargar o compartir
+  const pdfBytes = await pdfDoc.save();
+  showProgress(false);
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const file = new File([blob], `${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
+
+  if (share && navigator.share) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: "Cotización",
+        text: `Cotización ${datos.numero||""} de Electromotores Santana`
+      });
+      return;
+    } catch {}
+  }
+  // Descargar
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${datos.numero||"cotizacion"}.pdf`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+
+// --------- Protección contra cierre accidental -------------
 window.onbeforeunload = function(e) {
   const root = document.getElementById('root');
   if (!root) return;
@@ -872,6 +1001,6 @@ window.onbeforeunload = function(e) {
   }
 };
 
-if (!navigator.onLine) showOffline(true);
+// --------- Inicialización predictivos -------------
 window.addEventListener('DOMContentLoaded', () => { actualizarPredictsEMS(); });
 actualizarPredictsEMS();
