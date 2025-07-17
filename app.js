@@ -803,6 +803,145 @@ async function generarPDFReporte(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
+// --------- PDF DE COTIZACIÓN ---------
+async function generarPDFCotizacion(share = false) {
+  showProgress(true, 10, "Generando PDF...");
+  const form = document.getElementById('cotForm');
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
+    items.push({
+      concepto: tr.querySelector('input[name="concepto"]').value,
+      unidad: tr.querySelector('input[name="unidad"]').value,
+      cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
+      precio: Number(tr.querySelector('input[name="precio"]').value)
+    });
+  });
+
+  // Calcula totales
+  let subtotal = items.reduce((sum, it) => sum + it.cantidad * it.precio, 0);
+  let iva = datos.incluyeIVA ? subtotal * 0.16 : 0;
+  let total = subtotal + iva;
+  let anticipo = datos.anticipo ? (total * (datos.anticipoPorc ? Number(datos.anticipoPorc) / 100 : 0)) : 0;
+
+  const { PDFDocument, rgb, StandardFonts } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const pageW = 595, pageH = 842;
+  const mx = 56, my = 72;
+  const usableW = pageW - mx * 2;
+  let y = pageH - my;
+
+  const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
+  const logoImg   = await pdfDoc.embedPng(logoBytes);
+
+  function drawHeader(page, firstPage = false) {
+    page.drawImage(logoImg, {
+      x: (pageW - 320) / 2,
+      y: (pageH - 320) / 2,
+      width: 320,
+      height: 320,
+      opacity: 0.04
+    });
+    if (firstPage) {
+      const logoH = 54;
+      page.drawImage(logoImg, { x: mx, y: y - logoH + 6, width: logoH, height: logoH });
+      const leftX = mx + logoH + 16;
+      page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y, size: 17, font: helvB, color: rgb(0.11,0.20,0.37) });
+      page.drawText("Cotización de Servicio", { x: leftX, y: y - 20, size: 12, font: helvB, color: rgb(0.13,0.36,0.72) });
+      page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 38, size: 11, font: helv, color: rgb(0.16,0.18,0.22) });
+      page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 100, y: y, size: 11, font: helvB, color: rgb(0.13,0.22,0.38) });
+      page.drawText(`Fecha: ${datos.fecha||""}`, { x: mx + usableW - 100, y: y - 20, size: 11, font: helvB, color: rgb(0.13,0.22,0.38) });
+      y -= 54;
+    }
+  }
+
+  let page = pdfDoc.addPage([pageW, pageH]);
+  drawHeader(page, true);
+  y -= 40;
+
+  // Tabla de conceptos
+  page.drawText("Conceptos:", { x: mx, y: y, size: 12, font: helvB, color: rgb(0.15,0.18,0.22) });
+  y -= 18;
+
+  // Tabla
+  page.drawText("Concepto", { x: mx, y: y, size: 11, font: helvB });
+  page.drawText("Unidad", { x: mx+200, y: y, size: 11, font: helvB });
+  page.drawText("Cantidad", { x: mx+285, y: y, size: 11, font: helvB });
+  page.drawText("Precio", { x: mx+360, y: y, size: 11, font: helvB });
+  page.drawText("Importe", { x: mx+445, y: y, size: 11, font: helvB });
+  y -= 16;
+
+  items.forEach(it => {
+    if (y < 120) {
+      page = pdfDoc.addPage([pageW, pageH]);
+      drawHeader(page, false);
+      y = pageH - my - 10;
+    }
+    page.drawText(it.concepto, { x: mx, y: y, size: 10, font: helv });
+    page.drawText(it.unidad, { x: mx+200, y: y, size: 10, font: helv });
+    page.drawText(String(it.cantidad), { x: mx+285, y: y, size: 10, font: helv });
+    page.drawText(`$${it.precio.toFixed(2)}`, { x: mx+360, y: y, size: 10, font: helv });
+    page.drawText(`$${(it.cantidad * it.precio).toFixed(2)}`, { x: mx+445, y: y, size: 10, font: helv });
+    y -= 14;
+  });
+
+  y -= 8;
+  page.drawText("Subtotal:", { x: mx+360, y, size: 11, font: helvB });
+  page.drawText(`$${subtotal.toFixed(2)}`, { x: mx+445, y, size: 11, font: helvB });
+  y -= 14;
+  if (iva > 0) {
+    page.drawText("IVA (16%):", { x: mx+360, y, size: 11, font: helvB });
+    page.drawText(`$${iva.toFixed(2)}`, { x: mx+445, y, size: 11, font: helvB });
+    y -= 14;
+  }
+  page.drawText("Total:", { x: mx+360, y, size: 13, font: helvB, color: rgb(0.10,0.34,0.81) });
+  page.drawText(`$${total.toFixed(2)}`, { x: mx+445, y, size: 13, font: helvB, color: rgb(0.10,0.34,0.81) });
+  y -= 16;
+  if (anticipo > 0) {
+    page.drawText(`Anticipo (${datos.anticipoPorc}%):`, { x: mx+360, y, size: 11, font: helvB, color: rgb(0.94,0.55,0.18) });
+    page.drawText(`$${anticipo.toFixed(2)}`, { x: mx+445, y, size: 11, font: helvB, color: rgb(0.94,0.55,0.18) });
+    y -= 16;
+  }
+
+  if (datos.notas?.trim()) {
+    if (y < 80) {
+      page = pdfDoc.addPage([pageW, pageH]);
+      drawHeader(page, false);
+      y = pageH - my;
+    }
+    page.drawText("Notas:", { x: mx, y, size: 12, font: helvB, color: rgb(0.15,0.18,0.22) });
+    y -= 16;
+    page.drawText(datos.notas.trim(), { x: mx + 38, y, size: 10, font: helv, maxWidth: usableW - 60 });
+    y -= 30;
+  }
+
+  page.drawText("Electromotores Santana · " + (new Date().getFullYear()), { x: mx, y: 22, size: 10, font: helv, color: rgb(0.45,0.46,0.60)});
+  page.drawText("Documento confidencial solo para uso del cliente.", { x: mx, y: 10, size: 9, font: helv, color: rgb(0.52,0.51,0.48) });
+
+  const pdfBytes = await pdfDoc.save();
+  showProgress(false);
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const file = new File([blob], `Cotizacion_${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
+
+  if (share && navigator.share && navigator.canShare({ files: [file] })) {
+    await navigator.share({
+      files: [file],
+      title: "Cotización de Servicio",
+      text: `Cotización ${datos.numero||""} de Electromotores Santana`
+    });
+  } else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+}
+
 
 // --------- Protección contra cierre accidental -------------
 window.onbeforeunload = function(e) {
