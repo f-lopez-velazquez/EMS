@@ -40,6 +40,39 @@ function showOffline(show = true) {
 window.addEventListener("online", () => showOffline(false));
 window.addEventListener("offline", () => showOffline(true));
 
+
+// --- Predictivos sincronizados con Firestore ---
+async function savePredictEMSCloud(tipo, valor, user = "general") {
+  if (!valor || valor.length < 2) return;
+  const docRef = db.collection("predictEMS").doc(user);
+  let data = (await docRef.get()).data() || {};
+  if (!data[tipo]) data[tipo] = [];
+  if (!data[tipo].includes(valor)) data[tipo].unshift(valor);
+  if (data[tipo].length > 25) data[tipo] = data[tipo].slice(0, 25);
+  await docRef.set(data, { merge: true });
+}
+async function getPredictEMSCloud(tipo, user = "general") {
+  const docRef = db.collection("predictEMS").doc(user);
+  let data = (await docRef.get()).data() || {};
+  return data[tipo] || [];
+}
+// Para cargar todos los predictivos y actualizar los datalists
+async function actualizarPredictsEMSCloud(user = "general") {
+  let conceptos = await getPredictEMSCloud("concepto", user);
+  let unidades = await getPredictEMSCloud("unidad", user);
+  let clientes = await getPredictEMSCloud("cliente", user);
+  let descs    = await getPredictEMSCloud("desc", user);
+  const datalistConceptos = document.getElementById("conceptosEMS");
+  if (datalistConceptos) datalistConceptos.innerHTML = conceptos.map(v=>`<option value="${v}">`).join('');
+  const datalistUnidades = document.getElementById("unidadesEMS");
+  if (datalistUnidades) datalistUnidades.innerHTML = unidades.map(v=>`<option value="${v}">`).join('');
+  const datalistClientes = document.getElementById("clientesEMS");
+  if (datalistClientes) datalistClientes.innerHTML = clientes.map(v=>`<option value="${v}">`).join('');
+  const datalistDesc = document.getElementById("descEMS");
+  if (datalistDesc) datalistDesc.innerHTML = descs.map(v=>`<option value="${v}">`).join('');
+}
+
+
 // Predictivos (localStorage)
 function savePredictEMS(tipo, valor) {
   if (!valor || valor.length < 2) return;
@@ -285,7 +318,8 @@ function nuevaCotizacion() {
   `;
   document.getElementById('cotForm').onsubmit = enviarCotizacion;
   setTimeout(() => {
-    actualizarPredictsEMS();
+    //actualizarPredictsEMS();
+    actualizarPredictsEMSCloud();
     agregarDictadoMicros();
   }, 100);
 }
@@ -310,10 +344,10 @@ async function enviarCotizacion(e) {
     alert("Completa todos los campos requeridos.");
     return;
   }
-  savePredictEMS("cliente", datos.cliente);
+  savePredictEMSCloud("cliente", datos.cliente);
   items.forEach(it => {
-    savePredictEMS("concepto", it.concepto);
-    savePredictEMS("unidad", it.unidad);
+    savePredictEMSCloud("concepto", it.concepto);
+    savePredictEMSCloud("unidad", it.unidad);
   });
 
   const cotizacion = {
@@ -486,7 +520,8 @@ function nuevoReporte() {
     </form>
   `;
   setTimeout(() => {
-    actualizarPredictsEMS();
+    //actualizarPredictsEMS();
+    actualizarPredictsEMSCloud();
     agregarDictadoMicros();
   }, 100);
   agregarRepItemRow();
@@ -561,7 +596,7 @@ async function abrirReporte(numero) {
     </form>
   `;
   setTimeout(() => {
-    actualizarPredictsEMS && actualizarPredictsEMS();
+    actualizarPredictsEMS && actualizarPredictsEMSCloud();//actualizarPredictsEMS();
     agregarDictadoMicros && agregarDictadoMicros();
   }, 100);
   const form = document.getElementById("repForm");
@@ -695,76 +730,75 @@ async function generarPDFReporte(share = false) {
 
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
-  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
   const pageW = 595, pageH = 842;
-  const mx = 56, my = 72;
+  const mx = 48, my = 60;
   const usableW = pageW - mx * 2;
   let y = pageH - my;
 
+  const LOGO_URL = "https://i.imgur.com/RQucHEc.png";
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
-  const logoImg   = await pdfDoc.embedPng(logoBytes);
+  const logoImg = await pdfDoc.embedPng(logoBytes);
 
   function drawHeader(page, firstPage = false) {
-    page.drawImage(logoImg, {
-      x: (pageW - 320) / 2,
-      y: (pageH - 320) / 2,
-      width: 320,
-      height: 320,
-      opacity: 0.04
-    });
     if (firstPage) {
-      const logoH = 54;
-      page.drawImage(logoImg, { x: mx, y: y - logoH + 6, width: logoH, height: logoH });
-      const leftX = mx + logoH + 16;
-      page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y, size: 17, font: helvB, color: rgb(0.11,0.20,0.37) });
-      page.drawText("Reporte de Servicio", { x: leftX, y: y - 20, size: 12, font: helvB, color: rgb(0.97,0.54,0.11) });
-      page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 38, size: 11, font: helv, color: rgb(0.16,0.18,0.22) });
-      page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 100, y: y, size: 11, font: helvB, color: rgb(0.13,0.22,0.38) });
-      page.drawText(`Fecha: ${datos.fecha||""}`, { x: mx + usableW - 100, y: y - 20, size: 11, font: helvB, color: rgb(0.13,0.22,0.38) });
-      y -= 54;
+      page.drawImage(logoImg, { x: mx, y: y - 15, width: 60, height: 60 });
+      page.drawText("ELECTROMOTORES SANTANA", { x: mx + 70, y: y + 30, size: 18, font: helvB, color: rgb(0.1,0.18,0.4) });
+      page.drawText("Reporte de Servicio", { x: mx + 70, y: y + 8, size: 13, font: helvB, color: rgb(0.98,0.54,0.11) });
+      page.drawText("Carr. a Chichimequillas 306, Col. Menchaca, 76147 Santiago de Querétaro, Qro.", { x: mx + 70, y: y - 10, size: 8.8, font: helv, color: rgb(0.2,0.22,0.3) });
+      page.drawText("Tel: 442 469 9895 | electromotores.santana@gmail.com", { x: mx + 70, y: y - 24, size: 8.8, font: helv, color: rgb(0.2,0.22,0.3) });
+      page.drawText(`Folio: ${datos.numero || ""}`, { x: pageW - mx - 120, y: y + 27, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
+      page.drawText(`Fecha: ${datos.fecha || ""}`, { x: pageW - mx - 120, y: y + 13, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
+      page.drawText(`Cliente: ${datos.cliente || ""}`, { x: pageW - mx - 120, y: y - 1, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
     }
+  }
+
+  // Pie de página premium (igual al de cotización)
+  function drawFooter(page) {
+    page.drawRectangle({ x: 0, y: 0, width: pageW, height: 32, color: rgb(0.1,0.18,0.4), opacity: 0.92 });
+    page.drawImage(logoImg, { x: pageW / 2 - 20, y: 2, width: 40, height: 28 });
+    page.drawText("Electromotores Santana © " + (new Date().getFullYear()), { x: mx, y: 10, size: 9.5, font: helvB, color: rgb(0.97,0.97,0.97) });
+    page.drawText("Solo válido para uso del cliente. Carr. a Chichimequillas 306, Qro. Tel: 442 469 9895", { x: mx + 155, y: 10, size: 9, font: helv, color: rgb(0.97,0.97,0.97) });
   }
 
   let page = pdfDoc.addPage([pageW, pageH]);
   drawHeader(page, true);
-  y -= 42;
+  y -= 70;
 
   for (const it of items) {
-    for (let i = 0; i < it.fotos.length && i < 6; i += 2) {
-      if (y < 170) {
+    // IMAGENES: hasta 3 por fila, más grandes, bien distribuidas
+    for (let i = 0; i < it.fotos.length && i < 6; i += 3) {
+      if (y < 200) {
         page = pdfDoc.addPage([pageW, pageH]);
         drawHeader(page, false);
         y = pageH - my;
       }
-      let imgsRow = it.fotos.slice(i, i+2);
-      let w = imgsRow.length === 2 ? 125 : 200;
-      let gutter = imgsRow.length === 2 ? 15 : 0;
-      let x = mx + (usableW - (w*imgsRow.length + gutter*(imgsRow.length-1))) / 2;
+      let imgsRow = it.fotos.slice(i, i+3);
+      let w = 140, h = 110, gutter = 14;
+      let totalWidth = imgsRow.length * w + (imgsRow.length - 1) * gutter;
+      let x = mx + (usableW - totalWidth) / 2;
+
       for (let k = 0; k < imgsRow.length; k++) {
         try {
           const bytes = await fetch(imgsRow[k]).then(r => r.arrayBuffer());
           let img;
-          try {
-            img = await pdfDoc.embedPng(bytes);
-          } catch {
-            img = await pdfDoc.embedJpg(bytes);
-          }
-          page.drawImage(img, { x, y: y - w, width: w, height: w });
+          try { img = await pdfDoc.embedPng(bytes); } catch { img = await pdfDoc.embedJpg(bytes); }
+          page.drawImage(img, { x, y: y - h, width: w, height: h });
         } catch (e) {}
         x += w + gutter;
       }
-      y -= w + 10;
+      y -= h + 12;
     }
     if (it.descripcion?.trim()) {
-      if (y < 100) {
+      if (y < 110) {
         page = pdfDoc.addPage([pageW, pageH]);
         drawHeader(page, false);
         y = pageH - my;
       }
-      page.drawText(it.descripcion, { x: mx+10, y: y, size: 11, font: helv, color: rgb(0.16,0.18,0.22) });
-      y -= 28;
+      page.drawText(it.descripcion, { x: mx + 8, y: y, size: 11, font: helv, color: rgb(0.14,0.16,0.22) });
+      y -= 30;
     }
   }
 
@@ -774,15 +808,14 @@ async function generarPDFReporte(share = false) {
       drawHeader(page, false);
       y = pageH - my;
     }
-    page.drawText("Notas:", { x: mx, y, size: 12, font: helvB, color: rgb(0.15,0.18,0.22) });
-    y -= 16;
-    page.drawText(datos.notas.trim(), { x: mx + 38, y, size: 10, font: helv, maxWidth: usableW - 60 });
-    y -= 30;
+    page.drawText("Notas / Observaciones:", { x: mx, y, size: 11, font: helvB, color: rgb(0.09,0.14,0.21) });
+    page.drawText(datos.notas.trim(), { x: mx + 150, y, size: 10, font: helv, maxWidth: pageW - mx * 2 - 160 });
+    y -= 24;
   }
 
-  page.drawText("Electromotores Santana · " + (new Date().getFullYear()), { x: mx, y: 22, size: 10, font: helv, color: rgb(0.45,0.46,0.60)});
-  page.drawText("Documento confidencial solo para uso del cliente.", { x: mx, y: 10, size: 9, font: helv, color: rgb(0.52,0.51,0.48) });
+  drawFooter(page);
 
+  // Final
   const pdfBytes = await pdfDoc.save();
   showProgress(false);
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
@@ -803,7 +836,10 @@ async function generarPDFReporte(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
+
+
 // --------- PDF DE COTIZACIÓN ---------
+// --------- PDF DE COTIZACIÓN PROFESIONAL ---------
 async function generarPDFCotizacion(share = false) {
   showProgress(true, 10, "Generando PDF...");
   const form = document.getElementById('cotForm');
@@ -818,12 +854,6 @@ async function generarPDFCotizacion(share = false) {
     });
   });
 
-  // Calcula totales
-  let subtotal = items.reduce((sum, it) => sum + it.cantidad * it.precio, 0);
-  let iva = datos.incluyeIVA ? subtotal * 0.16 : 0;
-  let total = subtotal + iva;
-  let anticipo = datos.anticipo ? (total * (datos.anticipoPorc ? Number(datos.anticipoPorc) / 100 : 0)) : 0;
-
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -834,93 +864,119 @@ async function generarPDFCotizacion(share = false) {
   const usableW = pageW - mx * 2;
   let y = pageH - my;
 
+  // LOGO Y ENCABEZADO
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
   const logoImg   = await pdfDoc.embedPng(logoBytes);
 
   function drawHeader(page, firstPage = false) {
     page.drawImage(logoImg, {
-      x: (pageW - 320) / 2,
-      y: (pageH - 320) / 2,
-      width: 320,
-      height: 320,
-      opacity: 0.04
+      x: mx,
+      y: y - 50,
+      width: 56,
+      height: 56
     });
-    if (firstPage) {
-      const logoH = 54;
-      page.drawImage(logoImg, { x: mx, y: y - logoH + 6, width: logoH, height: logoH });
-      const leftX = mx + logoH + 16;
-      page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y, size: 17, font: helvB, color: rgb(0.11,0.20,0.37) });
-      page.drawText("Cotización de Servicio", { x: leftX, y: y - 20, size: 12, font: helvB, color: rgb(0.13,0.36,0.72) });
-      page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 38, size: 11, font: helv, color: rgb(0.16,0.18,0.22) });
-      page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 100, y: y, size: 11, font: helvB, color: rgb(0.13,0.22,0.38) });
-      page.drawText(`Fecha: ${datos.fecha||""}`, { x: mx + usableW - 100, y: y - 20, size: 11, font: helvB, color: rgb(0.13,0.22,0.38) });
-      y -= 54;
-    }
+    page.drawText("ELECTROMOTORES SANTANA", { x: mx + 70, y: y-2, size: 17, font: helvB, color: rgb(0.13,0.20,0.38) });
+    page.drawText("Cotización", { x: mx + 70, y: y-22, size: 13, font: helvB, color: rgb(0.97,0.54,0.11) });
+    page.drawText("Carr. a Chichimequillas 306, Colonia Menchaca, 76147 Santiago de Querétaro, Qro.", { x: mx + 70, y: y-38, size: 9, font: helv, color: rgb(0.12,0.12,0.12) });
+    page.drawText("Tel: 442 469 9895 | electromotores.santana@gmail.com", { x: mx + 70, y: y-50, size: 9, font: helv, color: rgb(0.12,0.12,0.12) });
+    y -= 60;
+    page.drawLine({ start: { x: mx, y }, end: { x: pageW - mx, y }, thickness: 1, color: rgb(0.9, 0.55, 0.12) });
+    y -= 16;
   }
 
   let page = pdfDoc.addPage([pageW, pageH]);
   drawHeader(page, true);
-  y -= 40;
 
-  // Tabla de conceptos
-  page.drawText("Conceptos:", { x: mx, y: y, size: 12, font: helvB, color: rgb(0.15,0.18,0.22) });
+  // DATOS
+  page.drawText("Cliente:", { x: mx, y, size: 11, font: helvB });
+  page.drawText(datos.cliente || "", { x: mx + 60, y, size: 11, font: helv });
+  page.drawText("Cotización No:", { x: pageW - mx - 130, y, size: 11, font: helvB });
+  page.drawText(datos.numero || "", { x: pageW - mx - 30, y, size: 11, font: helv });
   y -= 18;
+  page.drawText("Fecha:", { x: mx, y, size: 11, font: helvB });
+  page.drawText(datos.fecha || "", { x: mx + 60, y, size: 11, font: helv });
+  page.drawText("Hora:", { x: pageW - mx - 130, y, size: 11, font: helvB });
+  page.drawText(datos.hora || "", { x: pageW - mx - 30, y, size: 11, font: helv });
+  y -= 30;
 
-  // Tabla
-  page.drawText("Concepto", { x: mx, y: y, size: 11, font: helvB });
-  page.drawText("Unidad", { x: mx+200, y: y, size: 11, font: helvB });
-  page.drawText("Cantidad", { x: mx+285, y: y, size: 11, font: helvB });
-  page.drawText("Precio", { x: mx+360, y: y, size: 11, font: helvB });
-  page.drawText("Importe", { x: mx+445, y: y, size: 11, font: helvB });
-  y -= 16;
+  // TABLA (con líneas verticales/horizontales)
+  const headers = ["Concepto", "Unidad", "Cantidad", "Precio Unit.", "Importe"];
+  const cols = [mx, mx+160, mx+220, mx+290, mx+390, pageW-mx];
+  const th = 22;
+  let tableY = y;
 
-  items.forEach(it => {
-    if (y < 120) {
-      page = pdfDoc.addPage([pageW, pageH]);
-      drawHeader(page, false);
-      y = pageH - my - 10;
-    }
-    page.drawText(it.concepto, { x: mx, y: y, size: 10, font: helv });
-    page.drawText(it.unidad, { x: mx+200, y: y, size: 10, font: helv });
-    page.drawText(String(it.cantidad), { x: mx+285, y: y, size: 10, font: helv });
-    page.drawText(`$${it.precio.toFixed(2)}`, { x: mx+360, y: y, size: 10, font: helv });
-    page.drawText(`$${(it.cantidad * it.precio).toFixed(2)}`, { x: mx+445, y: y, size: 10, font: helv });
+  // Encabezados
+  for (let i = 0; i < headers.length; i++) {
+    page.drawText(headers[i], { x: cols[i] + 5, y: tableY, size: 11, font: helvB, color: rgb(0.15,0.15,0.20) });
+  }
+  y = tableY - th;
+
+  // Líneas verticales y horizontales
+  for (let x of cols) {
+    page.drawLine({ start: { x, y: tableY+th/2 }, end: { x, y: y-3 }, thickness: 1, color: rgb(0.82,0.83,0.87) });
+  }
+  page.drawLine({ start: { x: cols[0], y: tableY+th/2 }, end: { x: cols[cols.length-1], y: tableY+th/2 }, thickness: 1, color: rgb(0.67,0.7,0.74) });
+
+  // Cuerpo de tabla
+  let subtotal = 0;
+  for (const item of items) {
+    const importe = (item.cantidad || 0) * (item.precio || 0);
+    subtotal += importe;
+    page.drawText(item.concepto || "", { x: cols[0] + 5, y, size: 10, font: helv });
+    page.drawText(item.unidad || "", { x: cols[1] + 5, y, size: 10, font: helv });
+    page.drawText(String(item.cantidad || ""), { x: cols[2] + 13, y, size: 10, font: helv });
+    page.drawText(`$${(item.precio || 0).toFixed(2)}`, { x: cols[3] + 10, y, size: 10, font: helv });
+    page.drawText(`$${importe.toFixed(2)}`, { x: cols[4] + 10, y, size: 10, font: helvB, color: rgb(0.18,0.19,0.27) });
+    y -= th;
+    // Líneas horizontales por cada fila
+    page.drawLine({ start: { x: cols[0], y: y+th }, end: { x: cols[cols.length-1], y: y+th }, thickness: 1, color: rgb(0.95,0.95,0.96) });
+  }
+  // Línea final de tabla
+  page.drawLine({ start: { x: cols[0], y }, end: { x: cols[cols.length-1], y }, thickness: 1.5, color: rgb(0.90,0.90,0.92) });
+
+  // TOTALES
+  y -= 6;
+  page.drawText("Subtotal:", { x: cols[3]+10, y, size: 11, font: helvB });
+  page.drawText(`$${subtotal.toFixed(2)}`, { x: cols[4]+10, y, size: 11, font: helvB });
+  y -= th;
+
+  let iva = 0, total = subtotal;
+  if (datos.incluyeIVA) {
+    iva = subtotal * 0.16;
+    total += iva;
+    page.drawText("IVA (16%):", { x: cols[3]+10, y, size: 11, font: helvB });
+    page.drawText(`$${iva.toFixed(2)}`, { x: cols[4]+10, y, size: 11, font: helvB });
+    y -= th;
+  }
+  page.drawLine({ start: { x: cols[3]+8, y: y+th-8 }, end: { x: cols[cols.length-1], y: y+th-8 }, thickness: 2, color: rgb(0.98,0.70,0.13) });
+  page.drawText("TOTAL:", { x: cols[3]+10, y, size: 13, font: helvB, color: rgb(0.97,0.54,0.11) });
+  page.drawText(`$${total.toFixed(2)}`, { x: cols[4]+10, y, size: 13, font: helvB, color: rgb(0.97,0.54,0.11) });
+  y -= th+3;
+
+  // NOTAS
+  if (datos.notas?.trim()) {
+    page.drawText("Notas / Condiciones:", { x: mx, y, size: 11, font: helvB });
     y -= 14;
+    page.drawText(datos.notas.trim(), { x: mx+12, y, size: 10, font: helv, maxWidth: usableW-20 });
+    y -= 18;
+  }
+
+  // PIE DE PÁGINA VISUAL
+  const footerY = 38;
+  page.drawRectangle({
+    x: 0, y: 0, width: pageW, height: footerY, color: rgb(0.13,0.20,0.38), opacity: 0.90
+  });
+  page.drawImage(logoImg, {
+    x: pageW/2-23, y: 6, width: 46, height: 26, opacity: 0.25
+  });
+  page.drawText("Electromotores Santana · Santiago de Querétaro, Qro.", {
+    x: mx, y: 20, size: 10, font: helv, color: rgb(0.98,0.98,0.98)
+  });
+  page.drawText("Carr. a Chichimequillas 306 | Tel: 442 469 9895 | electromotores.santana@gmail.com", {
+    x: mx, y: 9, size: 9, font: helv, color: rgb(0.98,0.98,0.98)
   });
 
-  y -= 8;
-  page.drawText("Subtotal:", { x: mx+360, y, size: 11, font: helvB });
-  page.drawText(`$${subtotal.toFixed(2)}`, { x: mx+445, y, size: 11, font: helvB });
-  y -= 14;
-  if (iva > 0) {
-    page.drawText("IVA (16%):", { x: mx+360, y, size: 11, font: helvB });
-    page.drawText(`$${iva.toFixed(2)}`, { x: mx+445, y, size: 11, font: helvB });
-    y -= 14;
-  }
-  page.drawText("Total:", { x: mx+360, y, size: 13, font: helvB, color: rgb(0.10,0.34,0.81) });
-  page.drawText(`$${total.toFixed(2)}`, { x: mx+445, y, size: 13, font: helvB, color: rgb(0.10,0.34,0.81) });
-  y -= 16;
-  if (anticipo > 0) {
-    page.drawText(`Anticipo (${datos.anticipoPorc}%):`, { x: mx+360, y, size: 11, font: helvB, color: rgb(0.94,0.55,0.18) });
-    page.drawText(`$${anticipo.toFixed(2)}`, { x: mx+445, y, size: 11, font: helvB, color: rgb(0.94,0.55,0.18) });
-    y -= 16;
-  }
-
-  if (datos.notas?.trim()) {
-    if (y < 80) {
-      page = pdfDoc.addPage([pageW, pageH]);
-      drawHeader(page, false);
-      y = pageH - my;
-    }
-    page.drawText("Notas:", { x: mx, y, size: 12, font: helvB, color: rgb(0.15,0.18,0.22) });
-    y -= 16;
-    page.drawText(datos.notas.trim(), { x: mx + 38, y, size: 10, font: helv, maxWidth: usableW - 60 });
-    y -= 30;
-  }
-
-  page.drawText("Electromotores Santana · " + (new Date().getFullYear()), { x: mx, y: 22, size: 10, font: helv, color: rgb(0.45,0.46,0.60)});
-  page.drawText("Documento confidencial solo para uso del cliente.", { x: mx, y: 10, size: 9, font: helv, color: rgb(0.52,0.51,0.48) });
-
+  // SAVE Y DESCARGA O COMPARTIR
   const pdfBytes = await pdfDoc.save();
   showProgress(false);
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
@@ -929,7 +985,7 @@ async function generarPDFCotizacion(share = false) {
   if (share && navigator.share && navigator.canShare({ files: [file] })) {
     await navigator.share({
       files: [file],
-      title: "Cotización de Servicio",
+      title: "Cotización",
       text: `Cotización ${datos.numero||""} de Electromotores Santana`
     });
   } else {
@@ -943,6 +999,9 @@ async function generarPDFCotizacion(share = false) {
 }
 
 
+
+
+
 // --------- Protección contra cierre accidental -------------
 window.onbeforeunload = function(e) {
   const root = document.getElementById('root');
@@ -953,5 +1012,5 @@ window.onbeforeunload = function(e) {
 };
 
 // --------- Inicialización predictivos -------------
-window.addEventListener('DOMContentLoaded', () => { actualizarPredictsEMS(); });
-actualizarPredictsEMS();
+window.addEventListener('DOMContentLoaded', () => { actualizarPredictsEMSCloud();; });
+actualizarPredictsEMSCloud();;
