@@ -1,6 +1,6 @@
-// ============ EMS Cotizaciones y Reportes PWA ============
+// ==================== EMS Cotizaciones y Reportes PWA ====================
 
-// --- Configuración Firebase (Firestore y Storage) ---
+// --- Configuración Firebase ---
 const firebaseConfig = {
   apiKey: "AIzaSyDsXSbJWdMyBgTedntNv3ppj5GAvRUImyc",
   authDomain: "elms-26a5d.firebaseapp.com",
@@ -16,7 +16,7 @@ const storage = firebase.storage();
 const LOGO_URL = "https://i.imgur.com/RQucHEc.png";
 const AUTHOR = "Francisco López Velázquez";
 
-// ========== HELPERS ==========
+// ======= HELPERS =======
 function hoy() {
   return (new Date()).toISOString().slice(0, 10);
 }
@@ -25,7 +25,7 @@ function ahora() {
   return d.toTimeString().slice(0, 5);
 }
 
-// Feedback visual (barra de progreso y mensajes)
+// Feedback visual
 function showProgress(show = true, percent = 0, msg = "") {
   const bar = document.getElementById("progress-bar");
   if (!bar) return;
@@ -65,19 +65,15 @@ function getPredictEMS(tipo) {
   return JSON.parse(localStorage.getItem(`ems_pred_${tipo}`) || "[]");
 }
 function actualizarPredictsEMS() {
-  // Conceptos
   const conceptos = getPredictEMS("concepto");
   const datalistConceptos = document.getElementById("conceptosEMS");
   if (datalistConceptos) datalistConceptos.innerHTML = conceptos.map(v=>`<option value="${v}">`).join('');
-  // Unidades
   const unidades = getPredictEMS("unidad");
   const datalistUnidades = document.getElementById("unidadesEMS");
   if (datalistUnidades) datalistUnidades.innerHTML = unidades.map(v=>`<option value="${v}">`).join('');
-  // Clientes
   const clientes = getPredictEMS("cliente");
   const datalistClientes = document.getElementById("clientesEMS");
   if (datalistClientes) datalistClientes.innerHTML = clientes.map(v=>`<option value="${v}">`).join('');
-  // Descripciones
   const descs = getPredictEMS("desc");
   const datalistDesc = document.getElementById("descEMS");
   if (datalistDesc) datalistDesc.innerHTML = descs.map(v=>`<option value="${v}">`).join('');
@@ -386,9 +382,6 @@ function editarCotizacion(datos) {
   (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
   form.notas.value = datos.notas || "";
 }
-
-// ---- PDF de cotización (con encabezado SOLO página 1 y pie en todas) ----
-// (La función generarPDFCotizacion va en la siguiente parte...)
 
 function corregirRedaccionIA(text) {
   if (!text || text.trim().length < 1) return text;
@@ -800,7 +793,7 @@ async function abrirReporte(numero) {
   let doc = await db.collection("reportes").doc(numero).get();
   if (!doc.exists) return alert("No se encontró el reporte.");
   let datos = doc.data();
-  fotosItemsReporte = []; // <--- La línea clave: LIMPIA el array global SIEMPRE
+  fotosItemsReporte = []; // LIMPIA global SIEMPRE
   nuevoReporte();
   const form = document.getElementById("repForm");
   form.numero.value = datos.numero;
@@ -810,7 +803,7 @@ async function abrirReporte(numero) {
   const tbody = form.querySelector("#repItemsTable tbody");
   tbody.innerHTML = "";
   (datos.items || []).forEach((item, idx) => {
-    fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : []; // NUEVO array, nunca push
+    fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
     tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
   });
   form.notas.value = datos.notas || "";
@@ -910,13 +903,28 @@ async function generarPDFReporte(share = false) {
     page.drawText(`• ${item.descripcion}`, { x: mx, y, size: 11.2, font: helv, color: rgb(0.19,0.21,0.24)});
     y -= 22;
 
-    // Imágenes (máx 6 por item, 2 por fila)
+    // Imágenes (máx 6 por item, 2 por fila, JPG o PNG)
     if (item.fotos && item.fotos.length > 0) {
       for (let f=0; f<item.fotos.length && f<6; f+=2) {
-        let img1 = await fetch(item.fotos[f]).then(r=>r.arrayBuffer()).catch(()=>null);
-        let img2 = (f+1<item.fotos.length) ? await fetch(item.fotos[f+1]).then(r=>r.arrayBuffer()).catch(()=>null) : null;
-        let imgObj1 = img1 ? await pdfDoc.embedJpg(img1).catch(()=>null) : null;
-        let imgObj2 = img2 ? await pdfDoc.embedJpg(img2).catch(()=>null) : null;
+        let imgObj1 = null, imgObj2 = null;
+        try {
+          let img1 = await fetch(item.fotos[f]).then(r=>r.arrayBuffer());
+          if (/\.png$/i.test(item.fotos[f]) || item.fotos[f].includes('png')) {
+            imgObj1 = await pdfDoc.embedPng(img1);
+          } else {
+            imgObj1 = await pdfDoc.embedJpg(img1);
+          }
+        } catch {}
+        try {
+          if (f+1 < item.fotos.length) {
+            let img2 = await fetch(item.fotos[f+1]).then(r=>r.arrayBuffer());
+            if (/\.png$/i.test(item.fotos[f+1]) || item.fotos[f+1].includes('png')) {
+              imgObj2 = await pdfDoc.embedPng(img2);
+            } else {
+              imgObj2 = await pdfDoc.embedJpg(img2);
+            }
+          }
+        } catch {}
         let imgY = y;
         if (imgObj1) page.drawImage(imgObj1, { x: mx, y: imgY-80, width: 105, height: 80 });
         if (imgObj2) page.drawImage(imgObj2, { x: mx+120, y: imgY-80, width: 105, height: 80 });
@@ -972,7 +980,7 @@ async function generarPDFReporte(share = false) {
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
-// ================== BLOQUE FINAL: Extras, integración, protecciones ===================
+// ================== BLOQUE FINAL: Limpieza, protección y extras ===================
 
 // Limpia los tbody de items al abrir cotización/reporte (evita duplicados visuales)
 function limpiarTbodyCotizaciones() {
@@ -984,7 +992,7 @@ function limpiarTbodyReportes() {
   if (tbody) tbody.innerHTML = '';
 }
 
-// Protección contra cierre con cambios sin guardar
+// Protección contra cierre con cambios sin guardar (opcional)
 window.onbeforeunload = function(e) {
   const root = document.getElementById('root');
   if (!root) return;
@@ -1005,7 +1013,7 @@ async function eliminarCotizacionCompleta() {
   renderInicio();
 }
 
-// Puedes asignar el botón donde lo desees en tu UI de cotización:
+// Puedes agregar el botón donde lo desees en tu UI de cotización:
 // <button type="button" class="btn-danger" onclick="eliminarCotizacionCompleta()">Eliminar Cotización</button>
 
 // Feedback offline/online
