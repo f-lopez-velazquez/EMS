@@ -311,7 +311,7 @@ function nuevaCotizacion() {
   }, 100);
 }
 
-// Guardar cotización en Firestore
+// Guardar cotización en Firestore (con feedback visual)
 async function enviarCotizacion(e) {
   e.preventDefault();
   showProgress(true, 70, "Guardando...");
@@ -358,7 +358,8 @@ async function enviarCotizacion(e) {
     return;
   }
   await db.collection("cotizaciones").doc(datos.numero).set(cotizacion);
-  showProgress(false);
+  showProgress(true, 100, "¡Listo!");
+  setTimeout(() => showProgress(false), 1000);
   alert("¡Cotización guardada!");
   renderInicio();
 }
@@ -398,181 +399,6 @@ async function abrirDetalleEMS(tipo, numero) {
     abrirReporte(numero);
   }
 }
-// ---- PDF de cotización (con encabezado SOLO página 1 y pie en todas) ----
-async function generarPDFCotizacion(share = false) {
-  showProgress(true, 10, "Generando PDF...");
-  const form = document.getElementById('cotForm');
-  const datos = Object.fromEntries(new FormData(form));
-  const items = [];
-  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
-    const concepto = tr.querySelector('input[name="concepto"]').value.trim();
-    const cantidad = Number(tr.querySelector('input[name="cantidad"]').value);
-    const precio   = Number(tr.querySelector('input[name="precio"]').value);
-    if (!concepto || (cantidad === 0 && precio === 0)) return;
-    items.push({ concepto, unidad: tr.querySelector('input[name="unidad"]').value, cantidad, precio });
-  });
-
-  // Totales
-  const subtotal = items.reduce((s,i)=> s + i.cantidad * i.precio, 0);
-  const iva      = datos.incluyeIVA ? subtotal * 0.16 : 0;
-  const total    = subtotal + iva;
-  const anticipo = (datos.anticipo && datos.anticipoPorc)
-                 ? total * (Number(datos.anticipoPorc)/100)
-                 : 0;
-
-  // PDF
-  const { PDFDocument, rgb, StandardFonts } = PDFLib;
-  const pdfDoc = await PDFDocument.create();
-  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-  const pageW = 595, pageH = 842;
-  const mx = 56, my = 72;
-  const usableW = pageW - mx * 2;
-  let y = pageH - my;
-
-  // Marca de agua
-  const logoBytes = await fetch(LOGO_URL).then(r=>r.arrayBuffer());
-  const logoImg   = await pdfDoc.embedPng(logoBytes);
-
-  let page = pdfDoc.addPage([pageW, pageH]);
-  // Encabezado SOLO página 1
-  page.drawImage(logoImg, {
-    x: (pageW - 320) / 2,
-    y: (pageH - 320) / 2,
-    width: 320,
-    height: 320,
-    opacity: 0.04
-  });
-
-  // Logo en encabezado (alto total)
-  const logoH = 60;
-  page.drawImage(logoImg, {
-    x: mx,
-    y: y - logoH + 6,
-    width: logoH,
-    height: logoH
-  });
-
-  // Título
-  const leftX = mx + logoH + 18;
-  page.drawText("ELECTROMOTORES SANTANA", {
-    x: leftX, y: y, size: 19, font: helvB, color: rgb(0.11,0.20,0.37)
-  });
-  page.drawText("embobinados y soluciones eléctricas", {
-    x: leftX, y: y - 18, size: 11, font: helv, color: rgb(0.5,0.53,0.6)
-  });
-  page.drawText("Cotización", {
-    x: leftX, y: y - 34, size: 13, font: helvB, color: rgb(0.97,0.54,0.11)
-  });
-  page.drawText(`Cliente: ${datos.cliente||""}`, {
-    x: leftX, y: y - 52, size: 11, font: helv, color: rgb(0.16,0.18,0.22)
-  });
-
-  // No. y fecha alineados derecha
-  const noTxt = `No: ${datos.numero||""}`;
-  const feTxt = `Fecha: ${datos.fecha||""}`;
-  const noW   = helvB.widthOfTextAtSize(noTxt, 12);
-  const feW   = helvB.widthOfTextAtSize(feTxt, 12);
-  page.drawText(noTxt, { x: mx + usableW - noW, y: y, size: 12, font: helvB, color: rgb(0.13,0.22,0.38) });
-  page.drawText(feTxt, { x: mx + usableW - feW, y: y - 18, size: 12, font: helvB, color: rgb(0.13,0.22,0.38) });
-
-  // Línea divisoria
-  y -= 74;
-  page.drawLine({ start:{x:mx,y}, end:{x:pageW-mx,y}, thickness:1.2, color:rgb(0.80,0.84,0.9) });
-  y -= 22;
-
-  // Tabla de items (manejo de salto de página)
-  const tableX = mx, tableW = usableW;
-  const cols   = [0, 160, 260, 340, 440, tableW];
-  const rowH   = 32;
-  // Cabecera tabla
-  page.drawRectangle({ x: tableX, y: y, width: tableW, height: rowH, color: rgb(0.11,0.20,0.37) });
-  ["Concepto","Unidad","Cantidad","P. Unitario","Total"].forEach((h,i) => {
-    page.drawText(h, { x: tableX + cols[i] + 6, y: y + 8, size: 11, font: helvB, color: rgb(1,1,1) });
-  });
-  y -= rowH;
-  let idx = 0;
-
-  function saltarPagina() {
-    page = pdfDoc.addPage([pageW, pageH]);
-    y = pageH - my;
-    // SOLO marca de agua y pie en siguientes páginas
-    page.drawImage(logoImg, {
-      x: (pageW - 320) / 2,
-      y: (pageH - 320) / 2,
-      width: 320,
-      height: 320,
-      opacity: 0.04
-    });
-  }
-
-  for (; idx < items.length; idx++) {
-    if (y < my + 180) { // suficiente para totales, notas, pie
-      saltarPagina();
-    }
-    const it = items[idx];
-    if (idx % 2 === 1) {
-      page.drawRectangle({ x: tableX, y: y, width: tableW, height: rowH, color: rgb(0.96,0.97,0.99) });
-    }
-    page.drawText(it.concepto, { x: tableX + 6,          y: y + 8, size: 10.5, font: helv, color: rgb(0.15,0.18,0.22) });
-    page.drawText(it.unidad,   { x: tableX + cols[1] + 6, y: y + 8, size: 10.5, font: helv, color: rgb(0.21,0.23,0.27) });
-    page.drawText(it.cantidad.toString(), { x: tableX + cols[2] + 6, y: y + 8, size: 10.5, font: helv, color: rgb(0.21,0.23,0.27) });
-    page.drawText(`$${it.precio.toFixed(2)}`, { x: tableX + cols[3] + 6, y: y + 8, size: 10.5, font: helv, color: rgb(0.21,0.23,0.27) });
-    page.drawText(`$${(it.cantidad*it.precio).toFixed(2)}`, { x: tableX + cols[4] + 6, y: y + 8, size: 10.5, font: helv, color: rgb(0.21,0.23,0.27) });
-    y -= rowH;
-  }
-  y -= 10;
-  // Totales
-  page.drawText(`Subtotal: $${subtotal.toFixed(2)}`, { x: tableX + tableW - 160, y, size: 12, font: helvB, color: rgb(0.15,0.18,0.22)});
-  if (iva) { y -= 16; page.drawText(`IVA (16%): $${iva.toFixed(2)}`, { x: tableX + tableW - 160, y, size: 12, font: helvB, color: rgb(0.15,0.18,0.22)});}
-  y -= 16; page.drawText(`TOTAL: $${total.toFixed(2)}`, { x: tableX + tableW - 160, y, size: 13, font: helvB, color: rgb(0.10,0.38,0.22)});
-  if (anticipo) { y -= 18; page.drawText(`Anticipo: $${anticipo.toFixed(2)}`, { x: tableX + tableW - 160, y, size: 11, font: helv, color: rgb(0.11,0.20,0.37)});}
-  y -= 32;
-
-  // Notas
-  if (datos.notas) {
-    page.drawText("Notas:", { x: tableX, y, size: 11, font: helvB, color: rgb(0.17,0.18,0.22)});
-    y -= 16;
-    const notasArr = datos.notas.match(/.{1,100}/g) || [datos.notas];
-    notasArr.forEach(str => {
-      page.drawText(str, { x: tableX + 12, y, size: 10.5, font: helv, color: rgb(0.13,0.15,0.19)});
-      y -= 15;
-    });
-  }
-  // Pie de página
-  page.drawText(`Electromotores Santana · ${AUTHOR} · ${new Date().getFullYear()}`, { 
-    x: mx, y: 18, size: 10, font: helv, color: rgb(0.41,0.46,0.60)
-  });
-  page.drawText("Este documento es confidencial y sólo para uso del cliente.", { 
-    x: mx, y: 6, size: 8, font: helv, color: rgb(0.52,0.51,0.48)
-  });
-
-  // Descargar o compartir
-  const pdfBytes = await pdfDoc.save();
-  showProgress(false);
-  const blob = new Blob([pdfBytes], { type: "application/pdf" });
-  const file = new File([blob], `${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
-
-  if (share && navigator.share) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: "Cotización",
-        text: `Cotización ${datos.numero||""} de Electromotores Santana`
-      });
-      return;
-    } catch {}
-  }
-  // Descargar
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${datos.numero||"cotizacion"}.pdf`;
-  a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),3000);
-}
-
 // =============== REPORTES ===============
 
 let fotosItemsReporte = [];
@@ -752,7 +578,7 @@ async function eliminarFotoRepItem(btn, idx, fidx, url) {
 // Guardar el reporte en Firestore con fotosItemsReporte como fuente de verdad
 async function enviarReporte(e) {
   e.preventDefault();
-  showProgress(true, 65, "Guardando reporte...");
+  showProgress(true, 65, "Guardando...");
   const form = document.getElementById('repForm');
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
@@ -782,18 +608,19 @@ async function enviarReporte(e) {
   };
 
   await db.collection("reportes").doc(datos.numero).set(reporte);
-  showProgress(false);
+  showProgress(true, 100, "¡Listo!");
+  setTimeout(() => showProgress(false), 1000);
   alert("¡Reporte guardado!");
   fotosItemsReporte = [];
   renderInicio();
 }
 
-// Editar un reporte: carga items y fotos correctamente
+// Editar un reporte: carga items y fotos correctamente (sin duplicados)
 async function abrirReporte(numero) {
   let doc = await db.collection("reportes").doc(numero).get();
   if (!doc.exists) return alert("No se encontró el reporte.");
   let datos = doc.data();
-  fotosItemsReporte = []; // LIMPIA global SIEMPRE
+  fotosItemsReporte = [];
   nuevoReporte();
   const form = document.getElementById("repForm");
   form.numero.value = datos.numero;
@@ -803,7 +630,7 @@ async function abrirReporte(numero) {
   const tbody = form.querySelector("#repItemsTable tbody");
   tbody.innerHTML = "";
   (datos.items || []).forEach((item, idx) => {
-    fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
+    fotosItemsReporte[idx] = Array.isArray(item.fotos) ? [...item.fotos] : [];
     tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
   });
   form.notas.value = datos.notas || "";
@@ -834,7 +661,7 @@ async function eliminarReporteCompleto() {
   renderInicio();
 }
 
-// ========= PDF DE REPORTE ==========
+// ========= PDF DE REPORTE robusto (todas las imágenes de todos los items) ==========
 async function generarPDFReporte(share = false) {
   showProgress(true, 15, "Generando PDF...");
   const form = document.getElementById('repForm');
@@ -909,20 +736,16 @@ async function generarPDFReporte(share = false) {
         let imgObj1 = null, imgObj2 = null;
         try {
           let img1 = await fetch(item.fotos[f]).then(r=>r.arrayBuffer());
-          if (/\.png$/i.test(item.fotos[f]) || item.fotos[f].includes('png')) {
-            imgObj1 = await pdfDoc.embedPng(img1);
-          } else {
-            imgObj1 = await pdfDoc.embedJpg(img1);
-          }
+          imgObj1 = /\.png$/i.test(item.fotos[f]) || item.fotos[f].includes("png")
+            ? await pdfDoc.embedPng(img1)
+            : await pdfDoc.embedJpg(img1);
         } catch {}
         try {
           if (f+1 < item.fotos.length) {
             let img2 = await fetch(item.fotos[f+1]).then(r=>r.arrayBuffer());
-            if (/\.png$/i.test(item.fotos[f+1]) || item.fotos[f+1].includes('png')) {
-              imgObj2 = await pdfDoc.embedPng(img2);
-            } else {
-              imgObj2 = await pdfDoc.embedJpg(img2);
-            }
+            imgObj2 = /\.png$/i.test(item.fotos[f+1]) || item.fotos[f+1].includes("png")
+              ? await pdfDoc.embedPng(img2)
+              : await pdfDoc.embedJpg(img2);
           }
         } catch {}
         let imgY = y;
