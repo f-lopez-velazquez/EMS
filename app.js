@@ -11,10 +11,8 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const storage = firebase.storage();
 
 const LOGO_URL = "https://i.imgur.com/RQucHEc.png";
-const AUTHOR = "Francisco López Velázquez";
 let fotosItemsReporte = [];
 
 function hoy() { return (new Date()).toISOString().slice(0, 10); }
@@ -22,10 +20,8 @@ function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
 
 function showProgress(show = true, percent = 0, msg = "") {
   const bar = document.getElementById("progress-bar");
-  const overlay = document.getElementById("progress-overlay");
-  if (!bar || !overlay) return;
+  if (!bar) return;
   bar.style.display = show ? "" : "none";
-  overlay.style.display = show ? "" : "none";
   const inner = bar.querySelector(".progress-inner");
   if (inner) {
     inner.style.width = show ? `${percent || 100}%` : "0%";
@@ -33,8 +29,6 @@ function showProgress(show = true, percent = 0, msg = "") {
     if (!show) setTimeout(() => { inner.innerHTML = ""; }, 400);
   }
 }
-
-
 function showOffline(show = true) {
   const banner = document.getElementById("ems-offline-banner");
   if (!banner) return;
@@ -46,6 +40,7 @@ function showOffline(show = true) {
 window.addEventListener("online", () => showOffline(false));
 window.addEventListener("offline", () => showOffline(true));
 
+// Predictivos (localStorage)
 function savePredictEMS(tipo, valor) {
   if (!valor || valor.length < 2) return;
   const key = `ems_pred_${tipo}`;
@@ -116,18 +111,16 @@ function renderInicio() {
   `;
   cargarHistorialEMS();
 }
-
 window.onload = () => {
   renderInicio();
   if (!navigator.onLine) showOffline(true);
 };
 
-// ----------- HISTORIAL Y BÚSQUEDA -----------
+// ----------- Historial y búsqueda -----------
 async function cargarHistorialEMS(filtro = "") {
   const cont = document.getElementById("historialEMS");
   if (!cont) return;
   cont.innerHTML = "<div class='ems-historial-cargando'>Cargando...</div>";
-
   let cotSnap = [], repSnap = [];
   try {
     cotSnap = await db.collection("cotizaciones").orderBy("creada", "desc").limit(20).get();
@@ -148,14 +141,11 @@ async function cargarHistorialEMS(filtro = "") {
       (x.fecha || "").toLowerCase().includes(filtro.toLowerCase())
     );
   }
-
   items.sort((a, b) => (b.creada || "") > (a.creada || "") ? 1 : -1);
-
   if (items.length === 0) {
     cont.innerHTML = "<div class='ems-historial-vacio'>No hay cotizaciones ni reportes.</div>";
     return;
   }
-
   cont.innerHTML = items.slice(0, 20).map(x => `
     <div class="ems-card-ems ${x.tipo === "cotizacion" ? "ems-cotizacion" : "ems-reporte"}" onclick="abrirDetalleEMS('${x.tipo}', '${x.numero}')">
       <div class="ems-card-ico"><i class="fa ${x.tipo === "cotizacion" ? "fa-file-invoice" : "fa-clipboard-list"}"></i></div>
@@ -169,14 +159,13 @@ async function cargarHistorialEMS(filtro = "") {
     </div>
   `).join("");
 }
-
 document.addEventListener("input", e => {
   if (e.target && e.target.id === "buscarEMS") {
     cargarHistorialEMS(e.target.value);
   }
 });
+// ------------- Cotizaciones (mismos métodos que antes) -------------
 
-// ----------- COTIZACIONES -----------
 function renderCotItemRow(item = {}) {
   return `
     <tr>
@@ -208,7 +197,6 @@ function agregarCotItemRow() {
 function eliminarCotItemRow(btn) {
   btn.closest('tr').remove();
 }
-
 function nuevaCotizacion() {
   document.getElementById('root').innerHTML = `
     <div class="ems-header">
@@ -347,7 +335,6 @@ async function enviarCotizacion(e) {
   renderInicio();
 }
 
-// Edición de cotización
 function editarCotizacion(datos) {
   nuevaCotizacion();
   const form = document.getElementById("cotForm");
@@ -367,11 +354,6 @@ function editarCotizacion(datos) {
   form.notas.value = datos.notas || "";
 }
 
-function corregirRedaccionIA(text) {
-  if (!text || text.trim().length < 1) return text;
-  return text.charAt(0).toUpperCase() + text.slice(1).replace(/(\s{2,})/g, " ");
-}
-
 // ----- ABRIR DETALLE DE EMS -----
 async function abrirDetalleEMS(tipo, numero) {
   if (tipo === "cotizacion") {
@@ -383,6 +365,7 @@ async function abrirDetalleEMS(tipo, numero) {
     abrirReporte(numero);
   }
 }
+
 // ================== REPORTES ==================
 
 // Renderiza un item/actividad del reporte (sin duplicados de fotos)
@@ -396,7 +379,6 @@ function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
         ${modoEdicion ? `<button type="button" class="btn-mini" title="Eliminar imagen" onclick="eliminarFotoRepItem(this, ${idx}, ${fidx}, '${url}')"><i class="fa fa-trash"></i></button>` : ''}
       </div>`;
   });
-
   return `
     <tr>
       <td>
@@ -421,9 +403,6 @@ function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
   `;
 }
 
-
-
-
 // Agrega una actividad nueva
 function agregarRepItemRow() {
   const tbody = document.getElementById('repItemsTable').querySelector('tbody');
@@ -433,7 +412,7 @@ function agregarRepItemRow() {
   agregarDictadoMicros();
 }
 
-// Elimina una fila de actividad y sus fotos
+// Elimina una fila de actividad y sus fotos (visual)
 function eliminarRepItemRow(btn) {
   const tr = btn.closest('tr');
   const idx = Array.from(tr.parentNode.children).indexOf(tr);
@@ -510,7 +489,6 @@ function nuevoReporte() {
     actualizarPredictsEMS();
     agregarDictadoMicros();
   }, 100);
-
   agregarRepItemRow();
   document.getElementById('repForm').onsubmit = enviarReporte;
 }
@@ -600,12 +578,7 @@ async function abrirReporte(numero) {
   });
   form.onsubmit = enviarReporte;
 }
-
-
-
-
-
-// SUBIR imagen (con barra de progreso)
+// SUBIR imagen (con barra de progreso, Cloudinary)
 async function subirFotoRepItem(input, idx) {
   if (!input.files || input.files.length === 0) return;
   const files = Array.from(input.files).slice(0, 6 - (fotosItemsReporte[idx]?.length || 0));
@@ -617,9 +590,9 @@ async function subirFotoRepItem(input, idx) {
     showProgress(true, Math.round((i/files.length)*80)+10, `Subiendo imagen ${i+1} de ${files.length}...`);
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('upload_preset', 'ml_default'); // Puedes personalizar esto si creas un preset unsigned
+    formData.append('upload_preset', 'ml_default'); // Default unsigned preset (debes tenerlo en Cloudinary)
     try {
-      const res = await fetch(`https://api.cloudinary.com/v1_1/ds9b1mczi/image/upload`, {
+      const res = await fetch('https://api.cloudinary.com/v1_1/ds9b1mczi/image/upload', {
         method: 'POST',
         body: formData
       });
@@ -635,23 +608,19 @@ async function subirFotoRepItem(input, idx) {
   }
   // Renderiza de nuevo la fila
   const tbody = document.querySelector('#repItemsTable tbody');
-  tbody.children[idx].outerHTML = renderRepItemRow({ descripcion: tbody.children[idx].querySelector("textarea").value, fotos: fotosItemsReporte[idx] }, idx, true);
+  tbody.children[idx].outerHTML = renderRepItemRow({
+    descripcion: tbody.children[idx].querySelector("textarea").value,
+    fotos: fotosItemsReporte[idx]
+  }, idx, true);
   showProgress(true, 100, "¡Imagen(es) subida(s)!");
-  setTimeout(() => showProgress(false), 700);
+  setTimeout(() => showProgress(false), 900);
   input.disabled = false;
   input.value = "";
 }
 
-
-
-
-
-// Elimina una imagen del UI, Storage y array
+// Elimina una imagen del UI y del array (Cloudinary no permite borrar sin autenticación, así que solo del array)
 async function eliminarFotoRepItem(btn, idx, fidx, url) {
   if (!confirm("¿Eliminar esta imagen?")) return;
-  try {
-    await storage.refFromURL(url).delete();
-  } catch (e) {}
   if (fotosItemsReporte[idx]) fotosItemsReporte[idx].splice(fidx, 1);
   const tbody = document.querySelector('#repItemsTable tbody');
   tbody.children[idx].outerHTML = renderRepItemRow({
@@ -660,9 +629,7 @@ async function eliminarFotoRepItem(btn, idx, fidx, url) {
   }, idx, true);
 }
 
-
-
-// Guardar el reporte en Firestore (sin duplicar fotos)
+// Guardar el reporte en Firestore (ahora solo URLs Cloudinary)
 async function enviarReporte(e) {
   e.preventDefault();
   showProgress(true, 65, "Guardando...");
@@ -702,30 +669,12 @@ async function enviarReporte(e) {
   }
 }
 
-
-
-
-
-
-// Eliminar un reporte completo + sus fotos en Storage
+// Eliminar un reporte completo (ya no elimina imágenes de Cloudinary)
 async function eliminarReporteCompleto() {
   const form = document.getElementById('repForm');
   const numero = form.numero.value;
   if (!numero) return;
-  if (!confirm("¿Eliminar este reporte y todas sus imágenes?")) return;
-  let doc = await db.collection("reportes").doc(numero).get();
-  if (doc.exists) {
-    let datos = doc.data();
-    if (datos.items) {
-      for (let idx = 0; idx < datos.items.length; idx++) {
-        for (let url of (datos.items[idx].fotos || [])) {
-          try {
-            await storage.refFromURL(url).delete();
-          } catch (e) {}
-        }
-      }
-    }
-  }
+  if (!confirm("¿Eliminar este reporte? (Las imágenes seguirán en Cloudinary)")) return;
   await db.collection("reportes").doc(numero).delete();
   showProgress(false);
   alert("Reporte eliminado.");
@@ -733,7 +682,6 @@ async function eliminarReporteCompleto() {
 }
 
 // -------- PDF DE REPORTE 100% FUNCIONAL --------
-
 async function generarPDFReporte(share = false) {
   showProgress(true, 10, "Generando PDF...");
   const form = document.getElementById('repForm');
@@ -794,7 +742,6 @@ async function generarPDFReporte(share = false) {
       let w = imgsRow.length === 2 ? 125 : 200;
       let gutter = imgsRow.length === 2 ? 15 : 0;
       let x = mx + (usableW - (w*imgsRow.length + gutter*(imgsRow.length-1))) / 2;
-
       for (let k = 0; k < imgsRow.length; k++) {
         try {
           const bytes = await fetch(imgsRow[k]).then(r => r.arrayBuffer());
@@ -857,10 +804,6 @@ async function generarPDFReporte(share = false) {
   }
 }
 
-
-
-
-
 // --------- Protección contra cierre accidental -------------
 window.onbeforeunload = function(e) {
   const root = document.getElementById('root');
@@ -873,4 +816,3 @@ window.onbeforeunload = function(e) {
 // --------- Inicialización predictivos -------------
 window.addEventListener('DOMContentLoaded', () => { actualizarPredictsEMS(); });
 actualizarPredictsEMS();
-
