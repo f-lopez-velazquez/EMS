@@ -1,4 +1,13 @@
 // EMS - Electromotores Santana - app.js
+const EMS_CONTACT = {
+  empresa: "ELECTROMOTORES SANTANA",
+  direccion: "Carr. a Chichimequillas 306, Colonia Menchaca, 76147 Santiago de Querétaro, Qro.",
+  telefono: "442 469 9895",
+  correo: "electromotores.santana@gmail.com"
+};
+
+// Naranja corporativo para líneas y totales
+const EMS_COLOR = [0.97, 0.54, 0.11]; // rgb(248,138,29)
 
 // Firebase config
 const firebaseConfig = {
@@ -17,6 +26,9 @@ let fotosItemsReporte = [];
 
 function hoy() { return (new Date()).toISOString().slice(0, 10); }
 function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
+function formatMoney(val) {
+  return "$" + Number(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 function showProgress(show = true, percent = 0, msg = "") {
   const bar = document.getElementById("progress-bar");
