@@ -406,7 +406,7 @@ function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
         <div class="ems-rep-fotos-row" id="fotos-item-${idx}">
           ${fotosHtml}
           ${modoEdicion && (fotosItemsReporte[idx]||[]).length < 6 ? `
-            <input type="file" accept="image/*"
+            <input type="file" accept="image/*" multiple
               style="display:block; margin-top:7px;"
               onchange="subirFotoRepItem(this, ${idx})"
             >
@@ -420,6 +420,7 @@ function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
     </tr>
   `;
 }
+
 
 
 // Agrega una actividad nueva
@@ -601,39 +602,48 @@ async function abrirReporte(numero) {
 
 
 
+
 // SUBIR imagen (con barra de progreso)
 async function subirFotoRepItem(input, idx) {
   if (!input.files || input.files.length === 0) return;
-  const file = input.files[0];
-  if (!file.type.startsWith("image/")) return alert("Solo se permiten imágenes");
+  const files = Array.from(input.files);
+  let fotosRestantes = 6 - ((fotosItemsReporte[idx]||[]).length);
+  if (files.length > fotosRestantes) {
+    alert(`Solo puedes agregar ${fotosRestantes} fotos más`);
+    input.value = "";
+    return;
+  }
   input.disabled = true;
-  showProgress(true, 20, "Subiendo imagen...");
   const form = document.getElementById('repForm');
   const numero = form ? (form.numero.value || "TEMP") : "TEMP";
-  const refPath = `reportes/${numero}/${idx}/${Date.now()}_${file.name.replace(/\s/g, "")}`;
-  const storageRef = storage.ref().child(refPath);
 
-  try {
-    await storageRef.put(file);
-    let url = await storageRef.getDownloadURL();
-    if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = [];
-    if (fotosItemsReporte[idx].length < 6) fotosItemsReporte[idx].push(url);
-    // Re-render SOLO ese item row
-    const tbody = document.querySelector('#repItemsTable tbody');
-    tbody.children[idx].outerHTML = renderRepItemRow(
-      { descripcion: tbody.children[idx].querySelector("textarea").value, fotos: fotosItemsReporte[idx] },
-      idx, true
-    );
-    showProgress(true, 100, "¡Imagen subida!");
-    setTimeout(() => showProgress(false), 900);
-  } catch (err) {
-    showProgress(false);
-    alert("Error al subir imagen. Revisa tu conexión.");
-  } finally {
-    input.disabled = false;
-    input.value = ""; // LIMPIA el input
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (!file.type.startsWith("image/")) continue;
+    showProgress(true, 30, `Subiendo imagen ${i+1}...`);
+    const refPath = `reportes/${numero}/${idx}/${Date.now()}_${file.name.replace(/\s/g, "")}`;
+    const storageRef = storage.ref().child(refPath);
+    try {
+      await storageRef.put(file);
+      let url = await storageRef.getDownloadURL();
+      if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = [];
+      if (fotosItemsReporte[idx].length < 6) fotosItemsReporte[idx].push(url);
+    } catch (err) {
+      alert("Error al subir imagen: " + file.name);
+    }
   }
+
+  const tbody = document.querySelector('#repItemsTable tbody');
+  tbody.children[idx].outerHTML = renderRepItemRow(
+    { descripcion: tbody.children[idx].querySelector("textarea").value, fotos: fotosItemsReporte[idx] },
+    idx, true
+  );
+  showProgress(true, 100, "¡Imagen(es) subida(s)!");
+  setTimeout(() => showProgress(false), 900);
+  input.disabled = false;
+  input.value = "";
 }
+
 
 
 // Elimina una imagen del UI, Storage y array
@@ -643,7 +653,6 @@ async function eliminarFotoRepItem(btn, idx, fidx, url) {
     await storage.refFromURL(url).delete();
   } catch (e) {}
   if (fotosItemsReporte[idx]) fotosItemsReporte[idx].splice(fidx, 1);
-  // Re-render
   const tbody = document.querySelector('#repItemsTable tbody');
   tbody.children[idx].outerHTML = renderRepItemRow({
     descripcion: tbody.children[idx].querySelector("textarea").value,
@@ -663,7 +672,7 @@ async function enviarReporte(e) {
   let ok = true;
   form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
     let desc = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    let fotos = (fotosItemsReporte[idx] || []).filter(Boolean); // Solo del array
+    let fotos = (fotosItemsReporte[idx] || []).filter(Boolean);
     if (!desc) ok = false;
     if (fotos.length > 6) fotos = fotos.slice(0,6);
     items.push({ descripcion: desc, fotos });
@@ -696,6 +705,7 @@ async function enviarReporte(e) {
     alert("Ocurrió un error al guardar el reporte. Intenta de nuevo.");
   }
 }
+
 
 
 
@@ -773,15 +783,14 @@ async function generarPDFReporte(share = false) {
   }
 
   let page = pdfDoc.addPage([pageW, pageH]);
-  drawHeader(page, true); // Solo la primera página lleva encabezado completo
+  drawHeader(page, true);
   y -= 42;
 
   for (const it of items) {
-    // Imágenes (máx 6 por item, 2 por fila)
     for (let i = 0; i < it.fotos.length && i < 6; i += 2) {
       if (y < 170) {
         page = pdfDoc.addPage([pageW, pageH]);
-        drawHeader(page, false); // Solo logo de fondo en las demás
+        drawHeader(page, false);
         y = pageH - my;
       }
       let imgsRow = it.fotos.slice(i, i+2);
@@ -804,7 +813,6 @@ async function generarPDFReporte(share = false) {
       }
       y -= w + 10;
     }
-    // Descripción centrada
     if (it.descripcion?.trim()) {
       if (y < 100) {
         page = pdfDoc.addPage([pageW, pageH]);
@@ -816,7 +824,6 @@ async function generarPDFReporte(share = false) {
     }
   }
 
-  // Notas
   if (datos.notas?.trim()) {
     if (y < 80) {
       page = pdfDoc.addPage([pageW, pageH]);
@@ -829,11 +836,9 @@ async function generarPDFReporte(share = false) {
     y -= 30;
   }
 
-  // Pie de página
   page.drawText("Electromotores Santana · " + (new Date().getFullYear()), { x: mx, y: 22, size: 10, font: helv, color: rgb(0.45,0.46,0.60)});
   page.drawText("Documento confidencial solo para uso del cliente.", { x: mx, y: 10, size: 9, font: helv, color: rgb(0.52,0.51,0.48) });
 
-  // Descargar o compartir
   const pdfBytes = await pdfDoc.save();
   showProgress(false);
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
@@ -854,6 +859,7 @@ async function generarPDFReporte(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
+
 
 
 
