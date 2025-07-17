@@ -423,6 +423,7 @@ function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
 
 
 
+
 // Agrega una actividad nueva
 function agregarRepItemRow() {
   const tbody = document.getElementById('repItemsTable').querySelector('tbody');
@@ -603,36 +604,25 @@ async function abrirReporte(numero) {
 
 
 
+
 // SUBIR imagen (con barra de progreso)
 async function subirFotoRepItem(input, idx) {
   if (!input.files || input.files.length === 0) return;
-  const files = Array.from(input.files);
-  let fotosRestantes = 6 - ((fotosItemsReporte[idx]||[]).length);
-  if (files.length > fotosRestantes) {
-    alert(`Solo puedes agregar ${fotosRestantes} fotos más`);
-    input.value = "";
-    return;
-  }
-  input.disabled = true;
+  const files = Array.from(input.files).slice(0, 6 - (fotosItemsReporte[idx]?.length || 0));
   const form = document.getElementById('repForm');
   const numero = form ? (form.numero.value || "TEMP") : "TEMP";
-
+  if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = [];
+  input.disabled = true;
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     if (!file.type.startsWith("image/")) continue;
     showProgress(true, 30, `Subiendo imagen ${i+1}...`);
     const refPath = `reportes/${numero}/${idx}/${Date.now()}_${file.name.replace(/\s/g, "")}`;
     const storageRef = storage.ref().child(refPath);
-    try {
-      await storageRef.put(file);
-      let url = await storageRef.getDownloadURL();
-      if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = [];
-      if (fotosItemsReporte[idx].length < 6) fotosItemsReporte[idx].push(url);
-    } catch (err) {
-      alert("Error al subir imagen: " + file.name);
-    }
+    await storageRef.put(file);
+    let url = await storageRef.getDownloadURL();
+    if (fotosItemsReporte[idx].length < 6) fotosItemsReporte[idx].push(url);
   }
-
   const tbody = document.querySelector('#repItemsTable tbody');
   tbody.children[idx].outerHTML = renderRepItemRow(
     { descripcion: tbody.children[idx].querySelector("textarea").value, fotos: fotosItemsReporte[idx] },
@@ -643,6 +633,7 @@ async function subirFotoRepItem(input, idx) {
   input.disabled = false;
   input.value = "";
 }
+
 
 
 
@@ -661,7 +652,7 @@ async function eliminarFotoRepItem(btn, idx, fidx, url) {
 }
 
 
-// Guardar el reporte en Firestore (sin duplicar fotos)
+
 // Guardar el reporte en Firestore (sin duplicar fotos)
 async function enviarReporte(e) {
   e.preventDefault();
@@ -682,9 +673,6 @@ async function enviarReporte(e) {
     alert("Completa todos los campos requeridos.");
     return;
   }
-  savePredictEMS("cliente", datos.cliente);
-  items.forEach(it => savePredictEMS("desc", it.descripcion));
-
   const reporte = {
     ...datos,
     items,
@@ -693,7 +681,6 @@ async function enviarReporte(e) {
     hora: datos.hora || ahora(),
     creada: new Date().toISOString()
   };
-
   try {
     await db.collection("reportes").doc(datos.numero).set(reporte);
     showProgress(true, 100, "¡Listo!");
@@ -705,6 +692,7 @@ async function enviarReporte(e) {
     alert("Ocurrió un error al guardar el reporte. Intenta de nuevo.");
   }
 }
+
 
 
 
