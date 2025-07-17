@@ -1,6 +1,6 @@
-// ==================== EMS Cotizaciones y Reportes PWA ====================
+// ================== EMS PWA - app.js ==================
 
-// --- Configuración Firebase ---
+// Configuración Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyDsXSbJWdMyBgTedntNv3ppj5GAvRUImyc",
   authDomain: "elms-26a5d.firebaseapp.com",
@@ -16,14 +16,9 @@ const storage = firebase.storage();
 const LOGO_URL = "https://i.imgur.com/RQucHEc.png";
 const AUTHOR = "Francisco López Velázquez";
 
-// ======= HELPERS =======
-function hoy() {
-  return (new Date()).toISOString().slice(0, 10);
-}
-function ahora() {
-  const d = new Date();
-  return d.toTimeString().slice(0, 5);
-}
+// Utils
+function hoy() { return (new Date()).toISOString().slice(0, 10); }
+function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
 
 // Feedback visual
 function showProgress(show = true, percent = 0, msg = "") {
@@ -102,6 +97,7 @@ function agregarDictadoMicros() {
 
 // -------- Render Home ----------
 function renderInicio() {
+  window.editandoReporte = false;
   document.getElementById("root").innerHTML = `
     <div class="ems-header">
       <img src="${LOGO_URL}" class="ems-logo">
@@ -331,18 +327,11 @@ async function enviarCotizacion(e) {
     alert("Completa todos los campos requeridos.");
     return;
   }
-  // Predictivo
   savePredictEMS("cliente", datos.cliente);
   items.forEach(it => {
     savePredictEMS("concepto", it.concepto);
     savePredictEMS("unidad", it.unidad);
   });
-
-  // Simula mejora IA
-  if (form.corrigeIA && form.corrigeIA.checked) {
-    datos.notas = corregirRedaccionIA(datos.notas || "");
-    items.forEach(it => it.concepto = corregirRedaccionIA(it.concepto));
-  }
 
   const cotizacion = {
     ...datos,
@@ -396,13 +385,15 @@ async function abrirDetalleEMS(tipo, numero) {
     if (!doc.exists) return alert("No se encontró la cotización.");
     editarCotizacion(doc.data());
   } else if (tipo === "reporte") {
+    window.editandoReporte = true;
     abrirReporte(numero);
   }
 }
-// =============== REPORTES ===============
+// ================== REPORTES ==================
 
 let fotosItemsReporte = [];
 
+// Renderiza cada fila de actividad/item
 function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
   if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
   let fotosHtml = '';
@@ -439,6 +430,7 @@ function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
   `;
 }
 
+// Agrega una fila/actividad nueva
 function agregarRepItemRow() {
   const tbody = document.getElementById('repItemsTable').querySelector('tbody');
   const idx = tbody.children.length;
@@ -447,6 +439,7 @@ function agregarRepItemRow() {
   agregarDictadoMicros();
 }
 
+// Elimina un item y sus fotos
 function eliminarRepItemRow(btn) {
   const tr = btn.closest('tr');
   const idx = Array.from(tr.parentNode.children).indexOf(tr);
@@ -454,7 +447,9 @@ function eliminarRepItemRow(btn) {
   tr.remove();
 }
 
+// Para crear nuevo reporte
 function nuevoReporte() {
+  window.editandoReporte = false;
   fotosItemsReporte = [];
   document.getElementById('root').innerHTML = `
     <div class="ems-header">
@@ -497,9 +492,7 @@ function nuevoReporte() {
               <th></th>
             </tr>
           </thead>
-          <tbody>
-            ${renderRepItemRow({}, 0, true)}
-          </tbody>
+          <tbody></tbody>
         </table>
         <button type="button" class="btn-secondary" onclick="agregarRepItemRow()">Agregar actividad/item</button>
       </div>
@@ -519,21 +512,109 @@ function nuevoReporte() {
       </div>
     </form>
   `;
-  document.getElementById('repForm').onsubmit = enviarReporte;
   setTimeout(() => {
     actualizarPredictsEMS();
     agregarDictadoMicros();
   }, 100);
+
+  agregarRepItemRow();
+  document.getElementById('repForm').onsubmit = enviarReporte;
 }
 
-// SUBIR imagen y guardar la URL en fotosItemsReporte[idx]
+// ABRIR REPORTE — edita SIN duplicados
+async function abrirReporte(numero) {
+  let doc = await db.collection("reportes").doc(numero).get();
+  if (!doc.exists) return alert("No se encontró el reporte.");
+  let datos = doc.data();
+  fotosItemsReporte = [];
+  // Renderiza form vacío y luego llena items REALES:
+  document.getElementById('root').innerHTML = `
+    <div class="ems-header">
+      <img src="${LOGO_URL}" class="ems-logo">
+      <div>
+        <h1>Electromotores Santana</h1>
+        <span class="ems-subtitle">Editar Reporte</span>
+      </div>
+    </div>
+    <form id="repForm" class="ems-form" autocomplete="off">
+      <div class="ems-form-row">
+        <div class="ems-form-group">
+          <label>No. Reporte</label>
+          <input type="text" name="numero" required>
+        </div>
+        <div class="ems-form-group">
+          <label>Fecha</label>
+          <input type="date" name="fecha" required>
+        </div>
+      </div>
+      <div class="ems-form-row">
+        <div class="ems-form-group">
+          <label>Cliente</label>
+          <div class="ems-form-input-icon">
+            <input type="text" name="cliente" list="clientesEMS" required autocomplete="off">
+            <button type="button" class="mic-btn" title="Dictar por voz"><i class="fa fa-microphone"></i></button>
+          </div>
+        </div>
+        <div class="ems-form-group">
+          <label>Hora</label>
+          <input type="time" name="hora">
+        </div>
+      </div>
+      <div>
+        <table class="ems-items-table" id="repItemsTable">
+          <thead>
+            <tr>
+              <th>Descripción</th>
+              <th>Fotos (máx 6)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <button type="button" class="btn-secondary" onclick="agregarRepItemRow()">Agregar actividad/item</button>
+      </div>
+      <div class="ems-form-group">
+        <label>Notas / Observaciones</label>
+        <div class="ems-form-input-icon">
+          <textarea name="notas" rows="3"></textarea>
+          <button type="button" class="mic-btn"><i class="fa fa-microphone"></i></button>
+        </div>
+      </div>
+      <div class="ems-form-actions">
+        <button type="button" class="btn-mini" onclick="renderInicio()"><i class="fa fa-arrow-left"></i> Cancelar</button>
+        <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
+        <button type="button" class="btn-secondary" onclick="generarPDFReporte()"><i class="fa fa-file-pdf"></i> PDF</button>
+        <button type="button" class="btn-success" onclick="generarPDFReporte(true)"><i class="fa fa-share-alt"></i> Compartir</button>
+        <button type="button" class="btn-danger" onclick="eliminarReporteCompleto()" style="float:right;"><i class="fa fa-trash"></i> Eliminar</button>
+      </div>
+    </form>
+  `;
+  setTimeout(() => {
+    actualizarPredictsEMS();
+    agregarDictadoMicros();
+  }, 100);
+  const form = document.getElementById("repForm");
+  form.numero.value = datos.numero;
+  form.fecha.value = datos.fecha;
+  form.cliente.value = datos.cliente;
+  form.hora.value = datos.hora;
+  form.notas.value = datos.notas || "";
+  const tbody = form.querySelector("#repItemsTable tbody");
+  tbody.innerHTML = "";
+  (datos.items || []).forEach((item, idx) => {
+    fotosItemsReporte[idx] = Array.isArray(item.fotos) ? [...item.fotos] : [];
+    tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
+  });
+  form.onsubmit = enviarReporte;
+}
+
+// SUBIR imagen
 async function subirFotoRepItem(input, idx) {
   if (!input.files || input.files.length === 0) return;
   const file = input.files[0];
   if (!file.type.startsWith("image/")) return;
   input.disabled = true;
   showProgress(true, 15, "Subiendo imagen...");
-
   const form = document.getElementById('repForm');
   const numero = form ? (form.numero.value || "TEMP") : "TEMP";
   const refPath = `reportes/${numero}/${idx}/${Date.now()}_${file.name.replace(/\s/g, "")}`;
@@ -575,7 +656,7 @@ async function eliminarFotoRepItem(btn, idx, fidx, url) {
   }, idx, true);
 }
 
-// Guardar el reporte en Firestore con fotosItemsReporte como fuente de verdad
+// Guardar el reporte en Firestore
 async function enviarReporte(e) {
   e.preventDefault();
   showProgress(true, 65, "Guardando...");
@@ -615,27 +696,6 @@ async function enviarReporte(e) {
   renderInicio();
 }
 
-// Editar un reporte: carga items y fotos correctamente (sin duplicados)
-async function abrirReporte(numero) {
-  let doc = await db.collection("reportes").doc(numero).get();
-  if (!doc.exists) return alert("No se encontró el reporte.");
-  let datos = doc.data();
-  fotosItemsReporte = [];
-  nuevoReporte();
-  const form = document.getElementById("repForm");
-  form.numero.value = datos.numero;
-  form.fecha.value = datos.fecha;
-  form.cliente.value = datos.cliente;
-  form.hora.value = datos.hora;
-  const tbody = form.querySelector("#repItemsTable tbody");
-  tbody.innerHTML = "";
-  (datos.items || []).forEach((item, idx) => {
-    fotosItemsReporte[idx] = Array.isArray(item.fotos) ? [...item.fotos] : [];
-    tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
-  });
-  form.notas.value = datos.notas || "";
-}
-
 // Borra todo un reporte y sus imágenes de Storage
 async function eliminarReporteCompleto() {
   const form = document.getElementById('repForm');
@@ -660,7 +720,6 @@ async function eliminarReporteCompleto() {
   alert("Reporte eliminado.");
   renderInicio();
 }
-
 // ========= PDF DE REPORTE robusto (todas las imágenes de todos los items) ==========
 async function generarPDFReporte(share = false) {
   showProgress(true, 15, "Generando PDF...");
@@ -669,7 +728,7 @@ async function generarPDFReporte(share = false) {
   const items = [];
   form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
     const descripcion = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    const fotos = fotosItemsReporte[idx] || [];
+    const fotos = fotosItemsReporte[idx] ? [...fotosItemsReporte[idx]] : [];
     items.push({ descripcion, fotos });
   });
 
@@ -803,19 +862,8 @@ async function generarPDFReporte(share = false) {
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
-// ================== BLOQUE FINAL: Limpieza, protección y extras ===================
 
-// Limpia los tbody de items al abrir cotización/reporte (evita duplicados visuales)
-function limpiarTbodyCotizaciones() {
-  const tbody = document.querySelector('#itemsTable tbody');
-  if (tbody) tbody.innerHTML = '';
-}
-function limpiarTbodyReportes() {
-  const tbody = document.querySelector('#repItemsTable tbody');
-  if (tbody) tbody.innerHTML = '';
-}
-
-// Protección contra cierre con cambios sin guardar (opcional)
+// --- Protección cierre/feedback/predictivos ---
 window.onbeforeunload = function(e) {
   const root = document.getElementById('root');
   if (!root) return;
@@ -824,30 +872,6 @@ window.onbeforeunload = function(e) {
   }
 };
 
-// Eliminar cotización completa (puedes agregar un botón en la UI)
-async function eliminarCotizacionCompleta() {
-  const form = document.getElementById('cotForm');
-  const numero = form.numero.value;
-  if (!numero) return;
-  if (!confirm("¿Eliminar esta cotización?")) return;
-  await db.collection("cotizaciones").doc(numero).delete();
-  showProgress(false);
-  alert("Cotización eliminada.");
-  renderInicio();
-}
-
-// Puedes agregar el botón donde lo desees en tu UI de cotización:
-// <button type="button" class="btn-danger" onclick="eliminarCotizacionCompleta()">Eliminar Cotización</button>
-
-// Feedback offline/online
 if (!navigator.onLine) showOffline(true);
-
-// Refresca predictivos al cargar
-window.addEventListener('DOMContentLoaded', () => {
-  actualizarPredictsEMS();
-});
-
-// Actualiza predictivos al inicio
+window.addEventListener('DOMContentLoaded', () => { actualizarPredictsEMS(); });
 actualizarPredictsEMS();
-
-// --------- FIN app.js ---------
