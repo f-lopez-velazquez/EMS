@@ -722,7 +722,7 @@ async function generarPDFReporte(share = false) {
   showProgress(true, 15, "Generando PDF...");
   const form = document.getElementById('repForm');
   const datos = Object.fromEntries(new FormData(form));
-  // --- ¡AQUÍ EL FIX!: Toma las fotos directo del DOM para cada fila ---
+  // Captura fotos del DOM
   const items = [];
   form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
     const descripcion = tr.querySelector('textarea[name="descripcion"]').value.trim();
@@ -732,7 +732,7 @@ async function generarPDFReporte(share = false) {
     items.push({ descripcion, fotos });
   });
 
-  // Resto igual...
+  // PDF
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -744,18 +744,22 @@ async function generarPDFReporte(share = false) {
   let y = pageH - my;
 
   // Logo
-  const logoBytes = await fetch(LOGO_URL).then(r=>r.arrayBuffer());
-  const logoImg   = await pdfDoc.embedPng(logoBytes);
+  let logoBytes, logoImg;
+  try {
+    logoBytes = await fetch(LOGO_URL).then(r=>r.arrayBuffer());
+    logoImg   = await pdfDoc.embedPng(logoBytes);
+  } catch {}
 
   let page = pdfDoc.addPage([pageW, pageH]);
-  page.drawImage(logoImg, {
+  // Encabezado SOLO en primera página
+  if (logoImg) page.drawImage(logoImg, {
     x: (pageW - 310) / 2,
     y: (pageH - 310) / 2,
     width: 310,
     height: 310,
     opacity: 0.05
   });
-  page.drawImage(logoImg, { x: mx, y: y - 48, width: 48, height: 48 });
+  if (logoImg) page.drawImage(logoImg, { x: mx, y: y - 48, width: 48, height: 48 });
   page.drawText("ELECTROMOTORES SANTANA", {
     x: mx + 58, y: y-6, size: 16, font: helvB, color: rgb(0.11,0.20,0.37)
   });
@@ -770,18 +774,18 @@ async function generarPDFReporte(share = false) {
   });
   y -= 58;
 
-  // Actividades (items)
   for (let idx = 0; idx < items.length; idx++) {
     let item = items[idx];
     if (y < 140) { // Salto de página
       page = pdfDoc.addPage([pageW, pageH]);
       y = pageH - my;
-      page.drawImage(logoImg, {
+      // SOLO fondo de logo suave, no títulos
+      if (logoImg) page.drawImage(logoImg, {
         x: (pageW - 310) / 2,
         y: (pageH - 310) / 2,
         width: 310,
         height: 310,
-        opacity: 0.05
+        opacity: 0.04
       });
     }
     // Descripción
@@ -792,20 +796,28 @@ async function generarPDFReporte(share = false) {
     if (item.fotos && item.fotos.length > 0) {
       for (let f=0; f<item.fotos.length && f<6; f+=2) {
         let imgObj1 = null, imgObj2 = null;
+        // PRIMER INTENTO: PNG
         try {
-          let img1 = await fetch(item.fotos[f]).then(r=>r.arrayBuffer());
-          imgObj1 = /\.png$/i.test(item.fotos[f]) || item.fotos[f].includes("png")
-            ? await pdfDoc.embedPng(img1)
-            : await pdfDoc.embedJpg(img1);
-        } catch {}
-        try {
-          if (f+1 < item.fotos.length) {
-            let img2 = await fetch(item.fotos[f+1]).then(r=>r.arrayBuffer());
-            imgObj2 = /\.png$/i.test(item.fotos[f+1]) || item.fotos[f+1].includes("png")
-              ? await pdfDoc.embedPng(img2)
-              : await pdfDoc.embedJpg(img2);
+          let img1Arr = await fetch(item.fotos[f]).then(r=>r.arrayBuffer());
+          imgObj1 = await pdfDoc.embedPng(img1Arr);
+        } catch {
+          try {
+            let img1Arr = await fetch(item.fotos[f]).then(r=>r.arrayBuffer());
+            imgObj1 = await pdfDoc.embedJpg(img1Arr);
+          } catch {}
+        }
+        // SEGUNDO INTENTO: PNG o JPG
+        if (f+1 < item.fotos.length) {
+          try {
+            let img2Arr = await fetch(item.fotos[f+1]).then(r=>r.arrayBuffer());
+            imgObj2 = await pdfDoc.embedPng(img2Arr);
+          } catch {
+            try {
+              let img2Arr = await fetch(item.fotos[f+1]).then(r=>r.arrayBuffer());
+              imgObj2 = await pdfDoc.embedJpg(img2Arr);
+            } catch {}
           }
-        } catch {}
+        }
         let imgY = y;
         if (imgObj1) page.drawImage(imgObj1, { x: mx, y: imgY-80, width: 105, height: 80 });
         if (imgObj2) page.drawImage(imgObj2, { x: mx+120, y: imgY-80, width: 105, height: 80 });
@@ -861,6 +873,7 @@ async function generarPDFReporte(share = false) {
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
+
 // ============= PDF DE COTIZACIÓN =============
 async function generarPDFCotizacion(share = false) {
   showProgress(true, 20, "Generando PDF...");
