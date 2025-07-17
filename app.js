@@ -518,7 +518,7 @@ async function abrirReporte(numero) {
   let doc = await db.collection("reportes").doc(numero).get();
   if (!doc.exists) return alert("No se encontró el reporte.");
   let datos = doc.data();
-  fotosItemsReporte = [];
+  fotosItemsReporte = []; // LIMPIA primero
   document.getElementById('root').innerHTML = `
     <div class="ems-header">
       <img src="${LOGO_URL}" class="ems-logo">
@@ -599,6 +599,7 @@ async function abrirReporte(numero) {
   form.onsubmit = enviarReporte;
 }
 
+
 // SUBIR imagen (con barra de progreso)
 async function subirFotoRepItem(input, idx) {
   if (!input.files || input.files.length === 0) return;
@@ -659,7 +660,7 @@ async function enviarReporte(e) {
   let ok = true;
   form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
     let desc = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    let fotos = (fotosItemsReporte[idx] || []).filter(Boolean); // <= CAMBIO CLAVE
+    let fotos = (fotosItemsReporte[idx] || []).filter(Boolean); // CLAVE: Solo del array global
     if (!desc) ok = false;
     if (fotos.length > 6) fotos = fotos.slice(0,6);
     items.push({ descripcion: desc, fotos });
@@ -681,12 +682,18 @@ async function enviarReporte(e) {
     creada: new Date().toISOString()
   };
 
-  await db.collection("reportes").doc(datos.numero).set(reporte);
-  showProgress(true, 100, "¡Listo!");
-  setTimeout(() => showProgress(false), 1000);
-  fotosItemsReporte = [];
-  renderInicio();
+  try {
+    await db.collection("reportes").doc(datos.numero).set(reporte);
+    showProgress(true, 100, "¡Listo!");
+    setTimeout(() => showProgress(false), 900);
+    fotosItemsReporte = [];
+    renderInicio();
+  } catch (err) {
+    showProgress(false);
+    alert("Ocurrió un error al guardar el reporte. Intenta de nuevo.");
+  }
 }
+
 
 
 // Eliminar un reporte completo + sus fotos en Storage
@@ -720,12 +727,10 @@ async function generarPDFReporte(share = false) {
   showProgress(true, 10, "Generando PDF...");
   const form = document.getElementById('repForm');
   const datos = Object.fromEntries(new FormData(form));
-  // Captura items del DOM, fotos directas:
   const items = [];
-  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+  form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
     const descripcion = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    const fotos = Array.from(tr.querySelectorAll('img')).map(img => img.src).filter(Boolean);
-    if (!descripcion && fotos.length === 0) return;
+    const fotos = (fotosItemsReporte[idx] || []).filter(Boolean); // CLAVE: usa el array global
     items.push({ descripcion, fotos });
   });
 
@@ -744,9 +749,7 @@ async function generarPDFReporte(share = false) {
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
   const logoImg   = await pdfDoc.embedPng(logoBytes);
 
-  // Encabezado solo en la primera página
   function drawHeader(page, firstPage = false) {
-    // Logo de fondo SIEMPRE
     page.drawImage(logoImg, {
       x: (pageW - 320) / 2,
       y: (pageH - 320) / 2,
@@ -755,7 +758,6 @@ async function generarPDFReporte(share = false) {
       opacity: 0.04
     });
     if (firstPage) {
-      // Solo en la primera: logo chico y textos
       const logoH = 54;
       page.drawImage(logoImg, { x: mx, y: y - logoH + 6, width: logoH, height: logoH });
       const leftX = mx + logoH + 16;
@@ -850,6 +852,7 @@ async function generarPDFReporte(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
+
 
 
 // --------- Protección contra cierre accidental -------------
