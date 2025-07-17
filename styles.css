@@ -101,22 +101,13 @@ a { color: var(--secondary); text-decoration: none; }
 .ems-totales { text-align:right; color:var(--primary); font-weight:600; margin:9px 0 17px 0; font-size:1.08em;}
 .ems-form-actions { display:flex; gap:14px; margin-top:12px;}
 
-@media (max-width:730px) {
-  .ems-header { flex-direction:column; gap:9px; }
-  .ems-logo { width:52px;height:52px;}
-  .ems-toolbar { flex-direction:column; gap:6px;}
-  .ems-searchbar { margin:12px 0 12px 0;}
-  .ems-form { padding:9px 3px;}
-  .ems-form-row { flex-direction:column; gap:6px;}
-  .ems-form-group { min-width:0;}
-  .ems-items-table th, .ems-items-table td { font-size:.97em; padding:6px 4px;}
-}
 #ems-offline-banner {
   position:fixed;top:0;left:0;width:100vw;z-index:99999;
   background:#e67220;color:#fff;font-size:1.13em;text-align:center;
   font-weight:bold;letter-spacing:.4px;padding:7px 0;box-shadow:0 2px 8px #4444;
   transition:all .3s;
 }
+
 .ems-form-group input,
 .ems-form-group textarea {
   font-size: 1.08em;
@@ -188,11 +179,18 @@ a { color: var(--secondary); text-decoration: none; }
   padding: 25px 0;
 }
 
-/* Estilo para fotos en reportes */
+/* Fotos de reportes */
 .ems-rep-foto {
   display: inline-block;
   margin: 3px 4px 2px 0;
   position: relative;
+}
+.ems-rep-foto img {
+  width: 70px;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #dbe2ea;
 }
 .ems-rep-foto .btn-mini {
   position: absolute; top: 2px; right: 2px; background: var(--danger); color: #fff; font-size: 13px; border-radius: 50%;
@@ -200,4 +198,26 @@ a { color: var(--secondary); text-decoration: none; }
 }
 .ems-rep-fotos-row input[type=file] {
   margin-top: 7px;
+  font-size: 1.13em;
+}
+
+@media (max-width: 730px) {
+  .ems-header { flex-direction: column; gap: 7px; margin: 20px 0 5px 0; }
+  .ems-logo { width: 48px; height: 48px; }
+  .ems-main-btns { flex-direction: column; gap: 14px; margin-bottom: 18px; }
+  .ems-form { padding: 5vw 1vw; margin: 10px 0; border-radius: 10px; }
+  .ems-form-row { flex-direction: column; gap: 7px; }
+  .ems-form-group { min-width: 0; }
+  .ems-form-group input, .ems-form-group textarea {
+    font-size: 1.15em; padding: 13px 10px; border-radius: 8px;
+    min-height: 46px;
+  }
+  .ems-items-table th, .ems-items-table td { font-size: 1.03em; padding: 7px 3px; }
+  .btn-primary, .btn-secondary, .btn-mini, .btn-danger, .btn-success {
+    font-size: 1.18em; padding: 14px 0; min-width: 95vw; margin: 7px 0;
+    display: block; width: 100%;
+  }
+  .ems-form-actions { flex-direction: column; gap: 7px; }
+  .ems-rep-foto img { width: 88px !important; height: 88px !important; }
+  .ems-rep-foto { margin: 7px 5px 5px 0; }
 }

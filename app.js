@@ -562,32 +562,37 @@ async function generarPDFCotizacion(share = false) {
   setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
 
-// Simulador IA (puedes sustituir esto por llamada real)
+// Simulador IA
 function corregirRedaccionIA(text) {
   if (!text || text.trim().length < 1) return text;
   return text.charAt(0).toUpperCase() + text.slice(1).replace(/(\s{2,})/g, " ");
 }
 
-// ----- ABRIR DETALLE DE EMS (Cotización o Reporte) -----
+// ----- ABRIR DETALLE DE EMS -----
 async function abrirDetalleEMS(tipo, numero) {
   if (tipo === "cotizacion") {
     let doc = await db.collection("cotizaciones").doc(numero).get();
     if (!doc.exists) return alert("No se encontró la cotización.");
     editarCotizacion(doc.data());
   } else if (tipo === "reporte") {
-    abrirReporte(numero); // Definido en siguiente bloque
+    abrirReporte(numero);
   }
 }
-// =============== REPORTES ===================
+// =================== REPORTES (Items, Fotos, Storage, PDF, UI, Feedback) ===================
 
+// Array global para URLs de fotos por item (mantiene sincronía UI <-> backend)
+let fotosItemsReporte = [];
+
+// Renderiza una fila de item en el formulario de reportes
 function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
-  // item.fotos debe ser array de URLs
+  // Inicializa el array si no existe
+  if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
   let fotosHtml = '';
-  (item.fotos || []).forEach((url, fidx) => {
+  (fotosItemsReporte[idx] || []).forEach((url, fidx) => {
     fotosHtml += `
       <div class="ems-rep-foto">
         <img src="${url}" style="width: 70px; height: 70px; object-fit:cover; border-radius:8px; border:1px solid #dbe2ea;">
-        ${modoEdicion ? `<button type="button" class="btn-mini" title="Eliminar imagen" onclick="eliminarFotoRepItem(this, ${idx}, ${fidx})"><i class="fa fa-trash"></i></button>` : ''}
+        ${modoEdicion ? `<button type="button" class="btn-mini" title="Eliminar imagen" onclick="eliminarFotoRepItem(this, ${idx}, ${fidx}, '${url}')"><i class="fa fa-trash"></i></button>` : ''}
       </div>`;
   });
 
@@ -599,12 +604,13 @@ function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
       <td>
         <div class="ems-rep-fotos-row" id="fotos-item-${idx}">
           ${fotosHtml}
-          ${modoEdicion && (item.fotos||[]).length < 6 ? `
-            <input type="file" accept="image/*" multiple
+          ${modoEdicion && (fotosItemsReporte[idx]||[]).length < 6 ? `
+            <input type="file" accept="image/*"
               style="display:block; margin-top:7px;" 
               onchange="subirFotoRepItem(this, ${idx})"
-              ${modoEdicion && (item.fotos||[]).length>=6 ? "disabled" : ""}
+              ${modoEdicion && (fotosItemsReporte[idx]||[]).length>=6 ? "disabled" : ""}
             >
+            <div style="font-size:0.92em; color:#888;">${6 - (fotosItemsReporte[idx]||[]).length} fotos disponibles</div>
           ` : ""}
         </div>
       </td>
@@ -615,19 +621,26 @@ function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
   `;
 }
 
-function agregarRepItemRow(itemsArr = [], modoEdicion = true) {
+// Agrega una fila de item nueva y su array de fotos vacío
+function agregarRepItemRow() {
   const tbody = document.getElementById('repItemsTable').querySelector('tbody');
-  const idx = itemsArr.length;
-  tbody.insertAdjacentHTML('beforeend', renderRepItemRow({}, idx, modoEdicion));
+  const idx = tbody.children.length;
+  fotosItemsReporte[idx] = [];
+  tbody.insertAdjacentHTML('beforeend', renderRepItemRow({}, idx, true));
   agregarDictadoMicros();
 }
 
+// Elimina una fila de item y su array de fotos
 function eliminarRepItemRow(btn) {
-  btn.closest('tr').remove();
+  const tr = btn.closest('tr');
+  const idx = Array.from(tr.parentNode.children).indexOf(tr);
+  fotosItemsReporte.splice(idx, 1);
+  tr.remove();
 }
 
-// Nuevo Reporte
+// Formulario de nuevo reporte
 function nuevoReporte() {
+  fotosItemsReporte = [];
   document.getElementById('root').innerHTML = `
     <div class="ems-header">
       <img src="${LOGO_URL}" class="ems-logo">
@@ -698,77 +711,66 @@ function nuevoReporte() {
   }, 100);
 }
 
-// Subir imagen a Storage
+// SUBIR imagen y guardar la URL en fotosItemsReporte[idx]
 async function subirFotoRepItem(input, idx) {
   if (!input.files || input.files.length === 0) return;
-  const row = input.closest('tr');
+  const file = input.files[0];
+  if (!file.type.startsWith("image/")) return;
+  input.disabled = true;
+  showProgress(true, 15, "Subiendo imagen...");
+
   const form = document.getElementById('repForm');
-  const numero = form.numero.value || "TEMP";
-  const fotosDiv = row.querySelector(`#fotos-item-${idx}`);
+  const numero = form ? (form.numero.value || "TEMP") : "TEMP";
+  const refPath = `reportes/${numero}/${idx}/${Date.now()}_${file.name.replace(/\s/g, "")}`;
+  const storageRef = storage.ref().child(refPath);
 
-  for (let file of Array.from(input.files)) {
-    if (!file.type.startsWith("image/")) continue;
-    if ((fotosDiv.querySelectorAll('img').length) >= 6) {
-      alert("Máximo 6 imágenes por actividad.");
-      break;
-    }
-    showProgress(true, 30, "Subiendo imagen...");
-    // Sube a Storage
-    const refPath = `reportes/${numero}/${idx}/${Date.now()}_${file.name.replace(/\s/g, "")}`;
-    const storageRef = storage.ref().child(refPath);
-    const uploadTask = storageRef.put(file);
-
-    await new Promise((resolve, reject) => {
-      uploadTask.on('state_changed', snapshot => {
-        let p = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        showProgress(true, p, "Subiendo imagen...");
-      }, err => {
-        showProgress(false);
-        alert("Error al subir imagen: " + err.message);
-        reject();
-      }, async () => {
-        // Subida exitosa
-        let url = await storageRef.getDownloadURL();
-        // Agrega visualmente la imagen
-        let newDiv = document.createElement("div");
-        newDiv.className = "ems-rep-foto";
-        newDiv.innerHTML = `<img src="${url}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid #dbe2ea;">
-          <button type="button" class="btn-mini" title="Eliminar imagen" onclick="eliminarFotoRepItem(this,${idx},null,'${url}')"><i class="fa fa-trash"></i></button>`;
-        fotosDiv.insertBefore(newDiv, fotosDiv.querySelector('input[type=file]'));
-        showProgress(false);
-        resolve();
-      });
-    });
+  try {
+    await storageRef.put(file);
+    let url = await storageRef.getDownloadURL();
+    if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = [];
+    fotosItemsReporte[idx].push(url);
+    // Re-render SOLO ese item row
+    const tbody = document.querySelector('#repItemsTable tbody');
+    tbody.children[idx].outerHTML = renderRepItemRow(
+      { descripcion: tbody.children[idx].querySelector("textarea").value, fotos: fotosItemsReporte[idx] },
+      idx, true
+    );
+    showProgress(false);
+  } catch (err) {
+    showProgress(false);
+    alert("Error al subir imagen. Revisa tu conexión.");
+  } finally {
+    input.disabled = false;
+    input.value = "";
   }
-  input.value = "";
 }
 
-// Eliminar foto de item
+// Elimina una imagen de UI, Storage y array
 async function eliminarFotoRepItem(btn, idx, fidx, url) {
   if (!confirm("¿Eliminar esta imagen?")) return;
-  // Borra visual
-  const fotoDiv = btn.closest('.ems-rep-foto');
-  fotoDiv.parentNode.removeChild(fotoDiv);
-  // Borra de Storage (si url existe)
-  if (url) {
-    const storageRef = storage.refFromURL(url);
-    try {
-      await storageRef.delete();
-    } catch (err) {}
-  }
+  try {
+    await storage.refFromURL(url).delete();
+  } catch (e) {}
+  if (fotosItemsReporte[idx]) fotosItemsReporte[idx].splice(fidx, 1);
+  // Re-render
+  const tbody = document.querySelector('#repItemsTable tbody');
+  tbody.children[idx].outerHTML = renderRepItemRow({
+    descripcion: tbody.children[idx].querySelector("textarea").value,
+    fotos: fotosItemsReporte[idx]
+  }, idx, true);
 }
 
-// Guardar reporte
+// Guardar el reporte en Firestore con fotosItemsReporte como fuente de verdad
 async function enviarReporte(e) {
   e.preventDefault();
-  showProgress(true, 60, "Guardando reporte...");
+  showProgress(true, 65, "Guardando reporte...");
   const form = document.getElementById('repForm');
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
   let ok = true;
   form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
     let desc = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    let fotos = Array.from(tr.querySelectorAll('img')).map(img => img.src);
+    let fotos = fotosItemsReporte[idx] || [];
     if (!desc) ok = false;
     if (fotos.length > 6) fotos = fotos.slice(0,6);
     items.push({ descripcion: desc, fotos });
@@ -793,15 +795,16 @@ async function enviarReporte(e) {
   await db.collection("reportes").doc(datos.numero).set(reporte);
   showProgress(false);
   alert("¡Reporte guardado!");
+  fotosItemsReporte = [];
   renderInicio();
 }
 
-// Abrir reporte para edición
+// Editar un reporte: carga items y fotos correctamente
 async function abrirReporte(numero) {
   let doc = await db.collection("reportes").doc(numero).get();
   if (!doc.exists) return alert("No se encontró el reporte.");
   let datos = doc.data();
-  // Render UI
+  fotosItemsReporte = [];
   nuevoReporte();
   const form = document.getElementById("repForm");
   form.numero.value = datos.numero;
@@ -811,18 +814,18 @@ async function abrirReporte(numero) {
   const tbody = form.querySelector("#repItemsTable tbody");
   tbody.innerHTML = "";
   (datos.items || []).forEach((item, idx) => {
+    fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
     tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
   });
   form.notas.value = datos.notas || "";
 }
 
-// Eliminar reporte completo (y sus imágenes)
+// Borra todo un reporte y sus imágenes de Storage
 async function eliminarReporteCompleto() {
   const form = document.getElementById('repForm');
   const numero = form.numero.value;
   if (!numero) return;
   if (!confirm("¿Eliminar este reporte y todas sus imágenes?")) return;
-  // Borra imágenes en Storage
   let doc = await db.collection("reportes").doc(numero).get();
   if (doc.exists) {
     let datos = doc.data();
@@ -836,22 +839,21 @@ async function eliminarReporteCompleto() {
       }
     }
   }
-  // Borra documento
   await db.collection("reportes").doc(numero).delete();
   showProgress(false);
   alert("Reporte eliminado.");
   renderInicio();
 }
 
-// ========== PDF DE REPORTE ==========
+// ========= PDF DE REPORTE ==========
 async function generarPDFReporte(share = false) {
   showProgress(true, 15, "Generando PDF...");
   const form = document.getElementById('repForm');
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
-  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+  form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
     const descripcion = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    const fotos = Array.from(tr.querySelectorAll('img')).map(img => img.src);
+    const fotos = fotosItemsReporte[idx] || [];
     items.push({ descripcion, fotos });
   });
 
@@ -974,10 +976,9 @@ async function generarPDFReporte(share = false) {
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
-// =========== BLOQUE FINAL: INTEGRACIÓN Y PROTECCIONES ===========
+// ================== BLOQUE 4: Extras, Integración, Protección y Mejoras ===================
 
-// Evita duplicar imágenes/items al editar reportes o cotizaciones
-// (Siempre limpiar tbody antes de insertar)
+// Limpia los tbody de items al abrir cotización/reporte (evita duplicados visuales)
 function limpiarTbodyCotizaciones() {
   const tbody = document.querySelector('#itemsTable tbody');
   if (tbody) tbody.innerHTML = '';
@@ -987,10 +988,7 @@ function limpiarTbodyReportes() {
   if (tbody) tbody.innerHTML = '';
 }
 
-// Cada vez que abras un formulario de edición,
-// usa las funciones limpiarTbody* para asegurar que no se acumulen filas/items.
-
-// ---- PROTECCIÓN ANTE NAVEGACIÓN (para evitar pérdida de datos) ----
+// Protección contra cierre con cambios sin guardar
 window.onbeforeunload = function(e) {
   const root = document.getElementById('root');
   if (!root) return;
@@ -999,12 +997,7 @@ window.onbeforeunload = function(e) {
   }
 };
 
-// Ajustes para PWA (instalación, iconos, etc)
-window.addEventListener('DOMContentLoaded', () => {
-  actualizarPredictsEMS();
-});
-
-// Eliminar cotización completa (añade botón en formulario si deseas)
+// Eliminar cotización completa (puedes agregar un botón en la UI)
 async function eliminarCotizacionCompleta() {
   const form = document.getElementById('cotForm');
   const numero = form.numero.value;
@@ -1016,14 +1009,18 @@ async function eliminarCotizacionCompleta() {
   renderInicio();
 }
 
-// Asignar botón de eliminar cotización si agregas en UI
-// <button type="button" class="btn-danger" onclick="eliminarCotizacionCompleta()" ...>Eliminar</button>
+// Asigna el botón donde lo desees en tu UI de cotización
+// <button type="button" class="btn-danger" onclick="eliminarCotizacionCompleta()">Eliminar Cotización</button>
 
-// ------- OffLine/OnLine feedback -------
+// Feedback offline/online
 if (!navigator.onLine) showOffline(true);
-window.addEventListener("online", ()=>showOffline(false));
-window.addEventListener("offline", ()=>showOffline(true));
 
-// --- Actualizar predictivos al inicio ---
+// Refresca predictivos al cargar
+window.addEventListener('DOMContentLoaded', () => {
+  actualizarPredictsEMS();
+});
+
+// Actualiza predictivos al inicio
 actualizarPredictsEMS();
 
+// --------- FIN app.js ---------

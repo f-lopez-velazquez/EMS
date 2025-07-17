@@ -1,9 +1,12 @@
 {
   "name": "EMS Cotizaciones y Reportes",
   "short_name": "EMS",
-  "start_url": ".",
+  "description": "Electromotores Santana - Cotizaciones y Reportes de Servicio",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#163960",
+  "orientation": "portrait",
+  "background_color": "#f3f6fa",
   "theme_color": "#163960",
   "icons": [
     {
