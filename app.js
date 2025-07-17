@@ -1,9 +1,6 @@
-// ==============================
-// EMS Electromotores Santana App
-// app.js COMPLETO
-// ==============================
+// ============ EMS Cotizaciones y Reportes PWA ============
 
-// --- FIREBASE CONFIG ---
+// --- Configuración Firebase (Firestore y Storage) ---
 const firebaseConfig = {
   apiKey: "AIzaSyDsXSbJWdMyBgTedntNv3ppj5GAvRUImyc",
   authDomain: "elms-26a5d.firebaseapp.com",
@@ -16,410 +13,1017 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const storage = firebase.storage();
 
-// --- FEEDBACK VISUAL ---
-function showProgress(show=true, percent=0, msg='') {
-  const bar = document.getElementById('progress-bar');
-  const inner = bar.querySelector('.progress-inner');
-  const txt = document.getElementById('progress-msg');
-  if (!bar || !inner || !txt) return;
+const LOGO_URL = "https://i.imgur.com/RQucHEc.png";
+const AUTHOR = "Francisco López Velázquez";
+
+// ========== HELPERS ==========
+function hoy() {
+  return (new Date()).toISOString().slice(0, 10);
+}
+function ahora() {
+  const d = new Date();
+  return d.toTimeString().slice(0, 5);
+}
+
+// Feedback visual (barra de progreso y mensajes)
+function showProgress(show = true, percent = 0, msg = "") {
+  const bar = document.getElementById("progress-bar");
+  if (!bar) return;
+  bar.style.display = show ? "" : "none";
+  const inner = bar.querySelector(".progress-inner");
+  if (inner) {
+    inner.style.width = show ? `${percent || 100}%` : "0%";
+    inner.innerHTML = msg ? msg : "";
+    if (!show) setTimeout(() => { inner.innerHTML = ""; }, 700);
+  }
+}
+
+// Banner OFFLINE
+function showOffline(show = true) {
+  const banner = document.getElementById("ems-offline-banner");
+  if (!banner) return;
   if (show) {
-    bar.style.display = 'block';
-    inner.style.width = percent + '%';
-    txt.textContent = msg || '';
+    banner.style.display = "";
+    banner.innerHTML = '<b>Sin conexión.</b> Los datos se guardarán localmente hasta que regreses a Internet.';
   } else {
-    bar.style.display = 'none';
-    inner.style.width = '0%';
-    txt.textContent = '';
+    banner.style.display = "none";
   }
 }
-function showToast(msg) {
-  const toast = document.getElementById('toast');
-  if (!toast) return;
-  toast.textContent = msg;
-  toast.style.display = 'block';
-  setTimeout(() => { toast.style.display = 'none'; }, 2200);
+window.addEventListener("online", () => showOffline(false));
+window.addEventListener("offline", () => showOffline(true));
+
+// Predictivos locales (para autocompletado)
+function savePredictEMS(tipo, valor) {
+  if (!valor || valor.length < 2) return;
+  const key = `ems_pred_${tipo}`;
+  let arr = JSON.parse(localStorage.getItem(key) || "[]");
+  if (!arr.includes(valor)) arr.unshift(valor);
+  if (arr.length > 25) arr = arr.slice(0, 25);
+  localStorage.setItem(key, JSON.stringify(arr));
+}
+function getPredictEMS(tipo) {
+  return JSON.parse(localStorage.getItem(`ems_pred_${tipo}`) || "[]");
+}
+function actualizarPredictsEMS() {
+  // Conceptos
+  const conceptos = getPredictEMS("concepto");
+  const datalistConceptos = document.getElementById("conceptosEMS");
+  if (datalistConceptos) datalistConceptos.innerHTML = conceptos.map(v=>`<option value="${v}">`).join('');
+  // Unidades
+  const unidades = getPredictEMS("unidad");
+  const datalistUnidades = document.getElementById("unidadesEMS");
+  if (datalistUnidades) datalistUnidades.innerHTML = unidades.map(v=>`<option value="${v}">`).join('');
+  // Clientes
+  const clientes = getPredictEMS("cliente");
+  const datalistClientes = document.getElementById("clientesEMS");
+  if (datalistClientes) datalistClientes.innerHTML = clientes.map(v=>`<option value="${v}">`).join('');
+  // Descripciones
+  const descs = getPredictEMS("desc");
+  const datalistDesc = document.getElementById("descEMS");
+  if (datalistDesc) datalistDesc.innerHTML = descs.map(v=>`<option value="${v}">`).join('');
 }
 
-// --- HERRAMIENTAS ---
-function compressImage(file, quality=0.8) {
-  return new Promise(resolve => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const img = new window.Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        canvas.toBlob(blob => {
-          resolve(new File([blob], file.name, { type: file.type }));
-        }, file.type, quality);
+// Dictado por voz universal
+function agregarDictadoMicros() {
+  document.querySelectorAll(".mic-btn:not(.ems-mic-init)").forEach(btn => {
+    btn.classList.add("ems-mic-init");
+    btn.onclick = function() {
+      if (!('webkitSpeechRecognition' in window)) {
+        alert("Tu navegador no soporta dictado por voz.");
+        return;
+      }
+      const recog = new webkitSpeechRecognition();
+      recog.lang = "es-MX";
+      recog.onresult = (evt) => {
+        const val = evt.results[0][0].transcript;
+        const input = btn.parentElement.querySelector("input, textarea");
+        if (input) input.value = val;
       };
-      img.src = e.target.result;
+      recog.start();
     };
-    reader.readAsDataURL(file);
   });
 }
 
-// SUBIR IMÁGENES REPORTE (max 6 por item, feedback)
-async function uploadReportImages(reportId, itemIndex, files) {
-  const urls = [];
-  const max = Math.min(files.length, 6);
-  const compressed = await Promise.all(Array.from(files).slice(0, max).map(f => compressImage(f, 0.85)));
-  for (let i = 0; i < compressed.length; i++) {
-    const file = compressed[i];
-    const path = `reportes/${reportId}/${itemIndex}/${file.name}`;
-    const ref = storage.ref(path);
-    const task = ref.put(file);
-    await new Promise((res, rej) => {
-      task.on('state_changed', snap => {
-        const pct = (snap.bytesTransferred / snap.totalBytes) * 100;
-        showProgress(true, pct, `Subiendo imagen ${i+1}/${compressed.length}`);
-      }, rej, async () => {
-        const url = await ref.getDownloadURL();
-        urls.push(url);
-        res();
-      });
-    });
-  }
-  showProgress(false);
-  return urls;
-}
-// --- RENDER THUMBS Y ELIMINAR IMAGEN ---
-function renderReportItemImages(container, reportId, idx, urls) {
-  container.innerHTML = '';
-  (urls||[]).forEach((url, i) => {
-    const thumb = document.createElement('div');
-    thumb.className = 'image-thumb';
-    const img = document.createElement('img');
-    img.src = url;
-    const btn = document.createElement('button');
-    btn.innerHTML = '<i class="fas fa-trash"></i>';
-    btn.onclick = async () => {
-      if (confirm('¿Eliminar imagen?')) {
-        const filename = decodeURIComponent(url.split('/').pop().split('?')[0]);
-        await storage.ref(`reportes/${reportId}/${idx}/${filename}`).delete();
-        // Borra también en Firestore
-        const snap = await db.collection('reportes').doc(reportId).get();
-        const items = snap.data().items;
-        items[idx].fotos = (items[idx].fotos||[]).filter(u => u !== url);
-        await db.collection('reportes').doc(reportId).update({ items });
-        renderReportItemImages(container, reportId, idx, items[idx].fotos);
-      }
-    };
-    thumb.appendChild(img);
-    thumb.appendChild(btn);
-    container.appendChild(thumb);
-  });
-}
-
-// --- PDF PROFESIONAL DE REPORTE (HEADER SOLO EN 1ra PÁGINA) ---
-async function generatePDF(data) {
-  showProgress(true, 0, 'Generando PDF...');
-  const { PDFDocument } = PDFLib;
-  const pdf = await PDFDocument.create();
-  const fotos = data.items.flatMap(i => i.fotos || []);
-  let pageCount = 0;
-  for (let i = 0; i < fotos.length; i += 4) {
-    const page = pdf.addPage([600, 800]);
-    pageCount++;
-    if (pageCount === 1) await drawHeader(page, pdf);
-    drawFooter(page, pageCount);
-    if (pageCount > 1) drawWatermark(page);
-    const batch = fotos.slice(i, i + 4);
-    for (let j = 0; j < batch.length; j++) {
-      const imgBytes = await fetch(batch[j]).then(r => r.arrayBuffer());
-      const embed = batch[j].endsWith('.png') ? await pdf.embedPng(imgBytes) : await pdf.embedJpg(imgBytes);
-      const dims = embed.scale(0.23);
-      const x = 50 + (j % 2) * (dims.width + 22);
-      const y = 680 - Math.floor(j / 2) * (dims.height + 30);
-      page.drawImage(embed, { x, y, width: dims.width, height: dims.height });
-    }
-    showProgress(true, ((i + batch.length) / fotos.length) * 100, `Página ${pageCount}`);
-  }
-  const pdfBytes = await pdf.save();
-  showProgress(false);
-  showToast('PDF generado');
-  // Descarga directa
-  const blob = new Blob([pdfBytes], {type: 'application/pdf'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = "reporte.pdf";
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-async function drawHeader(page, pdf) {
-  const imgUrl = "https://i.imgur.com/RQucHEc.png";
-  const logoBytes = await fetch(imgUrl).then(r => r.arrayBuffer());
-  const embed = await pdf.embedPng(logoBytes);
-  page.drawImage(embed, { x: 40, y: 720, width: 72, height: 72 });
-  page.drawText("Electromotores Santana", { x: 130, y: 765, size: 16, color: PDFLib.rgb(0.09,0.22,0.38)});
-  page.drawText("Carretera a Chichimequillas #306, Menchaca 2, Querétaro", { x: 130, y: 745, size: 11, color: PDFLib.rgb(0.09,0.22,0.38)});
-  page.drawText("Tel: 442 469 9895", { x: 130, y: 730, size: 11, color: PDFLib.rgb(0.09,0.22,0.38)});
-}
-function drawFooter(page, num) {
-  page.drawText(`Página ${num}`, { x: 275, y: 22, size: 12, color: PDFLib.rgb(0.3,0.3,0.3) });
-}
-function drawWatermark(page) {
-  page.drawText('Electromotores Santana', { x: 150, y: 400, size: 36, opacity: 0.07, color: PDFLib.rgb(0.09,0.22,0.38)});
-}
-// ---------- GUARDAR Y FORMULARIO DE REPORTE ---------------
-async function saveReport(data, id = null) {
-  showProgress(true, 0, 'Guardando reporte...');
-  let ref;
-  if (id) {
-    ref = db.collection('reportes').doc(id);
-    await ref.set({ ...data, items: [] });
-  } else {
-    ref = await db.collection('reportes').add({ ...data, items: [] });
-    id = ref.id;
-  }
-  const items = [];
-  for (let i = 0; i < data.items.length; i++) {
-    let item = { ...data.items[i] };
-    if (item.files && item.files.length) {
-      item.fotos = await uploadReportImages(id, i, item.files);
-      delete item.files;
-    }
-    items.push(item);
-    showProgress(true, ((i + 1) / data.items.length) * 100, `Procesando actividad ${i + 1}/${data.items.length}`);
-  }
-  await db.collection('reportes').doc(id).update({ ...data, items });
-  showProgress(false);
-  showToast('¡Reporte guardado exitosamente!');
-  localStorage.removeItem(`draft-reporte-${id}`);
-}
-
-async function renderReportForm(id=null) {
-  const container = document.getElementById('contenedor');
-  container.innerHTML = `<h2>${id ? 'Editar' : 'Nuevo'} Reporte</h2>
-    <form id="form-rep">
-      <input type="text" name="cliente" placeholder="Cliente" required>
-      <input type="date" name="fecha" required>
-      <input type="time" name="hora" required>
-      <textarea name="notas" placeholder="Notas"></textarea>
-      <h3>Actividades</h3>
-      <div id="actividades"></div>
-      <button type="button" id="agregar-act">Agregar Actividad</button>
-      <br><br>
-      <button type="submit">Guardar Reporte</button>
-      <button type="button" id="cancelar-rep">Cancelar</button>
-      <button type="button" id="pdf-rep" style="float:right; display:${id ? 'inline' : 'none'}">📄 Exportar PDF</button>
-    </form>
+// -------- Render Home ----------
+function renderInicio() {
+  document.getElementById("root").innerHTML = `
+    <div class="ems-header">
+      <img src="${LOGO_URL}" class="ems-logo">
+      <div>
+        <h1>Electromotores Santana</h1>
+        <span class="ems-subtitle">Cotizaciones y Reportes</span>
+      </div>
+    </div>
+    <div class="ems-main-btns">
+      <button onclick="nuevaCotizacion()" class="btn-primary"><i class="fa fa-file-invoice"></i> Nueva Cotización</button>
+      <button onclick="nuevoReporte()" class="btn-secondary"><i class="fa fa-clipboard-list"></i> Nuevo Reporte</button>
+    </div>
+    <div class="ems-historial">
+      <div class="ems-historial-header">
+        <h2><i class="fa fa-clock"></i> Recientes</h2>
+        <input type="text" id="buscarEMS" placeholder="Buscar por cliente, número o fecha...">
+      </div>
+      <div id="historialEMS" class="ems-historial-list"></div>
+    </div>
   `;
-
-  let actividades = [];
-  if (id) {
-    const snap = await db.collection('reportes').doc(id).get();
-    const rep = snap.data();
-    container.querySelector('[name=cliente]').value = rep.cliente || '';
-    container.querySelector('[name=fecha]').value = rep.fecha || '';
-    container.querySelector('[name=hora]').value = rep.hora || '';
-    container.querySelector('[name=notas]').value = rep.notas || '';
-    actividades = (rep.items||[]).map(a=>({...a, files: []})); // limpia 'files'
-  }
-  const divActs = container.querySelector('#actividades');
-  function renderActs() {
-    divActs.innerHTML = '';
-    actividades.forEach((a,i)=>{
-      const row = document.createElement('div');
-      row.innerHTML = `
-        <textarea placeholder="Descripción" required>${a.descripcion||''}</textarea>
-        <input type="file" accept="image/*" multiple>
-        <div class="fotos"></div>
-        <button type="button">❌</button>
-        <button type="button" class="btn-ortografia" title="Corregir redacción IA">🪄</button>
-      `;
-      row.querySelector('textarea').oninput = e => actividades[i].descripcion = e.target.value;
-      row.querySelector('input[type=file]').onchange = e => {
-        actividades[i].files = Array.from(e.target.files);
-      };
-      // Mostrar fotos existentes
-      if(a.fotos && a.fotos.length) {
-        const fotosDiv = row.querySelector('.fotos');
-        renderReportItemImages(fotosDiv, id, i, a.fotos);
-      }
-      // Borrar actividad
-      row.querySelector('button').onclick = ()=>{ actividades.splice(i,1); renderActs(); };
-      // Corregir ortografía/redacción (simulado)
-      row.querySelector('.btn-ortografia').onclick = ()=> {
-        const t = row.querySelector('textarea');
-        t.value = autocorrectText(t.value);
-        actividades[i].descripcion = t.value;
-      };
-      divActs.appendChild(row);
-    });
-  }
-  renderActs();
-  container.querySelector('#agregar-act').onclick = ()=>{
-    actividades.push({descripcion:'',fotos:[],files:[]});
-    renderActs();
-  };
-  container.querySelector('#cancelar-rep').onclick = ()=>listRecords();
-  container.querySelector('#form-rep').onsubmit = async function(e){
-    e.preventDefault();
-    const rep = {
-      cliente: this.cliente.value,
-      fecha: this.fecha.value,
-      hora: this.hora.value,
-      notas: this.notas.value,
-      items: actividades.map(a=>({
-        descripcion: a.descripcion,
-        fotos: a.fotos || [],
-        files: a.files || []
-      }))
-    };
-    await saveReport(rep, id);
-    listRecords();
-  }
-  if(id) {
-    container.querySelector('#pdf-rep').onclick = async ()=> {
-      const snap = await db.collection('reportes').doc(id).get();
-      await generatePDF(snap.data());
-    };
-  }
+  cargarHistorialEMS();
 }
 
-// -------- AUTOCORRECT REDACCIÓN (simulado/puedes integrar IA real si quieres) ----------
-function autocorrectText(text) {
-  if(!text) return '';
-  // Ejemplo simple: mayúsculas y punto final
-  text = text.trim();
-  if(!text) return '';
-  text = text.charAt(0).toUpperCase() + text.slice(1);
-  if(!text.endsWith('.')) text += '.';
-  return text;
-}
-// ----------- GUARDAR Y FORMULARIO DE COTIZACIÓN ---------------
-async function saveCotizacion(data, id = null) {
-  showProgress(true, 0, 'Guardando cotización...');
-  if (id) {
-    await db.collection('cotizaciones').doc(id).set(data);
-  } else {
-    await db.collection('cotizaciones').add(data);
-  }
-  showProgress(false);
-  showToast('Cotización guardada');
-  localStorage.removeItem(`draft-cotizacion-${id || 'new'}`);
-}
-
-async function renderCotForm(id = null) {
-  const container = document.getElementById('contenedor');
-  container.innerHTML = `<h2>${id ? 'Editar' : 'Nueva'} Cotización</h2>
-    <form id="form-cot">
-      <input type="text" name="cliente" placeholder="Cliente" required>
-      <input type="date" name="fecha" required>
-      <input type="time" name="hora" required>
-      <textarea name="notas" placeholder="Notas"></textarea>
-      <h3>Conceptos</h3>
-      <div id="conceptos"></div>
-      <button type="button" id="agregar-concepto">Agregar Concepto</button>
-      <br><br>
-      <button type="submit">Guardar Cotización</button>
-      <button type="button" id="cancelar-cot">Cancelar</button>
-    </form>
-  `;
-  let conceptos = [];
-  if (id) {
-    const snap = await db.collection('cotizaciones').doc(id).get();
-    const cot = snap.data();
-    container.querySelector('[name=cliente]').value = cot.cliente || '';
-    container.querySelector('[name=fecha]').value = cot.fecha || '';
-    container.querySelector('[name=hora]').value = cot.hora || '';
-    container.querySelector('[name=notas]').value = cot.notas || '';
-    conceptos = cot.items || [];
-  }
-  const divConceptos = container.querySelector('#conceptos');
-  function renderConceptos() {
-    divConceptos.innerHTML = '';
-    conceptos.forEach((c,i)=>{
-      const row = document.createElement('div');
-      row.innerHTML = `
-        <input type="text" placeholder="Concepto" value="${c.concepto||''}" required>
-        <input type="text" placeholder="Unidad" value="${c.unidad||''}" required>
-        <input type="number" placeholder="Cantidad" value="${c.cantidad||''}" required>
-        <input type="number" placeholder="Precio" value="${c.precio||''}" required>
-        <button type="button">❌</button>
-        <button type="button" class="btn-ortografia" title="Corregir redacción IA">🪄</button>
-      `;
-      row.querySelectorAll('input').forEach((inp,idx)=>{
-        inp.oninput = e => {
-          if(idx===0) conceptos[i].concepto = inp.value;
-          if(idx===1) conceptos[i].unidad = inp.value;
-          if(idx===2) conceptos[i].cantidad = Number(inp.value);
-          if(idx===3) conceptos[i].precio = Number(inp.value);
-        }
-      });
-      row.querySelector('button').onclick = ()=>{ conceptos.splice(i,1); renderConceptos(); };
-      // Corregir ortografía (simulado)
-      row.querySelector('.btn-ortografia').onclick = ()=> {
-        const inp = row.querySelector('input[type=text]');
-        inp.value = autocorrectText(inp.value);
-        conceptos[i].concepto = inp.value;
-      };
-      divConceptos.appendChild(row);
-    });
-  }
-  renderConceptos();
-  container.querySelector('#agregar-concepto').onclick = ()=>{
-    conceptos.push({concepto:'',unidad:'',cantidad:1,precio:0});
-    renderConceptos();
-  };
-  container.querySelector('#cancelar-cot').onclick = ()=>listRecords();
-  container.querySelector('#form-cot').onsubmit = async function(e){
-    e.preventDefault();
-    const cot = {
-      cliente: this.cliente.value,
-      fecha: this.fecha.value,
-      hora: this.hora.value,
-      notas: this.notas.value,
-      items: conceptos
-    };
-    await saveCotizacion(cot, id);
-    listRecords();
-  }
-}
-// -------- HISTORIAL COMPLETO Y BOTONES ELIMINAR/EDITAR ---------
-async function listRecords() {
-  const container = document.getElementById('contenedor');
-  container.innerHTML = '<h2>Historial</h2>';
-  // Cotizaciones
-  const cSnap = await db.collection('cotizaciones').orderBy('fecha','desc').get();
-  cSnap.forEach(doc => container.appendChild(recordElement('cotizacion', doc)));
-  // Reportes
-  const rSnap = await db.collection('reportes').orderBy('fecha','desc').get();
-  rSnap.forEach(doc => container.appendChild(recordElement('reporte', doc)));
-}
-
-function recordElement(type, doc) {
-  const data = doc.data();
-  const div = document.createElement('div');
-  div.className = 'record';
-  div.innerHTML = `<span><strong>${type === 'cotizacion' ? 'Cotización' : 'Reporte'}</strong> ${data.cliente || ''} - ${data.fecha} ${data.hora}</span>`;
-  const btnEdit = document.createElement('button');
-  btnEdit.textContent = '✏️';
-  btnEdit.onclick = () => (type==='reporte'? renderReportForm : renderCotForm)(doc.id);
-  const btnDel = document.createElement('button');
-  btnDel.textContent = '🗑️';
-  btnDel.onclick = () => deleteRecord(type, doc.id);
-  div.appendChild(btnEdit);
-  div.appendChild(btnDel);
-  return div;
-}
-
-async function deleteRecord(type, id) {
-  if(!confirm('¿Eliminar '+type+'?')) return;
-  showProgress(true, 0, 'Eliminando...');
-  await db.collection(type+'s').doc(id).delete();
-  showProgress(false);
-  listRecords();
-}
-
-// -------- LIMPIAR FORMULARIOS Y ESTADO INICIAL ----------
 window.onload = () => {
-  listRecords();
-  // Si quieres mostrar panel principal al inicio
+  renderInicio();
+  if (!navigator.onLine) showOffline(true);
 };
+// ========== HISTORIAL Y BÚSQUEDA ==========
+
+async function cargarHistorialEMS(filtro = "") {
+  const cont = document.getElementById("historialEMS");
+  if (!cont) return;
+  cont.innerHTML = "<div class='ems-historial-cargando'>Cargando...</div>";
+
+  let cotSnap = [], repSnap = [];
+  try {
+    cotSnap = await db.collection("cotizaciones").orderBy("creada", "desc").limit(20).get();
+    repSnap = await db.collection("reportes").orderBy("creada", "desc").limit(20).get();
+  } catch {
+    cont.innerHTML = "<div class='ems-historial-vacio'>No se pudo cargar historial (offline)</div>";
+    return;
+  }
+  let items = [];
+  cotSnap.forEach(doc => items.push({ ...doc.data(), id: doc.id }));
+  repSnap.forEach(doc => items.push({ ...doc.data(), id: doc.id }));
+
+  // Búsqueda
+  if (filtro && filtro.length > 0) {
+    items = items.filter(x =>
+      (x.cliente || "").toLowerCase().includes(filtro.toLowerCase()) ||
+      (x.numero || "").toLowerCase().includes(filtro.toLowerCase()) ||
+      (x.fecha || "").toLowerCase().includes(filtro.toLowerCase())
+    );
+  }
+
+  items.sort((a, b) => (b.creada || "") > (a.creada || "") ? 1 : -1);
+
+  if (items.length === 0) {
+    cont.innerHTML = "<div class='ems-historial-vacio'>No hay cotizaciones ni reportes.</div>";
+    return;
+  }
+
+  cont.innerHTML = items.slice(0, 20).map(x => `
+    <div class="ems-card-ems ${x.tipo === "cotizacion" ? "ems-cotizacion" : "ems-reporte"}" onclick="abrirDetalleEMS('${x.tipo}', '${x.numero}')">
+      <div class="ems-card-ico"><i class="fa ${x.tipo === "cotizacion" ? "fa-file-invoice" : "fa-clipboard-list"}"></i></div>
+      <div class="ems-card-main">
+        <div class="ems-card-tipo">${x.tipo === "cotizacion" ? "Cotización" : "Reporte"}</div>
+        <div class="ems-card-cliente"><b>${x.cliente || ""}</b></div>
+        <div class="ems-card-fecha">${x.fecha || ""} ${x.hora ? "— " + x.hora : ""}</div>
+        <div class="ems-card-numero">#${x.numero || ""}</div>
+      </div>
+      <div class="ems-card-ir"><i class="fa fa-chevron-right"></i></div>
+    </div>
+  `).join("");
+}
+
+document.addEventListener("input", e => {
+  if (e.target && e.target.id === "buscarEMS") {
+    cargarHistorialEMS(e.target.value);
+  }
+});
+
+// ==================== COTIZACIONES =======================
+
+function renderCotItemRow(item = {}) {
+  return `
+    <tr>
+      <td>
+        <input type="text" name="concepto" list="conceptosEMS" value="${item.concepto||""}" required autocomplete="off">
+        <datalist id="conceptosEMS"></datalist>
+      </td>
+      <td>
+        <input type="text" name="unidad" list="unidadesEMS" value="${item.unidad||""}" required autocomplete="off">
+        <datalist id="unidadesEMS"></datalist>
+      </td>
+      <td>
+        <input type="number" name="cantidad" min="0" value="${item.cantidad||""}" required>
+      </td>
+      <td>
+        <input type="number" name="precio" min="0" step="0.01" value="${item.precio||""}" required>
+      </td>
+      <td>
+        <button type="button" class="btn-mini" onclick="eliminarCotItemRow(this)"><i class="fa fa-trash"></i></button>
+      </td>
+    </tr>
+  `;
+}
+function agregarCotItemRow() {
+  const tbody = document.getElementById('itemsTable').querySelector('tbody');
+  tbody.insertAdjacentHTML('beforeend', renderCotItemRow());
+  agregarDictadoMicros();
+}
+function eliminarCotItemRow(btn) {
+  btn.closest('tr').remove();
+}
+
+function nuevaCotizacion() {
+  document.getElementById('root').innerHTML = `
+    <div class="ems-header">
+      <img src="${LOGO_URL}" class="ems-logo">
+      <div>
+        <h1>Electromotores Santana</h1>
+        <span class="ems-subtitle">Nueva Cotización</span>
+      </div>
+    </div>
+    <form id="cotForm" class="ems-form" autocomplete="off">
+      <div class="ems-form-row">
+        <div class="ems-form-group">
+          <label>No. Cotización</label>
+          <input type="text" name="numero" required placeholder="Ej. COT-2024-001">
+        </div>
+        <div class="ems-form-group">
+          <label>Fecha</label>
+          <input type="date" name="fecha" required value="${hoy()}">
+        </div>
+      </div>
+      <div class="ems-form-row">
+        <div class="ems-form-group">
+          <label>Cliente</label>
+          <div class="ems-form-input-icon">
+            <input type="text" name="cliente" list="clientesEMS" required placeholder="Nombre o Empresa" autocomplete="off">
+            <button type="button" class="mic-btn" title="Dictar por voz"><i class="fa fa-microphone"></i></button>
+          </div>
+          <datalist id="clientesEMS"></datalist>
+        </div>
+        <div class="ems-form-group">
+          <label>Hora</label>
+          <input type="time" name="hora" value="${ahora()}">
+        </div>
+      </div>
+      <div class="ems-form-row">
+        <div class="ems-form-group">
+          <label>
+            <input type="checkbox" name="incluyeIVA"> Incluir IVA (16%)
+          </label>
+        </div>
+        <div class="ems-form-group">
+          <label>
+            <input type="checkbox" name="anticipo" onchange="this.form.anticipoPorc.parentElement.style.display=this.checked?'':'none'"> Con anticipo
+          </label>
+          <div style="display:none">
+            <input type="number" name="anticipoPorc" min="0" max="100" placeholder="% Anticipo"> %
+          </div>
+        </div>
+        <div class="ems-form-group">
+          <label>
+            <input type="checkbox" name="corrigeIA"> Mejorar redacción con IA
+          </label>
+        </div>
+      </div>
+      <div>
+        <table class="ems-items-table" id="itemsTable">
+          <thead>
+            <tr>
+              <th>Concepto</th>
+              <th>Unidad</th>
+              <th>Cantidad</th>
+              <th>Precio</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${renderCotItemRow()}
+          </tbody>
+        </table>
+        <button type="button" class="btn-secondary" onclick="agregarCotItemRow()">Agregar item</button>
+      </div>
+      <div class="ems-form-group">
+        <label>Notas / Observaciones</label>
+        <div class="ems-form-input-icon">
+          <textarea name="notas" rows="3" placeholder="Detalles, condiciones..."></textarea>
+          <button type="button" class="mic-btn"><i class="fa fa-microphone"></i></button>
+        </div>
+      </div>
+      <div class="ems-form-actions">
+        <button type="button" class="btn-mini" onclick="renderInicio()"><i class="fa fa-arrow-left"></i> Cancelar</button>
+        <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
+        <button type="button" class="btn-secondary" onclick="generarPDFCotizacion()"><i class="fa fa-file-pdf"></i> PDF</button>
+        <button type="button" class="btn-success" onclick="generarPDFCotizacion(true)"><i class="fa fa-share-alt"></i> Compartir</button>
+      </div>
+    </form>
+  `;
+  document.getElementById('cotForm').onsubmit = enviarCotizacion;
+  setTimeout(() => {
+    actualizarPredictsEMS();
+    agregarDictadoMicros();
+  }, 100);
+}
+
+// Guardar cotización en Firestore
+async function enviarCotizacion(e) {
+  e.preventDefault();
+  showProgress(true, 70, "Guardando...");
+  const form = document.getElementById('cotForm');
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
+    items.push({
+      concepto: tr.querySelector('input[name="concepto"]').value,
+      unidad: tr.querySelector('input[name="unidad"]').value,
+      cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
+      precio: Number(tr.querySelector('input[name="precio"]').value)
+    });
+  });
+  if (!datos.numero || !datos.cliente || !items.length) {
+    showProgress(false);
+    alert("Completa todos los campos requeridos.");
+    return;
+  }
+  // Predictivo
+  savePredictEMS("cliente", datos.cliente);
+  items.forEach(it => {
+    savePredictEMS("concepto", it.concepto);
+    savePredictEMS("unidad", it.unidad);
+  });
+
+  // Simula mejora IA
+  if (form.corrigeIA && form.corrigeIA.checked) {
+    datos.notas = corregirRedaccionIA(datos.notas || "");
+    items.forEach(it => it.concepto = corregirRedaccionIA(it.concepto));
+  }
+
+  const cotizacion = {
+    ...datos,
+    items,
+    tipo: 'cotizacion',
+    fecha: datos.fecha,
+    hora: datos.hora || ahora(),
+    creada: new Date().toISOString()
+  };
+  if (!navigator.onLine) {
+    alert("Sin conexión. Guarda localmente o espera a tener Internet.");
+    showProgress(false);
+    return;
+  }
+  await db.collection("cotizaciones").doc(datos.numero).set(cotizacion);
+  showProgress(false);
+  alert("¡Cotización guardada!");
+  renderInicio();
+}
+
+// Edición de cotización
+function editarCotizacion(datos) {
+  nuevaCotizacion();
+  const form = document.getElementById("cotForm");
+  form.numero.value = datos.numero;
+  form.fecha.value = datos.fecha;
+  form.cliente.value = datos.cliente;
+  form.hora.value = datos.hora;
+  if (datos.incluyeIVA) form.incluyeIVA.checked = true;
+  if (datos.anticipo) {
+    form.anticipo.checked = true;
+    form.anticipoPorc.parentElement.style.display = '';
+    form.anticipoPorc.value = datos.anticipoPorc;
+  }
+  const tbody = form.querySelector("#itemsTable tbody");
+  tbody.innerHTML = "";
+  (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
+  form.notas.value = datos.notas || "";
+}
+
+// ---- PDF de cotización (con encabezado SOLO página 1 y pie en todas) ----
+async function generarPDFCotizacion(share = false) {
+  showProgress(true, 10, "Generando PDF...");
+  const form = document.getElementById('cotForm');
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
+    const concepto = tr.querySelector('input[name="concepto"]').value.trim();
+    const cantidad = Number(tr.querySelector('input[name="cantidad"]').value);
+    const precio   = Number(tr.querySelector('input[name="precio"]').value);
+    if (!concepto || (cantidad === 0 && precio === 0)) return;
+    items.push({ concepto, unidad: tr.querySelector('input[name="unidad"]').value, cantidad, precio });
+  });
+
+  // Totales
+  const subtotal = items.reduce((s,i)=> s + i.cantidad * i.precio, 0);
+  const iva      = datos.incluyeIVA ? subtotal * 0.16 : 0;
+  const total    = subtotal + iva;
+  const anticipo = (datos.anticipo && datos.anticipoPorc)
+                 ? total * (Number(datos.anticipoPorc)/100)
+                 : 0;
+
+  // PDF
+  const { PDFDocument, rgb, StandardFonts } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const pageW = 595, pageH = 842;
+  const mx = 56, my = 72;
+  const usableW = pageW - mx * 2;
+  let y = pageH - my;
+
+  // Marca de agua
+  const logoBytes = await fetch(LOGO_URL).then(r=>r.arrayBuffer());
+  const logoImg   = await pdfDoc.embedPng(logoBytes);
+
+  let page = pdfDoc.addPage([pageW, pageH]);
+  // Encabezado SOLO página 1
+  page.drawImage(logoImg, {
+    x: (pageW - 320) / 2,
+    y: (pageH - 320) / 2,
+    width: 320,
+    height: 320,
+    opacity: 0.04
+  });
+
+  // Logo en encabezado (alto total)
+  const logoH = 60;
+  page.drawImage(logoImg, {
+    x: mx,
+    y: y - logoH + 6,
+    width: logoH,
+    height: logoH
+  });
+
+  // Título
+  const leftX = mx + logoH + 18;
+  page.drawText("ELECTROMOTORES SANTANA", {
+    x: leftX, y: y, size: 19, font: helvB, color: rgb(0.11,0.20,0.37)
+  });
+  page.drawText("embobinados y soluciones eléctricas", {
+    x: leftX, y: y - 18, size: 11, font: helv, color: rgb(0.5,0.53,0.6)
+  });
+  page.drawText("Cotización", {
+    x: leftX, y: y - 34, size: 13, font: helvB, color: rgb(0.97,0.54,0.11)
+  });
+  page.drawText(`Cliente: ${datos.cliente||""}`, {
+    x: leftX, y: y - 52, size: 11, font: helv, color: rgb(0.16,0.18,0.22)
+  });
+
+  // No. y fecha alineados derecha
+  const noTxt = `No: ${datos.numero||""}`;
+  const feTxt = `Fecha: ${datos.fecha||""}`;
+  const noW   = helvB.widthOfTextAtSize(noTxt, 12);
+  const feW   = helvB.widthOfTextAtSize(feTxt, 12);
+  page.drawText(noTxt, { x: mx + usableW - noW, y: y, size: 12, font: helvB, color: rgb(0.13,0.22,0.38) });
+  page.drawText(feTxt, { x: mx + usableW - feW, y: y - 18, size: 12, font: helvB, color: rgb(0.13,0.22,0.38) });
+
+  // Línea divisoria
+  y -= 74;
+  page.drawLine({ start:{x:mx,y}, end:{x:pageW-mx,y}, thickness:1.2, color:rgb(0.80,0.84,0.9) });
+  y -= 22;
+
+  // Tabla de items (manejo de salto de página)
+  const tableX = mx, tableW = usableW;
+  const cols   = [0, 160, 260, 340, 440, tableW];
+  const rowH   = 32;
+  // Cabecera tabla
+  page.drawRectangle({ x: tableX, y: y, width: tableW, height: rowH, color: rgb(0.11,0.20,0.37) });
+  ["Concepto","Unidad","Cantidad","P. Unitario","Total"].forEach((h,i) => {
+    page.drawText(h, { x: tableX + cols[i] + 6, y: y + 8, size: 11, font: helvB, color: rgb(1,1,1) });
+  });
+  y -= rowH;
+  let idx = 0;
+
+  function saltarPagina() {
+    page = pdfDoc.addPage([pageW, pageH]);
+    y = pageH - my;
+    // SOLO marca de agua y pie en siguientes páginas
+    page.drawImage(logoImg, {
+      x: (pageW - 320) / 2,
+      y: (pageH - 320) / 2,
+      width: 320,
+      height: 320,
+      opacity: 0.04
+    });
+  }
+
+  for (; idx < items.length; idx++) {
+    if (y < my + 180) { // suficiente para totales, notas, pie
+      saltarPagina();
+    }
+    const it = items[idx];
+    if (idx % 2 === 1) {
+      page.drawRectangle({ x: tableX, y: y, width: tableW, height: rowH, color: rgb(0.96,0.97,0.99) });
+    }
+    page.drawText(it.concepto, { x: tableX + 6,          y: y + 8, size: 10.5, font: helv, color: rgb(0.15,0.18,0.22) });
+    page.drawText(it.unidad,   { x: tableX + cols[1] + 6, y: y + 8, size: 10.5, font: helv, color: rgb(0.21,0.23,0.27) });
+    page.drawText(it.cantidad.toString(), { x: tableX + cols[2] + 6, y: y + 8, size: 10.5, font: helv, color: rgb(0.21,0.23,0.27) });
+    page.drawText(`$${it.precio.toFixed(2)}`, { x: tableX + cols[3] + 6, y: y + 8, size: 10.5, font: helv, color: rgb(0.21,0.23,0.27) });
+    page.drawText(`$${(it.cantidad*it.precio).toFixed(2)}`, { x: tableX + cols[4] + 6, y: y + 8, size: 10.5, font: helv, color: rgb(0.21,0.23,0.27) });
+    y -= rowH;
+  }
+  y -= 10;
+  // Totales
+  page.drawText(`Subtotal: $${subtotal.toFixed(2)}`, { x: tableX + tableW - 160, y, size: 12, font: helvB, color: rgb(0.15,0.18,0.22)});
+  if (iva) { y -= 16; page.drawText(`IVA (16%): $${iva.toFixed(2)}`, { x: tableX + tableW - 160, y, size: 12, font: helvB, color: rgb(0.15,0.18,0.22)});}
+  y -= 16; page.drawText(`TOTAL: $${total.toFixed(2)}`, { x: tableX + tableW - 160, y, size: 13, font: helvB, color: rgb(0.10,0.38,0.22)});
+  if (anticipo) { y -= 18; page.drawText(`Anticipo: $${anticipo.toFixed(2)}`, { x: tableX + tableW - 160, y, size: 11, font: helv, color: rgb(0.11,0.20,0.37)});}
+  y -= 32;
+
+  // Notas
+  if (datos.notas) {
+    page.drawText("Notas:", { x: tableX, y, size: 11, font: helvB, color: rgb(0.17,0.18,0.22)});
+    y -= 16;
+    const notasArr = datos.notas.match(/.{1,100}/g) || [datos.notas];
+    notasArr.forEach(str => {
+      page.drawText(str, { x: tableX + 12, y, size: 10.5, font: helv, color: rgb(0.13,0.15,0.19)});
+      y -= 15;
+    });
+  }
+  // Pie de página
+  page.drawText(`Electromotores Santana · ${AUTHOR} · ${new Date().getFullYear()}`, { 
+    x: mx, y: 18, size: 10, font: helv, color: rgb(0.41,0.46,0.60)
+  });
+  page.drawText("Este documento es confidencial y sólo para uso del cliente.", { 
+    x: mx, y: 6, size: 8, font: helv, color: rgb(0.52,0.51,0.48)
+  });
+
+  // Descargar o compartir
+  const pdfBytes = await pdfDoc.save();
+  showProgress(false);
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const file = new File([blob], `${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
+
+  if (share && navigator.share) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: "Cotización",
+        text: `Cotización ${datos.numero||""} de Electromotores Santana`
+      });
+      return;
+    } catch {}
+  }
+  // Descargar
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${datos.numero||"cotizacion"}.pdf`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+
+// Simulador IA (puedes sustituir esto por llamada real)
+function corregirRedaccionIA(text) {
+  if (!text || text.trim().length < 1) return text;
+  return text.charAt(0).toUpperCase() + text.slice(1).replace(/(\s{2,})/g, " ");
+}
+
+// ----- ABRIR DETALLE DE EMS (Cotización o Reporte) -----
+async function abrirDetalleEMS(tipo, numero) {
+  if (tipo === "cotizacion") {
+    let doc = await db.collection("cotizaciones").doc(numero).get();
+    if (!doc.exists) return alert("No se encontró la cotización.");
+    editarCotizacion(doc.data());
+  } else if (tipo === "reporte") {
+    abrirReporte(numero); // Definido en siguiente bloque
+  }
+}
+// =============== REPORTES ===================
+
+function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
+  // item.fotos debe ser array de URLs
+  let fotosHtml = '';
+  (item.fotos || []).forEach((url, fidx) => {
+    fotosHtml += `
+      <div class="ems-rep-foto">
+        <img src="${url}" style="width: 70px; height: 70px; object-fit:cover; border-radius:8px; border:1px solid #dbe2ea;">
+        ${modoEdicion ? `<button type="button" class="btn-mini" title="Eliminar imagen" onclick="eliminarFotoRepItem(this, ${idx}, ${fidx})"><i class="fa fa-trash"></i></button>` : ''}
+      </div>`;
+  });
+
+  return `
+    <tr>
+      <td>
+        <textarea name="descripcion" rows="2" required placeholder="Describe la actividad">${item.descripcion||""}</textarea>
+      </td>
+      <td>
+        <div class="ems-rep-fotos-row" id="fotos-item-${idx}">
+          ${fotosHtml}
+          ${modoEdicion && (item.fotos||[]).length < 6 ? `
+            <input type="file" accept="image/*" multiple
+              style="display:block; margin-top:7px;" 
+              onchange="subirFotoRepItem(this, ${idx})"
+              ${modoEdicion && (item.fotos||[]).length>=6 ? "disabled" : ""}
+            >
+          ` : ""}
+        </div>
+      </td>
+      <td>
+        ${modoEdicion ? `<button type="button" class="btn-mini" onclick="eliminarRepItemRow(this)"><i class="fa fa-trash"></i></button>` : ''}
+      </td>
+    </tr>
+  `;
+}
+
+function agregarRepItemRow(itemsArr = [], modoEdicion = true) {
+  const tbody = document.getElementById('repItemsTable').querySelector('tbody');
+  const idx = itemsArr.length;
+  tbody.insertAdjacentHTML('beforeend', renderRepItemRow({}, idx, modoEdicion));
+  agregarDictadoMicros();
+}
+
+function eliminarRepItemRow(btn) {
+  btn.closest('tr').remove();
+}
+
+// Nuevo Reporte
+function nuevoReporte() {
+  document.getElementById('root').innerHTML = `
+    <div class="ems-header">
+      <img src="${LOGO_URL}" class="ems-logo">
+      <div>
+        <h1>Electromotores Santana</h1>
+        <span class="ems-subtitle">Nuevo Reporte</span>
+      </div>
+    </div>
+    <form id="repForm" class="ems-form" autocomplete="off">
+      <div class="ems-form-row">
+        <div class="ems-form-group">
+          <label>No. Reporte</label>
+          <input type="text" name="numero" required placeholder="Ej. REP-2024-001">
+        </div>
+        <div class="ems-form-group">
+          <label>Fecha</label>
+          <input type="date" name="fecha" required value="${hoy()}">
+        </div>
+      </div>
+      <div class="ems-form-row">
+        <div class="ems-form-group">
+          <label>Cliente</label>
+          <div class="ems-form-input-icon">
+            <input type="text" name="cliente" list="clientesEMS" required placeholder="Nombre o Empresa" autocomplete="off">
+            <button type="button" class="mic-btn" title="Dictar por voz"><i class="fa fa-microphone"></i></button>
+          </div>
+        </div>
+        <div class="ems-form-group">
+          <label>Hora</label>
+          <input type="time" name="hora" value="${ahora()}">
+        </div>
+      </div>
+      <div>
+        <table class="ems-items-table" id="repItemsTable">
+          <thead>
+            <tr>
+              <th>Descripción</th>
+              <th>Fotos (máx 6)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${renderRepItemRow({}, 0, true)}
+          </tbody>
+        </table>
+        <button type="button" class="btn-secondary" onclick="agregarRepItemRow()">Agregar actividad/item</button>
+      </div>
+      <div class="ems-form-group">
+        <label>Notas / Observaciones</label>
+        <div class="ems-form-input-icon">
+          <textarea name="notas" rows="3" placeholder="Observaciones del servicio..."></textarea>
+          <button type="button" class="mic-btn"><i class="fa fa-microphone"></i></button>
+        </div>
+      </div>
+      <div class="ems-form-actions">
+        <button type="button" class="btn-mini" onclick="renderInicio()"><i class="fa fa-arrow-left"></i> Cancelar</button>
+        <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
+        <button type="button" class="btn-secondary" onclick="generarPDFReporte()"><i class="fa fa-file-pdf"></i> PDF</button>
+        <button type="button" class="btn-success" onclick="generarPDFReporte(true)"><i class="fa fa-share-alt"></i> Compartir</button>
+        <button type="button" class="btn-danger" onclick="eliminarReporteCompleto()" style="float:right;"><i class="fa fa-trash"></i> Eliminar</button>
+      </div>
+    </form>
+  `;
+  document.getElementById('repForm').onsubmit = enviarReporte;
+  setTimeout(() => {
+    actualizarPredictsEMS();
+    agregarDictadoMicros();
+  }, 100);
+}
+
+// Subir imagen a Storage
+async function subirFotoRepItem(input, idx) {
+  if (!input.files || input.files.length === 0) return;
+  const row = input.closest('tr');
+  const form = document.getElementById('repForm');
+  const numero = form.numero.value || "TEMP";
+  const fotosDiv = row.querySelector(`#fotos-item-${idx}`);
+
+  for (let file of Array.from(input.files)) {
+    if (!file.type.startsWith("image/")) continue;
+    if ((fotosDiv.querySelectorAll('img').length) >= 6) {
+      alert("Máximo 6 imágenes por actividad.");
+      break;
+    }
+    showProgress(true, 30, "Subiendo imagen...");
+    // Sube a Storage
+    const refPath = `reportes/${numero}/${idx}/${Date.now()}_${file.name.replace(/\s/g, "")}`;
+    const storageRef = storage.ref().child(refPath);
+    const uploadTask = storageRef.put(file);
+
+    await new Promise((resolve, reject) => {
+      uploadTask.on('state_changed', snapshot => {
+        let p = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        showProgress(true, p, "Subiendo imagen...");
+      }, err => {
+        showProgress(false);
+        alert("Error al subir imagen: " + err.message);
+        reject();
+      }, async () => {
+        // Subida exitosa
+        let url = await storageRef.getDownloadURL();
+        // Agrega visualmente la imagen
+        let newDiv = document.createElement("div");
+        newDiv.className = "ems-rep-foto";
+        newDiv.innerHTML = `<img src="${url}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid #dbe2ea;">
+          <button type="button" class="btn-mini" title="Eliminar imagen" onclick="eliminarFotoRepItem(this,${idx},null,'${url}')"><i class="fa fa-trash"></i></button>`;
+        fotosDiv.insertBefore(newDiv, fotosDiv.querySelector('input[type=file]'));
+        showProgress(false);
+        resolve();
+      });
+    });
+  }
+  input.value = "";
+}
+
+// Eliminar foto de item
+async function eliminarFotoRepItem(btn, idx, fidx, url) {
+  if (!confirm("¿Eliminar esta imagen?")) return;
+  // Borra visual
+  const fotoDiv = btn.closest('.ems-rep-foto');
+  fotoDiv.parentNode.removeChild(fotoDiv);
+  // Borra de Storage (si url existe)
+  if (url) {
+    const storageRef = storage.refFromURL(url);
+    try {
+      await storageRef.delete();
+    } catch (err) {}
+  }
+}
+
+// Guardar reporte
+async function enviarReporte(e) {
+  e.preventDefault();
+  showProgress(true, 60, "Guardando reporte...");
+  const form = document.getElementById('repForm');
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  let ok = true;
+  form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
+    let desc = tr.querySelector('textarea[name="descripcion"]').value.trim();
+    let fotos = Array.from(tr.querySelectorAll('img')).map(img => img.src);
+    if (!desc) ok = false;
+    if (fotos.length > 6) fotos = fotos.slice(0,6);
+    items.push({ descripcion: desc, fotos });
+  });
+  if (!datos.numero || !datos.cliente || !items.length || !ok) {
+    showProgress(false);
+    alert("Completa todos los campos requeridos.");
+    return;
+  }
+  savePredictEMS("cliente", datos.cliente);
+  items.forEach(it => savePredictEMS("desc", it.descripcion));
+
+  const reporte = {
+    ...datos,
+    items,
+    tipo: 'reporte',
+    fecha: datos.fecha,
+    hora: datos.hora || ahora(),
+    creada: new Date().toISOString()
+  };
+
+  await db.collection("reportes").doc(datos.numero).set(reporte);
+  showProgress(false);
+  alert("¡Reporte guardado!");
+  renderInicio();
+}
+
+// Abrir reporte para edición
+async function abrirReporte(numero) {
+  let doc = await db.collection("reportes").doc(numero).get();
+  if (!doc.exists) return alert("No se encontró el reporte.");
+  let datos = doc.data();
+  // Render UI
+  nuevoReporte();
+  const form = document.getElementById("repForm");
+  form.numero.value = datos.numero;
+  form.fecha.value = datos.fecha;
+  form.cliente.value = datos.cliente;
+  form.hora.value = datos.hora;
+  const tbody = form.querySelector("#repItemsTable tbody");
+  tbody.innerHTML = "";
+  (datos.items || []).forEach((item, idx) => {
+    tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
+  });
+  form.notas.value = datos.notas || "";
+}
+
+// Eliminar reporte completo (y sus imágenes)
+async function eliminarReporteCompleto() {
+  const form = document.getElementById('repForm');
+  const numero = form.numero.value;
+  if (!numero) return;
+  if (!confirm("¿Eliminar este reporte y todas sus imágenes?")) return;
+  // Borra imágenes en Storage
+  let doc = await db.collection("reportes").doc(numero).get();
+  if (doc.exists) {
+    let datos = doc.data();
+    if (datos.items) {
+      for (let idx = 0; idx < datos.items.length; idx++) {
+        for (let url of (datos.items[idx].fotos || [])) {
+          try {
+            await storage.refFromURL(url).delete();
+          } catch (e) {}
+        }
+      }
+    }
+  }
+  // Borra documento
+  await db.collection("reportes").doc(numero).delete();
+  showProgress(false);
+  alert("Reporte eliminado.");
+  renderInicio();
+}
+
+// ========== PDF DE REPORTE ==========
+async function generarPDFReporte(share = false) {
+  showProgress(true, 15, "Generando PDF...");
+  const form = document.getElementById('repForm');
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+    const descripcion = tr.querySelector('textarea[name="descripcion"]').value.trim();
+    const fotos = Array.from(tr.querySelectorAll('img')).map(img => img.src);
+    items.push({ descripcion, fotos });
+  });
+
+  // PDF
+  const { PDFDocument, rgb, StandardFonts } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const pageW = 595, pageH = 842;
+  const mx = 46, my = 70;
+  const usableW = pageW - mx * 2;
+  let y = pageH - my;
+
+  // Logo
+  const logoBytes = await fetch(LOGO_URL).then(r=>r.arrayBuffer());
+  const logoImg   = await pdfDoc.embedPng(logoBytes);
+
+  let page = pdfDoc.addPage([pageW, pageH]);
+  // Encabezado SOLO en la primera página
+  page.drawImage(logoImg, {
+    x: (pageW - 310) / 2,
+    y: (pageH - 310) / 2,
+    width: 310,
+    height: 310,
+    opacity: 0.05
+  });
+  page.drawImage(logoImg, { x: mx, y: y - 48, width: 48, height: 48 });
+  page.drawText("ELECTROMOTORES SANTANA", {
+    x: mx + 58, y: y-6, size: 16, font: helvB, color: rgb(0.11,0.20,0.37)
+  });
+  page.drawText("Reporte de Servicio", {
+    x: mx + 58, y: y-26, size: 11, font: helv, color: rgb(0.52,0.35,0.09)
+  });
+  page.drawText(`No: ${datos.numero||""}`, {
+    x: mx + usableW - 138, y: y-6, size: 12, font: helvB, color: rgb(0.13,0.22,0.38)
+  });
+  page.drawText(`Fecha: ${datos.fecha||""}`, {
+    x: mx + usableW - 138, y: y-26, size: 12, font: helvB, color: rgb(0.13,0.22,0.38)
+  });
+  y -= 58;
+
+  // Actividades (items)
+  for (let idx = 0; idx < items.length; idx++) {
+    let item = items[idx];
+    if (y < 140) { // Salto de página
+      page = pdfDoc.addPage([pageW, pageH]);
+      y = pageH - my;
+      page.drawImage(logoImg, {
+        x: (pageW - 310) / 2,
+        y: (pageH - 310) / 2,
+        width: 310,
+        height: 310,
+        opacity: 0.05
+      });
+    }
+    // Descripción
+    page.drawText(`• ${item.descripcion}`, { x: mx, y, size: 11.2, font: helv, color: rgb(0.19,0.21,0.24)});
+    y -= 22;
+
+    // Imágenes (máx 6 por item, 2 por fila)
+    if (item.fotos && item.fotos.length > 0) {
+      for (let f=0; f<item.fotos.length && f<6; f+=2) {
+        let img1 = await fetch(item.fotos[f]).then(r=>r.arrayBuffer()).catch(()=>null);
+        let img2 = (f+1<item.fotos.length) ? await fetch(item.fotos[f+1]).then(r=>r.arrayBuffer()).catch(()=>null) : null;
+        let imgObj1 = img1 ? await pdfDoc.embedJpg(img1).catch(()=>null) : null;
+        let imgObj2 = img2 ? await pdfDoc.embedJpg(img2).catch(()=>null) : null;
+        let imgY = y;
+        if (imgObj1) page.drawImage(imgObj1, { x: mx, y: imgY-80, width: 105, height: 80 });
+        if (imgObj2) page.drawImage(imgObj2, { x: mx+120, y: imgY-80, width: 105, height: 80 });
+        y -= 90;
+      }
+    } else {
+      y -= 6;
+    }
+    y -= 5;
+  }
+
+  // Notas
+  if (datos.notas) {
+    y -= 10;
+    page.drawText("Notas:", { x: mx, y, size: 10.5, font: helvB, color: rgb(0.17,0.18,0.22)});
+    y -= 14;
+    const notasArr = datos.notas.match(/.{1,100}/g) || [datos.notas];
+    notasArr.forEach(str => {
+      page.drawText(str, { x: mx + 12, y, size: 10.5, font: helv, color: rgb(0.13,0.15,0.19)});
+      y -= 15;
+    });
+  }
+
+  // Pie de página
+  page.drawText(`Electromotores Santana · ${AUTHOR} · ${new Date().getFullYear()}`, { 
+    x: mx, y: 18, size: 10, font: helv, color: rgb(0.41,0.46,0.60)
+  });
+  page.drawText("Este documento es confidencial y sólo para uso del cliente.", { 
+    x: mx, y: 6, size: 8, font: helv, color: rgb(0.52,0.51,0.48)
+  });
+
+  // Descargar o compartir
+  const pdfBytes = await pdfDoc.save();
+  showProgress(false);
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const file = new File([blob], `${datos.numero||"reporte"}.pdf`, { type: "application/pdf" });
+
+  if (share && navigator.share) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: "Reporte de Servicio",
+        text: `Reporte ${datos.numero||""} de Electromotores Santana`
+      });
+      return;
+    } catch {}
+  }
+  // Descargar
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${datos.numero||"reporte"}.pdf`;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+// =========== BLOQUE FINAL: INTEGRACIÓN Y PROTECCIONES ===========
+
+// Evita duplicar imágenes/items al editar reportes o cotizaciones
+// (Siempre limpiar tbody antes de insertar)
+function limpiarTbodyCotizaciones() {
+  const tbody = document.querySelector('#itemsTable tbody');
+  if (tbody) tbody.innerHTML = '';
+}
+function limpiarTbodyReportes() {
+  const tbody = document.querySelector('#repItemsTable tbody');
+  if (tbody) tbody.innerHTML = '';
+}
+
+// Cada vez que abras un formulario de edición,
+// usa las funciones limpiarTbody* para asegurar que no se acumulen filas/items.
+
+// ---- PROTECCIÓN ANTE NAVEGACIÓN (para evitar pérdida de datos) ----
+window.onbeforeunload = function(e) {
+  const root = document.getElementById('root');
+  if (!root) return;
+  if (root.innerHTML.includes("ems-form") && document.activeElement.tagName !== "BODY") {
+    return "¿Estás seguro de salir? Hay cambios sin guardar.";
+  }
+};
+
+// Ajustes para PWA (instalación, iconos, etc)
+window.addEventListener('DOMContentLoaded', () => {
+  actualizarPredictsEMS();
+});
+
+// Eliminar cotización completa (añade botón en formulario si deseas)
+async function eliminarCotizacionCompleta() {
+  const form = document.getElementById('cotForm');
+  const numero = form.numero.value;
+  if (!numero) return;
+  if (!confirm("¿Eliminar esta cotización?")) return;
+  await db.collection("cotizaciones").doc(numero).delete();
+  showProgress(false);
+  alert("Cotización eliminada.");
+  renderInicio();
+}
+
+// Asignar botón de eliminar cotización si agregas en UI
+// <button type="button" class="btn-danger" onclick="eliminarCotizacionCompleta()" ...>Eliminar</button>
+
+// ------- OffLine/OnLine feedback -------
+if (!navigator.onLine) showOffline(true);
+window.addEventListener("online", ()=>showOffline(false));
+window.addEventListener("offline", ()=>showOffline(true));
+
+// --- Actualizar predictivos al inicio ---
+actualizarPredictsEMS();
+

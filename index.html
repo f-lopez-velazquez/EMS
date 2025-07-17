@@ -3,42 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <title>EMS - Cotizaciones y Reportes</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#163960">
   <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="https://i.imgur.com/RQucHEc.png">
+  <!-- Font Awesome para iconos -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <!-- PDF-lib -->
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+  <!-- Firebase (compat, máxima compatibilidad) -->
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
 </head>
 <body>
-  <header>
-    <div class="header-logo">
-      <img src="https://i.imgur.com/RQucHEc.png" alt="Logo EMS" height="50">
-    </div>
-    <div class="header-info">
-      <h1>Electromotores Santana</h1>
-      <p>Carretera a Chichimequillas #306, Menchaca 2, Querétaro<br>
-      Tel: 442 469 9895</p>
-    </div>
-    <nav>
-      <button id="btn-nueva-cot"><i class="fa fa-file-invoice"></i> Nueva Cotización</button>
-      <button id="btn-nuevo-rep"><i class="fa fa-file-alt"></i> Nuevo Reporte</button>
-      <button id="btn-historial"><i class="fa fa-history"></i> Historial</button>
-    </nav>
-  </header>
-  <main>
-    <section id="contenedor">
-      <!-- Formularios y lista dinámica aquí -->
-    </section>
-  </main>
+  <!-- Aviso de conexión offline/online -->
+  <div id="ems-offline-banner" style="display:none;"></div>
+
+  <!-- Contenedor principal (renderizado por JS) -->
+  <div id="root"></div>
+
+  <!-- Barra de progreso visual -->
   <div id="progress-bar" style="display:none;">
     <div class="progress-inner"></div>
-    <span id="progress-msg"></span>
   </div>
-  <div id="toast" style="display:none;"></div>
+
+  <!-- Datalists globales para predictivos/autocompletar -->
+  <datalist id="clientesEMS"></datalist>
+  <datalist id="conceptosEMS"></datalist>
+  <datalist id="unidadesEMS"></datalist>
+  <datalist id="descEMS"></datalist>
+
+  <!-- App JS principal -->
   <script src="app.js"></script>
 </body>
 </html>
