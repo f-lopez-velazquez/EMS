@@ -22,15 +22,18 @@ function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
 
 function showProgress(show = true, percent = 0, msg = "") {
   const bar = document.getElementById("progress-bar");
-  if (!bar) return;
+  const overlay = document.getElementById("progress-overlay");
+  if (!bar || !overlay) return;
   bar.style.display = show ? "" : "none";
+  overlay.style.display = show ? "" : "none";
   const inner = bar.querySelector(".progress-inner");
   if (inner) {
     inner.style.width = show ? `${percent || 100}%` : "0%";
     inner.innerHTML = msg ? msg : "";
-    if (!show) setTimeout(() => { inner.innerHTML = ""; }, 600);
+    if (!show) setTimeout(() => { inner.innerHTML = ""; }, 400);
   }
 }
+
 
 function showOffline(show = true) {
   const banner = document.getElementById("ems-offline-banner");
@@ -646,6 +649,7 @@ async function eliminarFotoRepItem(btn, idx, fidx, url) {
 }
 
 // Guardar el reporte en Firestore (sin duplicar fotos)
+// Guardar el reporte en Firestore (sin duplicar fotos)
 async function enviarReporte(e) {
   e.preventDefault();
   showProgress(true, 65, "Guardando...");
@@ -655,9 +659,7 @@ async function enviarReporte(e) {
   let ok = true;
   form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
     let desc = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    let fotos = Array.from(tr.querySelectorAll("img"))
-      .map(img => img.src)
-      .filter(Boolean);
+    let fotos = (fotosItemsReporte[idx] || []).filter(Boolean); // <= CAMBIO CLAVE
     if (!desc) ok = false;
     if (fotos.length > 6) fotos = fotos.slice(0,6);
     items.push({ descripcion: desc, fotos });
@@ -685,6 +687,7 @@ async function enviarReporte(e) {
   fotosItemsReporte = [];
   renderInicio();
 }
+
 
 // Eliminar un reporte completo + sus fotos en Storage
 async function eliminarReporteCompleto() {
@@ -741,7 +744,9 @@ async function generarPDFReporte(share = false) {
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
   const logoImg   = await pdfDoc.embedPng(logoBytes);
 
+  // Encabezado solo en la primera página
   function drawHeader(page, firstPage = false) {
+    // Logo de fondo SIEMPRE
     page.drawImage(logoImg, {
       x: (pageW - 320) / 2,
       y: (pageH - 320) / 2,
@@ -750,6 +755,7 @@ async function generarPDFReporte(share = false) {
       opacity: 0.04
     });
     if (firstPage) {
+      // Solo en la primera: logo chico y textos
       const logoH = 54;
       page.drawImage(logoImg, { x: mx, y: y - logoH + 6, width: logoH, height: logoH });
       const leftX = mx + logoH + 16;
@@ -763,7 +769,7 @@ async function generarPDFReporte(share = false) {
   }
 
   let page = pdfDoc.addPage([pageW, pageH]);
-  drawHeader(page, true);
+  drawHeader(page, true); // Solo la primera página lleva encabezado completo
   y -= 42;
 
   for (const it of items) {
@@ -771,7 +777,7 @@ async function generarPDFReporte(share = false) {
     for (let i = 0; i < it.fotos.length && i < 6; i += 2) {
       if (y < 170) {
         page = pdfDoc.addPage([pageW, pageH]);
-        drawHeader(page, false);
+        drawHeader(page, false); // Solo logo de fondo en las demás
         y = pageH - my;
       }
       let imgsRow = it.fotos.slice(i, i+2);
@@ -844,6 +850,7 @@ async function generarPDFReporte(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
+
 // ================= PDF DE COTIZACIÓN =================
 async function generarPDFCotizacion(share = false) {
   showProgress(true, 20, "Generando PDF...");
