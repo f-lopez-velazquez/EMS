@@ -388,6 +388,24 @@ function editarCotizacion(datos) {
 }
 
 // ---- PDF de cotización (con encabezado SOLO página 1 y pie en todas) ----
+// (La función generarPDFCotizacion va en la siguiente parte...)
+
+function corregirRedaccionIA(text) {
+  if (!text || text.trim().length < 1) return text;
+  return text.charAt(0).toUpperCase() + text.slice(1).replace(/(\s{2,})/g, " ");
+}
+
+// ----- ABRIR DETALLE DE EMS -----
+async function abrirDetalleEMS(tipo, numero) {
+  if (tipo === "cotizacion") {
+    let doc = await db.collection("cotizaciones").doc(numero).get();
+    if (!doc.exists) return alert("No se encontró la cotización.");
+    editarCotizacion(doc.data());
+  } else if (tipo === "reporte") {
+    abrirReporte(numero);
+  }
+}
+// ---- PDF de cotización (con encabezado SOLO página 1 y pie en todas) ----
 async function generarPDFCotizacion(share = false) {
   showProgress(true, 10, "Generando PDF...");
   const form = document.getElementById('cotForm');
@@ -562,30 +580,11 @@ async function generarPDFCotizacion(share = false) {
   setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
 
-// Simulador IA
-function corregirRedaccionIA(text) {
-  if (!text || text.trim().length < 1) return text;
-  return text.charAt(0).toUpperCase() + text.slice(1).replace(/(\s{2,})/g, " ");
-}
+// =============== REPORTES ===============
 
-// ----- ABRIR DETALLE DE EMS -----
-async function abrirDetalleEMS(tipo, numero) {
-  if (tipo === "cotizacion") {
-    let doc = await db.collection("cotizaciones").doc(numero).get();
-    if (!doc.exists) return alert("No se encontró la cotización.");
-    editarCotizacion(doc.data());
-  } else if (tipo === "reporte") {
-    abrirReporte(numero);
-  }
-}
-// =================== REPORTES (Items, Fotos, Storage, PDF, UI, Feedback) ===================
-
-// Array global para URLs de fotos por item (mantiene sincronía UI <-> backend)
 let fotosItemsReporte = [];
 
-// Renderiza una fila de item en el formulario de reportes
 function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
-  // Inicializa el array si no existe
   if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
   let fotosHtml = '';
   (fotosItemsReporte[idx] || []).forEach((url, fidx) => {
@@ -621,7 +620,6 @@ function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
   `;
 }
 
-// Agrega una fila de item nueva y su array de fotos vacío
 function agregarRepItemRow() {
   const tbody = document.getElementById('repItemsTable').querySelector('tbody');
   const idx = tbody.children.length;
@@ -630,7 +628,6 @@ function agregarRepItemRow() {
   agregarDictadoMicros();
 }
 
-// Elimina una fila de item y su array de fotos
 function eliminarRepItemRow(btn) {
   const tr = btn.closest('tr');
   const idx = Array.from(tr.parentNode.children).indexOf(tr);
@@ -638,7 +635,6 @@ function eliminarRepItemRow(btn) {
   tr.remove();
 }
 
-// Formulario de nuevo reporte
 function nuevoReporte() {
   fotosItemsReporte = [];
   document.getElementById('root').innerHTML = `
@@ -804,7 +800,7 @@ async function abrirReporte(numero) {
   let doc = await db.collection("reportes").doc(numero).get();
   if (!doc.exists) return alert("No se encontró el reporte.");
   let datos = doc.data();
-  fotosItemsReporte = [];
+  fotosItemsReporte = []; // <--- La línea clave: LIMPIA el array global SIEMPRE
   nuevoReporte();
   const form = document.getElementById("repForm");
   form.numero.value = datos.numero;
@@ -814,7 +810,7 @@ async function abrirReporte(numero) {
   const tbody = form.querySelector("#repItemsTable tbody");
   tbody.innerHTML = "";
   (datos.items || []).forEach((item, idx) => {
-    fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
+    fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : []; // NUEVO array, nunca push
     tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
   });
   form.notas.value = datos.notas || "";
@@ -976,7 +972,7 @@ async function generarPDFReporte(share = false) {
   a.click();
   setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
-// ================== BLOQUE 4: Extras, Integración, Protección y Mejoras ===================
+// ================== BLOQUE FINAL: Extras, integración, protecciones ===================
 
 // Limpia los tbody de items al abrir cotización/reporte (evita duplicados visuales)
 function limpiarTbodyCotizaciones() {
@@ -1009,7 +1005,7 @@ async function eliminarCotizacionCompleta() {
   renderInicio();
 }
 
-// Asigna el botón donde lo desees en tu UI de cotización
+// Puedes asignar el botón donde lo desees en tu UI de cotización:
 // <button type="button" class="btn-danger" onclick="eliminarCotizacionCompleta()">Eliminar Cotización</button>
 
 // Feedback offline/online
