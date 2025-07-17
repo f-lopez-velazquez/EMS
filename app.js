@@ -407,9 +407,8 @@ function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
           ${fotosHtml}
           ${modoEdicion && (fotosItemsReporte[idx]||[]).length < 6 ? `
             <input type="file" accept="image/*"
-              style="display:block; margin-top:7px;" 
+              style="display:block; margin-top:7px;"
               onchange="subirFotoRepItem(this, ${idx})"
-              ${modoEdicion && (fotosItemsReporte[idx]||[]).length>=6 ? "disabled" : ""}
             >
             <div style="font-size:0.92em; color:#888;">${6 - (fotosItemsReporte[idx]||[]).length} fotos disponibles</div>
           ` : ""}
@@ -421,6 +420,7 @@ function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
     </tr>
   `;
 }
+
 
 // Agrega una actividad nueva
 function agregarRepItemRow() {
@@ -518,7 +518,7 @@ async function abrirReporte(numero) {
   let doc = await db.collection("reportes").doc(numero).get();
   if (!doc.exists) return alert("No se encontró el reporte.");
   let datos = doc.data();
-  fotosItemsReporte = []; // LIMPIA primero
+  fotosItemsReporte = [];
   document.getElementById('root').innerHTML = `
     <div class="ems-header">
       <img src="${LOGO_URL}" class="ems-logo">
@@ -581,8 +581,8 @@ async function abrirReporte(numero) {
     </form>
   `;
   setTimeout(() => {
-    actualizarPredictsEMS();
-    agregarDictadoMicros();
+    actualizarPredictsEMS && actualizarPredictsEMS();
+    agregarDictadoMicros && agregarDictadoMicros();
   }, 100);
   const form = document.getElementById("repForm");
   form.numero.value = datos.numero;
@@ -600,13 +600,14 @@ async function abrirReporte(numero) {
 }
 
 
+
 // SUBIR imagen (con barra de progreso)
 async function subirFotoRepItem(input, idx) {
   if (!input.files || input.files.length === 0) return;
   const file = input.files[0];
-  if (!file.type.startsWith("image/")) return;
+  if (!file.type.startsWith("image/")) return alert("Solo se permiten imágenes");
   input.disabled = true;
-  showProgress(true, 15, "Subiendo imagen...");
+  showProgress(true, 20, "Subiendo imagen...");
   const form = document.getElementById('repForm');
   const numero = form ? (form.numero.value || "TEMP") : "TEMP";
   const refPath = `reportes/${numero}/${idx}/${Date.now()}_${file.name.replace(/\s/g, "")}`;
@@ -616,7 +617,7 @@ async function subirFotoRepItem(input, idx) {
     await storageRef.put(file);
     let url = await storageRef.getDownloadURL();
     if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = [];
-    fotosItemsReporte[idx].push(url);
+    if (fotosItemsReporte[idx].length < 6) fotosItemsReporte[idx].push(url);
     // Re-render SOLO ese item row
     const tbody = document.querySelector('#repItemsTable tbody');
     tbody.children[idx].outerHTML = renderRepItemRow(
@@ -630,9 +631,10 @@ async function subirFotoRepItem(input, idx) {
     alert("Error al subir imagen. Revisa tu conexión.");
   } finally {
     input.disabled = false;
-    input.value = "";
+    input.value = ""; // LIMPIA el input
   }
 }
+
 
 // Elimina una imagen del UI, Storage y array
 async function eliminarFotoRepItem(btn, idx, fidx, url) {
@@ -649,6 +651,7 @@ async function eliminarFotoRepItem(btn, idx, fidx, url) {
   }, idx, true);
 }
 
+
 // Guardar el reporte en Firestore (sin duplicar fotos)
 // Guardar el reporte en Firestore (sin duplicar fotos)
 async function enviarReporte(e) {
@@ -660,7 +663,7 @@ async function enviarReporte(e) {
   let ok = true;
   form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
     let desc = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    let fotos = (fotosItemsReporte[idx] || []).filter(Boolean); // CLAVE: Solo del array global
+    let fotos = (fotosItemsReporte[idx] || []).filter(Boolean); // Solo del array
     if (!desc) ok = false;
     if (fotos.length > 6) fotos = fotos.slice(0,6);
     items.push({ descripcion: desc, fotos });
@@ -693,6 +696,7 @@ async function enviarReporte(e) {
     alert("Ocurrió un error al guardar el reporte. Intenta de nuevo.");
   }
 }
+
 
 
 
@@ -730,11 +734,10 @@ async function generarPDFReporte(share = false) {
   const items = [];
   form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
     const descripcion = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    const fotos = (fotosItemsReporte[idx] || []).filter(Boolean); // CLAVE: usa el array global
+    const fotos = (fotosItemsReporte[idx] || []).filter(Boolean);
     items.push({ descripcion, fotos });
   });
 
-  // PDF-lib
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -745,7 +748,6 @@ async function generarPDFReporte(share = false) {
   const usableW = pageW - mx * 2;
   let y = pageH - my;
 
-  // Logo
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
   const logoImg   = await pdfDoc.embedPng(logoBytes);
 
@@ -852,6 +854,7 @@ async function generarPDFReporte(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
+
 
 
 
