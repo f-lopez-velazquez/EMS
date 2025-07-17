@@ -609,30 +609,39 @@ async function abrirReporte(numero) {
 async function subirFotoRepItem(input, idx) {
   if (!input.files || input.files.length === 0) return;
   const files = Array.from(input.files).slice(0, 6 - (fotosItemsReporte[idx]?.length || 0));
-  const form = document.getElementById('repForm');
-  const numero = form ? (form.numero.value || "TEMP") : "TEMP";
   if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = [];
   input.disabled = true;
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     if (!file.type.startsWith("image/")) continue;
-    showProgress(true, 30, `Subiendo imagen ${i+1}...`);
-    const refPath = `reportes/${numero}/${idx}/${Date.now()}_${file.name.replace(/\s/g, "")}`;
-    const storageRef = storage.ref().child(refPath);
-    await storageRef.put(file);
-    let url = await storageRef.getDownloadURL();
-    if (fotosItemsReporte[idx].length < 6) fotosItemsReporte[idx].push(url);
+    showProgress(true, Math.round((i/files.length)*80)+10, `Subiendo imagen ${i+1} de ${files.length}...`);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'ml_default'); // Puedes personalizar esto si creas un preset unsigned
+    try {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/ds9b1mczi/image/upload`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.secure_url) {
+        if (fotosItemsReporte[idx].length < 6) fotosItemsReporte[idx].push(data.secure_url);
+      } else {
+        alert("No se pudo subir la imagen a Cloudinary");
+      }
+    } catch (err) {
+      alert("Error al subir la imagen");
+    }
   }
+  // Renderiza de nuevo la fila
   const tbody = document.querySelector('#repItemsTable tbody');
-  tbody.children[idx].outerHTML = renderRepItemRow(
-    { descripcion: tbody.children[idx].querySelector("textarea").value, fotos: fotosItemsReporte[idx] },
-    idx, true
-  );
+  tbody.children[idx].outerHTML = renderRepItemRow({ descripcion: tbody.children[idx].querySelector("textarea").value, fotos: fotosItemsReporte[idx] }, idx, true);
   showProgress(true, 100, "¡Imagen(es) subida(s)!");
-  setTimeout(() => showProgress(false), 900);
+  setTimeout(() => showProgress(false), 700);
   input.disabled = false;
   input.value = "";
 }
+
 
 
 
