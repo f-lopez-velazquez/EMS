@@ -1,6 +1,6 @@
 // EMS - Electromotores Santana - app.js
 
-// Configuración Firebase
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyDsXSbJWdMyBgTedntNv3ppj5GAvRUImyc",
   authDomain: "elms-26a5d.firebaseapp.com",
@@ -32,21 +32,17 @@ function showProgress(show = true, percent = 0, msg = "") {
   }
 }
 
-// Banner offline
 function showOffline(show = true) {
   const banner = document.getElementById("ems-offline-banner");
   if (!banner) return;
+  banner.style.display = show ? "" : "none";
   if (show) {
-    banner.style.display = "";
     banner.innerHTML = '<b>Sin conexión.</b> Los datos se guardarán localmente hasta que regreses a Internet.';
-  } else {
-    banner.style.display = "none";
   }
 }
 window.addEventListener("online", () => showOffline(false));
 window.addEventListener("offline", () => showOffline(true));
 
-// Predictivos
 function savePredictEMS(tipo, valor) {
   if (!valor || valor.length < 2) return;
   const key = `ems_pred_${tipo}`;
@@ -73,7 +69,6 @@ function actualizarPredictsEMS() {
   if (datalistDesc) datalistDesc.innerHTML = descs.map(v=>`<option value="${v}">`).join('');
 }
 
-// Dictado por voz
 function agregarDictadoMicros() {
   document.querySelectorAll(".mic-btn:not(.ems-mic-init)").forEach(btn => {
     btn.classList.add("ems-mic-init");
@@ -346,7 +341,6 @@ async function enviarCotizacion(e) {
   await db.collection("cotizaciones").doc(datos.numero).set(cotizacion);
   showProgress(true, 100, "¡Listo!");
   setTimeout(() => showProgress(false), 1000);
-  alert("¡Cotización guardada!");
   renderInicio();
 }
 
@@ -388,7 +382,7 @@ async function abrirDetalleEMS(tipo, numero) {
 }
 // ================== REPORTES ==================
 
-// Render de un item/actividad del reporte
+// Renderiza un item/actividad del reporte (sin duplicados de fotos)
 function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
   if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
   let fotosHtml = '';
@@ -425,7 +419,7 @@ function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
   `;
 }
 
-// Agrega una fila/actividad nueva
+// Agrega una actividad nueva
 function agregarRepItemRow() {
   const tbody = document.getElementById('repItemsTable').querySelector('tbody');
   const idx = tbody.children.length;
@@ -434,7 +428,7 @@ function agregarRepItemRow() {
   agregarDictadoMicros();
 }
 
-// Elimina un item y sus fotos
+// Elimina una fila de actividad y sus fotos
 function eliminarRepItemRow(btn) {
   const tr = btn.closest('tr');
   const idx = Array.from(tr.parentNode.children).indexOf(tr);
@@ -442,7 +436,7 @@ function eliminarRepItemRow(btn) {
   tr.remove();
 }
 
-// Para crear nuevo reporte
+// Crear nuevo reporte
 function nuevoReporte() {
   window.editandoReporte = false;
   fotosItemsReporte = [];
@@ -516,7 +510,7 @@ function nuevoReporte() {
   document.getElementById('repForm').onsubmit = enviarReporte;
 }
 
-// ABRIR REPORTE — edita SIN duplicados
+// Abrir reporte para editar (sin duplicar imágenes)
 async function abrirReporte(numero) {
   let doc = await db.collection("reportes").doc(numero).get();
   if (!doc.exists) return alert("No se encontró el reporte.");
@@ -602,7 +596,7 @@ async function abrirReporte(numero) {
   form.onsubmit = enviarReporte;
 }
 
-// SUBIR imagen
+// SUBIR imagen (con barra de progreso)
 async function subirFotoRepItem(input, idx) {
   if (!input.files || input.files.length === 0) return;
   const file = input.files[0];
@@ -625,7 +619,8 @@ async function subirFotoRepItem(input, idx) {
       { descripcion: tbody.children[idx].querySelector("textarea").value, fotos: fotosItemsReporte[idx] },
       idx, true
     );
-    showProgress(false);
+    showProgress(true, 100, "¡Imagen subida!");
+    setTimeout(() => showProgress(false), 900);
   } catch (err) {
     showProgress(false);
     alert("Error al subir imagen. Revisa tu conexión.");
@@ -635,7 +630,7 @@ async function subirFotoRepItem(input, idx) {
   }
 }
 
-// Elimina una imagen de UI, Storage y array
+// Elimina una imagen del UI, Storage y array
 async function eliminarFotoRepItem(btn, idx, fidx, url) {
   if (!confirm("¿Eliminar esta imagen?")) return;
   try {
@@ -650,7 +645,7 @@ async function eliminarFotoRepItem(btn, idx, fidx, url) {
   }, idx, true);
 }
 
-// Guardar el reporte en Firestore
+// Guardar el reporte en Firestore (sin duplicar fotos)
 async function enviarReporte(e) {
   e.preventDefault();
   showProgress(true, 65, "Guardando...");
@@ -687,12 +682,11 @@ async function enviarReporte(e) {
   await db.collection("reportes").doc(datos.numero).set(reporte);
   showProgress(true, 100, "¡Listo!");
   setTimeout(() => showProgress(false), 1000);
-  alert("¡Reporte guardado!");
   fotosItemsReporte = [];
   renderInicio();
 }
 
-// Borra todo un reporte y sus imágenes de Storage
+// Eliminar un reporte completo + sus fotos en Storage
 async function eliminarReporteCompleto() {
   const form = document.getElementById('repForm');
   const numero = form.numero.value;
@@ -717,16 +711,17 @@ async function eliminarReporteCompleto() {
   renderInicio();
 }
 
-// ========== PDF DE REPORTE (AHORA TOMA LAS IMÁGENES DIRECTO DEL DOM) ==========
+// -------- PDF DE REPORTE 100% FUNCIONAL --------
+
 async function generarPDFReporte(share = false) {
   showProgress(true, 10, "Generando PDF...");
   const form = document.getElementById('repForm');
   const datos = Object.fromEntries(new FormData(form));
-  // Captura items del DOM, no solo del modelo
+  // Captura items del DOM, fotos directas:
   const items = [];
-  form.querySelectorAll('#itemsTableR tbody tr').forEach(tr => {
+  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
     const descripcion = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    const fotos = Array.from(tr.querySelectorAll('.rep-img-list img')).map(img => img.src);
+    const fotos = Array.from(tr.querySelectorAll('img')).map(img => img.src).filter(Boolean);
     if (!descripcion && fotos.length === 0) return;
     items.push({ descripcion, fotos });
   });
@@ -746,7 +741,6 @@ async function generarPDFReporte(share = false) {
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
   const logoImg   = await pdfDoc.embedPng(logoBytes);
 
-  // Encabezado SOLO en la primera página
   function drawHeader(page, firstPage = false) {
     page.drawImage(logoImg, {
       x: (pageW - 320) / 2,
@@ -772,11 +766,9 @@ async function generarPDFReporte(share = false) {
   drawHeader(page, true);
   y -= 42;
 
-  // Por cada item
   for (const it of items) {
-    // Imágenes en pares (max 6 por item, 2 por fila)
+    // Imágenes (máx 6 por item, 2 por fila)
     for (let i = 0; i < it.fotos.length && i < 6; i += 2) {
-      // Salto de página si falta espacio
       if (y < 170) {
         page = pdfDoc.addPage([pageW, pageH]);
         drawHeader(page, false);
@@ -791,16 +783,13 @@ async function generarPDFReporte(share = false) {
         try {
           const bytes = await fetch(imgsRow[k]).then(r => r.arrayBuffer());
           let img;
-          // Prueba PNG, si no JPG
           try {
             img = await pdfDoc.embedPng(bytes);
           } catch {
             img = await pdfDoc.embedJpg(bytes);
           }
           page.drawImage(img, { x, y: y - w, width: w, height: w });
-        } catch (e) {
-          // Si falla, ignora esa imagen
-        }
+        } catch (e) {}
         x += w + gutter;
       }
       y -= w + 10;
@@ -855,8 +844,7 @@ async function generarPDFReporte(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
-
-// ============= PDF DE COTIZACIÓN =============
+// ================= PDF DE COTIZACIÓN =================
 async function generarPDFCotizacion(share = false) {
   showProgress(true, 20, "Generando PDF...");
   const form = document.getElementById('cotForm');
@@ -871,7 +859,7 @@ async function generarPDFCotizacion(share = false) {
     });
   });
 
-  // PDF
+  // PDF-lib
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -972,23 +960,20 @@ async function generarPDFCotizacion(share = false) {
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const file = new File([blob], `${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
 
-  if (share && navigator.share) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: "Cotización",
-        text: `Cotización ${datos.numero||""} de Electromotores Santana`
-      });
-      return;
-    } catch {}
+  if (share && navigator.share && navigator.canShare({ files: [file] })) {
+    await navigator.share({
+      files: [file],
+      title: "Cotización",
+      text: `Cotización ${datos.numero||""} de Electromotores Santana`
+    });
+  } else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${datos.numero||"cotizacion"}.pdf`;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),3000);
   }
-  // Descargar
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${datos.numero||"cotizacion"}.pdf`;
-  a.click();
-  setTimeout(()=>URL.revokeObjectURL(url),3000);
 }
 
 // --------- Protección contra cierre accidental -------------
@@ -1003,3 +988,4 @@ window.onbeforeunload = function(e) {
 // --------- Inicialización predictivos -------------
 window.addEventListener('DOMContentLoaded', () => { actualizarPredictsEMS(); });
 actualizarPredictsEMS();
+
