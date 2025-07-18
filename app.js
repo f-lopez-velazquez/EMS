@@ -969,15 +969,15 @@ async function generarPDFReporte(share = false) {
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
   const logoImg   = await pdfDoc.embedPng(logoBytes);
 
-page.drawImage(logoImg, {
+
+  let page = pdfDoc.addPage([pageW, pageH]);
+  page.drawImage(logoImg, {
   x: (pageW-260)/2,  // Centramos el logo (ajusta el 260 si prefieres más chico o más grande)
   y: (pageH-260)/2,
   width: 260,
   height: 260,
   opacity: 0.08        // HAZLO TRANSLÚCIDO
 });
-
-  let page = pdfDoc.addPage([pageW, pageH]);
   page.drawImage(logoImg, { x: mx, y: y-54, width: 54, height: 54 });
   page.drawText("ELECTROMOTORES SANTANA", { x: mx+64, y: y-5, size: 19, font: helvB, color: rgb(0.12,0.20,0.40) });
   page.drawText("Reporte de Servicio", { x: mx+64, y: y-26, size: 13, font: helvB, color: rgb(1, 0.60, 0.13) });
@@ -1148,15 +1148,16 @@ async function generarPDFCotizacion(share = false) {
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
   const logoImg   = await pdfDoc.embedPng(logoBytes);
 
-page.drawImage(logoImg, {
+
+
+  let page = pdfDoc.addPage([pageW, pageH]);
+  page.drawImage(logoImg, {
   x: (pageW-260)/2,  // Centramos el logo (ajusta el 260 si prefieres más chico o más grande)
   y: (pageH-260)/2,
   width: 260,
   height: 260,
   opacity: 0.08        // HAZLO TRANSLÚCIDO
 });
-
-  let page = pdfDoc.addPage([pageW, pageH]);
   // Encabezado
   page.drawImage(logoImg, { x: mx, y: y-58, width: 64, height: 64 });
   page.drawText("ELECTROMOTORES SANTANA", {
