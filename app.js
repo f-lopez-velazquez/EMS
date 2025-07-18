@@ -21,16 +21,7 @@ const LOGO_URL = "https://i.imgur.com/RQucHEc.png";
 let fotosItemsReporte = [];
 let autoSaveTimer = null;
 
-function safe(val) {
-  return (val === undefined || val === null) ? "" : String(val);
-}
-function formatMoney(val) {
-  return "$" + Number(val || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-function hoy() { return (new Date()).toISOString().slice(0, 10); }
-function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
-
-function showProgress(show = true, percent = 60, text = "Generando...") {
+function showProgress(visible = true, percent = 60, msg = "Generando...") {
   let bar = document.getElementById("progress-bar");
   if (!bar) {
     bar = document.createElement("div");
@@ -45,16 +36,67 @@ function showProgress(show = true, percent = 60, text = "Generando...") {
     bar.style.transition = "width 0.3s";
     document.body.appendChild(bar);
   }
-  if (show) {
+  if (visible) {
     bar.style.display = "block";
     bar.style.width = (percent || 60) + "%";
-    bar.innerText = text || "";
+    bar.innerText = msg || "";
   } else {
     bar.style.display = "none";
     bar.innerText = "";
     bar.style.width = "0%";
   }
 }
+
+
+function safe(val) {
+  return (val === undefined || val === null) ? "" : String(val);
+}
+function formatMoney(val) {
+  return "$" + Number(val || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function hoy() { return (new Date()).toISOString().slice(0, 10); }
+function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
+
+function showProgress(visible = true, percent = 0, msg = "") {
+  let bar = document.getElementById("progress-bar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "progress-bar";
+    bar.style.display = "flex";
+    bar.style.alignItems = "center";
+    bar.style.justifyContent = "center";
+    bar.style.position = "fixed";
+    bar.style.left = "0";
+    bar.style.top = "0";
+    bar.style.width = "100vw";
+    bar.style.height = "5px";
+    bar.style.background = "#26B77A";
+    bar.style.zIndex = "1200";
+    bar.innerHTML = '';
+    document.body.appendChild(bar);
+  }
+  if (!bar.querySelector(".progress-inner")) {
+    let inner = document.createElement("div");
+    inner.className = "progress-inner";
+    inner.style.width = percent + "%";
+    inner.innerText = msg;
+    bar.appendChild(inner);
+  }
+  bar.style.display = visible ? "flex" : "none";
+  let inner = bar.querySelector(".progress-inner");
+  if (inner) {
+    inner.style.width = percent + "%";
+    inner.innerText = msg;
+  }
+  if (!visible) {
+    setTimeout(() => {
+      bar.style.display = "none";
+      if (inner) inner.innerText = "";
+      if (inner) inner.style.width = "0%";
+    }, 400);
+  }
+}
+
 
 
 function showSaved(msg = "Guardado") {
@@ -350,20 +392,13 @@ async function subirFotoRepItem(input, idx) {
   input.disabled = false;
   input.value = "";
 }
-function eliminarFotoRepItem(btn, itemIdx, fotoIdx, url) {
-  if (!fotosItemsReporte[itemIdx]) return;
-  fotosItemsReporte[itemIdx].splice(fotoIdx, 1);
-  // Re-renderiza solo el item modificado
-  const tr = btn.closest('tr');
-  const newRow = document.createElement('tr');
-  newRow.innerHTML = renderRepItemRow(
-    { descripcion: tr.querySelector('textarea[name="descripcion"]').value, fotos: fotosItemsReporte[itemIdx] },
-    itemIdx, true
-  );
-  tr.parentNode.replaceChild(newRow, tr);
-  agregarDictadoMicros();
-  activarPredictivosInstantaneos();
+function eliminarFotoRepItem(btn, idx, fidx, url) {
+  if (!fotosItemsReporte[idx]) return;
+  fotosItemsReporte[idx].splice(fidx, 1);
+  // Elimina la miniatura del DOM
+  btn.parentElement.remove();
 }
+
 
 // ========== Cotización y Reporte: Formulario y Flujos ==========
 function nuevaCotizacion() {
