@@ -1,15 +1,11 @@
-// EMS - Electromotores Santana - app.js
+// === INICIALIZACIÓN Y UTILIDADES ===
 const EMS_CONTACT = {
   empresa: "ELECTROMOTORES SANTANA",
   direccion: "Carr. a Chichimequillas 306, Colonia Menchaca, 76147 Santiago de Querétaro, Qro.",
   telefono: "442 469 9895",
   correo: "electromotores.santana@gmail.com"
 };
-
-// Naranja corporativo para líneas y totales
 const EMS_COLOR = [0.97, 0.54, 0.11]; // rgb(248,138,29)
-
-// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyDsXSbJWdMyBgTedntNv3ppj5GAvRUImyc",
   authDomain: "elms-26a5d.firebaseapp.com",
@@ -23,103 +19,17 @@ const db = firebase.firestore();
 
 const LOGO_URL = "https://i.imgur.com/RQucHEc.png";
 let fotosItemsReporte = [];
-let ultimoEstadoForm = "";
 let autoSaveTimer = null;
 
 function safe(val) {
   return (val === undefined || val === null) ? "" : String(val);
 }
-
-async function guardarDraft(tipo) {
-  if (tipo === "cotizacion") {
-    if (document.getElementById('cotForm')) await guardarDraftCotizacion();
-  } else if (tipo === "reporte") {
-    if (document.getElementById('repForm')) await guardarDraftReporte();
-  }
+function formatMoney(val) {
+  return "$" + Number(val || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-
-
-function guardarCotizacionDraft() {
-  const form = document.getElementById('cotForm');
-  if (!form) return;
-  // Campos simples
-  const datos = Object.fromEntries(new FormData(form));
-  // Items de tabla
-  const items = [];
-  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
-    items.push({
-      concepto: tr.querySelector('input[name="concepto"]').value,
-      unidad: tr.querySelector('input[name="unidad"]').value,
-      cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
-      precio: Number(tr.querySelector('input[name="precio"]').value)
-    });
-  });
-  datos.items = items;
-  localStorage.setItem('EMS_COT_BORRADOR', JSON.stringify(datos));
-}
-
-
-function guardarReporteDraft() {
-  const form = document.getElementById('repForm');
-  if (!form) return;
-  // Campos simples
-  const datos = Object.fromEntries(new FormData(form));
-  // Items de tabla
-  const items = [];
-  form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
-    let desc = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    let fotos = (window.fotosItemsReporte?.[idx] || []).filter(Boolean); // toma las fotos temporales
-    items.push({ descripcion: desc, fotos });
-  });
-  datos.items = items;
-  localStorage.setItem('EMS_REP_BORRADOR', JSON.stringify(datos));
-}
-
-
-// Llama esto después de renderCotizacion() y renderReporte()
-function iniciarAutoSave(formId, saveFn) {
-  clearInterval(autoSaveTimer);
-  ultimoEstadoForm = "";
-  autoSaveTimer = setInterval(() => {
-    const form = document.getElementById(formId);
-    if (!form) return;
-    const actual = new FormData(form);
-    const str = JSON.stringify(Array.from(actual.entries()));
-    if (str !== ultimoEstadoForm) {
-      ultimoEstadoForm = str;
-      saveFn();
-      mostrarGuardado();
-    }
-  }, 15000);
-}
-
-function mostrarGuardado() {
-  let m = document.getElementById("mensaje-guardado");
-  if (!m) {
-    m = document.createElement("div");
-    m.id = "mensaje-guardado";
-    m.style.position = "fixed";
-    m.style.bottom = "25px";
-    m.style.right = "28px";
-    m.style.background = "#06c167d8";
-    m.style.color = "#fff";
-    m.style.padding = "8px 18px";
-    m.style.fontSize = "1em";
-    m.style.zIndex = "9999";
-    m.style.borderRadius = "12px";
-    m.style.boxShadow = "0 2px 10px #2222";
-    document.body.appendChild(m);
-  }
-  m.innerText = "Guardado";
-  m.style.opacity = "1";
-  setTimeout(() => { m.style.opacity = "0"; }, 1500);
-}
-
 function hoy() { return (new Date()).toISOString().slice(0, 10); }
 function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
-function formatMoney(val) {
-  return "$" + Number(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+
 function showSaved(msg = "Guardado") {
   let el = document.getElementById("saved-banner");
   if (!el) {
@@ -144,86 +54,14 @@ function showSaved(msg = "Guardado") {
   el._timer = setTimeout(() => { el.style.display = "none"; }, 1800);
 }
 
-async function guardarDraftCotizacion() {
-  const form = document.getElementById('cotForm');
-  if (!form) return;
-  const datos = Object.fromEntries(new FormData(form));
-  const items = [];
-  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
-    items.push({
-      concepto: tr.querySelector('input[name="concepto"]').value,
-      unidad: tr.querySelector('input[name="unidad"]').value,
-      cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
-      precio: Number(tr.querySelector('input[name="precio"]').value)
-    });
-  });
-  const cotizacion = {
-    ...datos,
-    items,
-    tipo: 'cotizacion',
-    fecha: datos.fecha,
-    hora: datos.hora || ahora(),
-    creada: new Date().toISOString()
-  };
-  await db.collection("cotizaciones").doc(datos.numero).set(cotizacion);
-  showSaved("Cotización guardada");
-}
-
-async function guardarDraftReporte() {
-  const form = document.getElementById('repForm');
-  if (!form) return;
-  const datos = Object.fromEntries(new FormData(form));
-  const items = [];
-  form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
-    let desc = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    let fotos = (fotosItemsReporte[idx] || []).filter(Boolean);
-    if (fotos.length > 6) fotos = fotos.slice(0,6);
-    items.push({ descripcion: desc, fotos });
-  });
-  const reporte = {
-    ...datos,
-    items,
-    tipo: 'reporte',
-    fecha: datos.fecha,
-    hora: datos.hora || ahora(),
-    creada: new Date().toISOString()
-  };
-  await db.collection("reportes").doc(datos.numero).set(reporte);
-  showSaved("Reporte guardado");
-}
-
-
-function showProgress(show = true, percent = 0, msg = "") {
-  const bar = document.getElementById("progress-bar");
-  if (!bar) return;
-  bar.style.display = show ? "" : "none";
-  const inner = bar.querySelector(".progress-inner");
-  if (inner) {
-    inner.style.width = show ? `${percent || 100}%` : "0%";
-    inner.innerHTML = msg ? msg : "";
-    if (!show) setTimeout(() => { inner.innerHTML = ""; }, 400);
-  }
-}
-function showOffline(show = true) {
-  const banner = document.getElementById("ems-offline-banner");
-  if (!banner) return;
-  banner.style.display = show ? "" : "none";
-  if (show) {
-    banner.innerHTML = '<b>Sin conexión.</b> Los datos se guardarán localmente hasta que regreses a Internet.';
-  }
-}
-window.addEventListener("online", () => showOffline(false));
-window.addEventListener("offline", () => showOffline(true));
-
-
-// --- Predictivos sincronizados con Firestore ---
+// ====== Predictivos Firestore ======
 async function savePredictEMSCloud(tipo, valor, user = "general") {
   if (!valor || valor.length < 2) return;
   const docRef = db.collection("predictEMS").doc(user);
   let data = (await docRef.get()).data() || {};
   if (!data[tipo]) data[tipo] = [];
   if (!data[tipo].includes(valor)) data[tipo].unshift(valor);
-  if (data[tipo].length > 25) data[tipo] = data[tipo].slice(0, 25);
+  if (data[tipo].length > 30) data[tipo] = data[tipo].slice(0, 30);
   await docRef.set(data, { merge: true });
 }
 async function getPredictEMSCloud(tipo, user = "general") {
@@ -231,12 +69,12 @@ async function getPredictEMSCloud(tipo, user = "general") {
   let data = (await docRef.get()).data() || {};
   return data[tipo] || [];
 }
-// Para cargar todos los predictivos y actualizar los datalists
 async function actualizarPredictsEMSCloud(user = "general") {
   let conceptos = await getPredictEMSCloud("concepto", user);
   let unidades = await getPredictEMSCloud("unidad", user);
   let clientes = await getPredictEMSCloud("cliente", user);
-  let descs    = await getPredictEMSCloud("desc", user);
+  let descs    = await getPredictEMSCloud("descripcion", user);
+
   const datalistConceptos = document.getElementById("conceptosEMS");
   if (datalistConceptos) datalistConceptos.innerHTML = conceptos.map(v=>`<option value="${v}">`).join('');
   const datalistUnidades = document.getElementById("unidadesEMS");
@@ -246,55 +84,34 @@ async function actualizarPredictsEMSCloud(user = "general") {
   const datalistDesc = document.getElementById("descEMS");
   if (datalistDesc) datalistDesc.innerHTML = descs.map(v=>`<option value="${v}">`).join('');
 }
-
-
-// Predictivos (localStorage)
-function savePredictEMS(tipo, valor) {
-  if (!valor || valor.length < 2) return;
-  const key = `ems_pred_${tipo}`;
-  let arr = JSON.parse(localStorage.getItem(key) || "[]");
-  if (!arr.includes(valor)) arr.unshift(valor);
-  if (arr.length > 25) arr = arr.slice(0, 25);
-  localStorage.setItem(key, JSON.stringify(arr));
-}
-function getPredictEMS(tipo) {
-  return JSON.parse(localStorage.getItem(`ems_pred_${tipo}`) || "[]");
-}
-function actualizarPredictsEMS() {
-  const conceptos = getPredictEMS("concepto");
-  const datalistConceptos = document.getElementById("conceptosEMS");
-  if (datalistConceptos) datalistConceptos.innerHTML = conceptos.map(v=>`<option value="${v}">`).join('');
-  const unidades = getPredictEMS("unidad");
-  const datalistUnidades = document.getElementById("unidadesEMS");
-  if (datalistUnidades) datalistUnidades.innerHTML = unidades.map(v=>`<option value="${v}">`).join('');
-  const clientes = getPredictEMS("cliente");
-  const datalistClientes = document.getElementById("clientesEMS");
-  if (datalistClientes) datalistClientes.innerHTML = clientes.map(v=>`<option value="${v}">`).join('');
-  const descs = getPredictEMS("desc");
-  const datalistDesc = document.getElementById("descEMS");
-  if (datalistDesc) datalistDesc.innerHTML = descs.map(v=>`<option value="${v}">`).join('');
-}
-
-function agregarDictadoMicros() {
-  document.querySelectorAll(".mic-btn:not(.ems-mic-init)").forEach(btn => {
-    btn.classList.add("ems-mic-init");
-    btn.onclick = function() {
-      if (!('webkitSpeechRecognition' in window)) {
-        alert("Tu navegador no soporta dictado por voz.");
-        return;
-      }
-      const recog = new webkitSpeechRecognition();
-      recog.lang = "es-MX";
-      recog.onresult = (evt) => {
-        const val = evt.results[0][0].transcript;
-        const input = btn.parentElement.querySelector("input, textarea");
-        if (input) input.value = val;
-      };
-      recog.start();
-    };
+function activarPredictivosInstantaneos() {
+  document.querySelectorAll('input[name="concepto"]').forEach(input => {
+    if (!input.hasAttribute('data-predictivo')) {
+      input.setAttribute('data-predictivo', '1');
+      input.addEventListener('blur', () => savePredictEMSCloud('concepto', input.value));
+    }
+  });
+  document.querySelectorAll('input[name="unidad"]').forEach(input => {
+    if (!input.hasAttribute('data-predictivo')) {
+      input.setAttribute('data-predictivo', '1');
+      input.addEventListener('blur', () => savePredictEMSCloud('unidad', input.value));
+    }
+  });
+  document.querySelectorAll('input[name="cliente"]').forEach(input => {
+    if (!input.hasAttribute('data-predictivo')) {
+      input.setAttribute('data-predictivo', '1');
+      input.addEventListener('blur', () => savePredictEMSCloud('cliente', input.value));
+    }
+  });
+  document.querySelectorAll('textarea[name="descripcion"]').forEach(input => {
+    if (!input.hasAttribute('data-predictivo')) {
+      input.setAttribute('data-predictivo', '1');
+      input.addEventListener('blur', () => savePredictEMSCloud('descripcion', input.value));
+    }
   });
 }
-// ----------- Pantalla de inicio -----------
+
+// --------- Renderización de interfaz ---------
 function renderInicio() {
   fotosItemsReporte = [];
   document.getElementById("root").innerHTML = `
@@ -321,10 +138,8 @@ function renderInicio() {
 }
 window.onload = () => {
   renderInicio();
-  if (!navigator.onLine) showOffline(true);
+  if (!navigator.onLine) showOffline?.(true);
 };
-
-// ----------- Historial y búsqueda -----------
 async function cargarHistorialEMS(filtro = "") {
   const cont = document.getElementById("historialEMS");
   if (!cont) return;
@@ -341,7 +156,6 @@ async function cargarHistorialEMS(filtro = "") {
   cotSnap.forEach(doc => items.push({ ...doc.data(), id: doc.id }));
   repSnap.forEach(doc => items.push({ ...doc.data(), id: doc.id }));
 
-  // Búsqueda
   if (filtro && filtro.length > 0) {
     items = items.filter(x =>
       (x.cliente || "").toLowerCase().includes(filtro.toLowerCase()) ||
@@ -372,8 +186,8 @@ document.addEventListener("input", e => {
     cargarHistorialEMS(e.target.value);
   }
 });
-// ------------- Cotizaciones (mismos métodos que antes) -------------
 
+// ========== Cotización ==========
 function renderCotItemRow(item = {}) {
   return `
     <tr>
@@ -388,8 +202,9 @@ function renderCotItemRow(item = {}) {
       <td>
         <input type="number" name="cantidad" min="0" value="${item.cantidad||""}" required>
       </td>
-      <td>
-        <input type="number" name="precio" min="0" step="0.01" value="${item.precio||""}" required>
+      <td style="white-space:nowrap;display:flex;align-items:center;">
+        <span style="margin-right:4px;color:#13823b;font-weight:bold;">$</span>
+        <input type="number" name="precio" min="0" step="0.01" value="${item.precio||""}" required style="width:90px;">
       </td>
       <td>
         <button type="button" class="btn-mini" onclick="eliminarCotItemRow(this)"><i class="fa fa-trash"></i></button>
@@ -401,10 +216,109 @@ function agregarCotItemRow() {
   const tbody = document.getElementById('itemsTable').querySelector('tbody');
   tbody.insertAdjacentHTML('beforeend', renderCotItemRow());
   agregarDictadoMicros();
+  activarPredictivosInstantaneos();
 }
 function eliminarCotItemRow(btn) {
   btn.closest('tr').remove();
 }
+
+// ========== Reporte (con imágenes Cloudinary) ==========
+function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
+  if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
+  let fotosHtml = '';
+  (fotosItemsReporte[idx] || []).forEach((url, fidx) => {
+    fotosHtml += `
+      <div class="ems-rep-foto">
+        <img src="${url}" style="width: 70px; height: 70px; object-fit:cover; border-radius:8px; border:1px solid #dbe2ea;">
+        ${modoEdicion ? `<button type="button" class="btn-mini" title="Eliminar imagen" onclick="eliminarFotoRepItem(this, ${idx}, ${fidx}, '${url}')"><i class="fa fa-trash"></i></button>` : ''}
+      </div>`;
+  });
+  return `
+    <tr>
+      <td>
+        <textarea name="descripcion" list="descEMS" rows="2" required placeholder="Describe la actividad">${item.descripcion||""}</textarea>
+        <datalist id="descEMS"></datalist>
+      </td>
+      <td>
+        <div class="ems-rep-fotos-row" id="fotos-item-${idx}">
+          ${fotosHtml}
+          ${modoEdicion && (fotosItemsReporte[idx]||[]).length < 6 ? `
+            <input type="file" accept="image/*" multiple
+              style="display:block; margin-top:7px;"
+              onchange="subirFotoRepItem(this, ${idx})"
+            >
+            <div style="font-size:0.92em; color:#888;">${6 - (fotosItemsReporte[idx]||[]).length} fotos disponibles</div>
+          ` : ""}
+        </div>
+      </td>
+      <td>
+        ${modoEdicion ? `<button type="button" class="btn-mini" onclick="eliminarRepItemRow(this)"><i class="fa fa-trash"></i></button>` : ''}
+      </td>
+    </tr>
+  `;
+}
+function agregarRepItemRow() {
+  const tbody = document.getElementById('repItemsTable').querySelector('tbody');
+  const idx = tbody.children.length;
+  fotosItemsReporte[idx] = [];
+  tbody.insertAdjacentHTML('beforeend', renderRepItemRow({}, idx, true));
+  agregarDictadoMicros();
+  activarPredictivosInstantaneos();
+}
+function eliminarRepItemRow(btn) {
+  const tr = btn.closest('tr');
+  const idx = Array.from(tr.parentNode.children).indexOf(tr);
+  fotosItemsReporte.splice(idx, 1);
+  tr.remove();
+}
+
+// === Subida de fotos Cloudinary ===
+async function subirFotoRepItem(input, idx) {
+  if (!input.files || input.files.length === 0) return;
+  const files = Array.from(input.files).slice(0, 6 - (fotosItemsReporte[idx]?.length || 0));
+  if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = [];
+  input.disabled = true;
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (!file.type.startsWith("image/")) continue;
+    showSaved(`Subiendo imagen ${i+1} de ${files.length}...`);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'ml_default'); // <-- CAMBIA si usas otro
+    try {
+      const res = await fetch('https://api.cloudinary.com/v1_1/ds9b1mczi/image/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.secure_url) {
+        if (fotosItemsReporte[idx].length < 6) fotosItemsReporte[idx].push(data.secure_url);
+      } else {
+        alert("No se pudo subir la imagen a Cloudinary");
+      }
+    } catch (err) {
+      alert("Error al subir la imagen");
+    }
+  }
+  // Re-renderiza la fila
+  const tbody = document.querySelector('#repItemsTable tbody');
+  tbody.children[idx].outerHTML = renderRepItemRow({
+    descripcion: tbody.children[idx].querySelector("textarea").value,
+    fotos: fotosItemsReporte[idx]
+  }, idx, true);
+  showSaved("¡Imagen(es) subida(s)!");
+  input.disabled = false;
+  input.value = "";
+}
+function eliminarFotoRepItem(btn, idx, fidx, url) {
+  if (fotosItemsReporte[idx]) fotosItemsReporte[idx].splice(fidx, 1);
+  const tbody = document.querySelector('#repItemsTable tbody');
+  tbody.children[idx].outerHTML = renderRepItemRow({
+    descripcion: tbody.children[idx].querySelector("textarea").value,
+    fotos: fotosItemsReporte[idx]
+  }, idx, true);
+}
+// ========== Cotización y Reporte: Formulario y Flujos ==========
 function nuevaCotizacion() {
   document.getElementById('root').innerHTML = `
     <div class="ems-header">
@@ -470,9 +384,7 @@ function nuevaCotizacion() {
               <th></th>
             </tr>
           </thead>
-          <tbody>
-            <!-- FILAS SE AGREGAN ABAJO -->
-          </tbody>
+          <tbody></tbody>
         </table>
         <button type="button" class="btn-secondary" onclick="agregarCotItemRow()">Agregar item</button>
       </div>
@@ -492,15 +404,12 @@ function nuevaCotizacion() {
     </form>
   `;
   const form = document.getElementById('cotForm');
-  // Cargar draft si existe
   let draft = localStorage.getItem('EMS_COT_BORRADOR');
   if (draft) {
     draft = JSON.parse(draft);
-    // Campos simples
     Object.keys(draft).forEach(k => {
       if (k !== "items" && form[k] !== undefined) form[k].value = draft[k];
     });
-    // Items tabla
     const tbody = form.querySelector("#itemsTable tbody");
     tbody.innerHTML = "";
     (draft.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
@@ -515,6 +424,7 @@ function nuevaCotizacion() {
   setTimeout(() => {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
+    activarPredictivosInstantaneos();
   }, 100);
   form.onsubmit = async (e) => {
     e.preventDefault();
@@ -523,138 +433,6 @@ function nuevaCotizacion() {
   };
 }
 
-
-// Guardar cotización en Firestore (con feedback visual)
-async function enviarCotizacion(e) {
-  e.preventDefault();
-  showProgress(true, 70, "Guardando...");
-  const form = document.getElementById('cotForm');
-  const datos = Object.fromEntries(new FormData(form));
-  const items = [];
-  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
-    items.push({
-      concepto: tr.querySelector('input[name="concepto"]').value,
-      unidad: tr.querySelector('input[name="unidad"]').value,
-      cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
-      precio: Number(tr.querySelector('input[name="precio"]').value)
-    });
-  });
-  if (!datos.numero || !datos.cliente || !items.length) {
-    showProgress(false);
-    alert("Completa todos los campos requeridos.");
-    return;
-  }
-  savePredictEMSCloud("cliente", datos.cliente);
-  items.forEach(it => {
-    savePredictEMSCloud("concepto", it.concepto);
-    savePredictEMSCloud("unidad", it.unidad);
-  });
-
-  const cotizacion = {
-    ...datos,
-    items,
-    tipo: 'cotizacion',
-    fecha: datos.fecha,
-    hora: datos.hora || ahora(),
-    creada: new Date().toISOString()
-  };
-  if (!navigator.onLine) {
-    alert("Sin conexión. Guarda localmente o espera a tener Internet.");
-    showProgress(false);
-    return;
-  }
-  await db.collection("cotizaciones").doc(datos.numero).set(cotizacion);
-  showProgress(true, 100, "¡Listo!");
-  setTimeout(() => showProgress(false), 1000);
-  renderInicio();
-}
-
-function editarCotizacion(datos) {
-  nuevaCotizacion();
-  const form = document.getElementById("cotForm");
-  form.numero.value = datos.numero;
-  form.fecha.value = datos.fecha;
-  form.cliente.value = datos.cliente;
-  form.hora.value = datos.hora;
-  if (datos.incluyeIVA) form.incluyeIVA.checked = true;
-  if (datos.anticipo) {
-    form.anticipo.checked = true;
-    form.anticipoPorc.parentElement.style.display = '';
-    form.anticipoPorc.value = datos.anticipoPorc;
-  }
-  const tbody = form.querySelector("#itemsTable tbody");
-  tbody.innerHTML = "";
-  (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
-  form.notas.value = datos.notas || "";
-}
-
-// ----- ABRIR DETALLE DE EMS -----
-async function abrirDetalleEMS(tipo, numero) {
-  if (tipo === "cotizacion") {
-    let doc = await db.collection("cotizaciones").doc(numero).get();
-    if (!doc.exists) return alert("No se encontró la cotización.");
-    editarCotizacion(doc.data());
-  } else if (tipo === "reporte") {
-    window.editandoReporte = true;
-    abrirReporte(numero);
-  }
-}
-
-// ================== REPORTES ==================
-
-// Renderiza un item/actividad del reporte (sin duplicados de fotos)
-function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
-  if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
-  let fotosHtml = '';
-  (fotosItemsReporte[idx] || []).forEach((url, fidx) => {
-    fotosHtml += `
-      <div class="ems-rep-foto">
-        <img src="${url}" style="width: 70px; height: 70px; object-fit:cover; border-radius:8px; border:1px solid #dbe2ea;">
-        ${modoEdicion ? `<button type="button" class="btn-mini" title="Eliminar imagen" onclick="eliminarFotoRepItem(this, ${idx}, ${fidx}, '${url}')"><i class="fa fa-trash"></i></button>` : ''}
-      </div>`;
-  });
-  return `
-    <tr>
-      <td>
-        <textarea name="descripcion" rows="2" required placeholder="Describe la actividad">${item.descripcion||""}</textarea>
-      </td>
-      <td>
-        <div class="ems-rep-fotos-row" id="fotos-item-${idx}">
-          ${fotosHtml}
-          ${modoEdicion && (fotosItemsReporte[idx]||[]).length < 6 ? `
-            <input type="file" accept="image/*" multiple
-              style="display:block; margin-top:7px;"
-              onchange="subirFotoRepItem(this, ${idx})"
-            >
-            <div style="font-size:0.92em; color:#888;">${6 - (fotosItemsReporte[idx]||[]).length} fotos disponibles</div>
-          ` : ""}
-        </div>
-      </td>
-      <td>
-        ${modoEdicion ? `<button type="button" class="btn-mini" onclick="eliminarRepItemRow(this)"><i class="fa fa-trash"></i></button>` : ''}
-      </td>
-    </tr>
-  `;
-}
-
-// Agrega una actividad nueva
-function agregarRepItemRow() {
-  const tbody = document.getElementById('repItemsTable').querySelector('tbody');
-  const idx = tbody.children.length;
-  fotosItemsReporte[idx] = [];
-  tbody.insertAdjacentHTML('beforeend', renderRepItemRow({}, idx, true));
-  agregarDictadoMicros();
-}
-
-// Elimina una fila de actividad y sus fotos (visual)
-function eliminarRepItemRow(btn) {
-  const tr = btn.closest('tr');
-  const idx = Array.from(tr.parentNode.children).indexOf(tr);
-  fotosItemsReporte.splice(idx, 1);
-  tr.remove();
-}
-
-// Crear nuevo reporte
 function nuevoReporte() {
   window.editandoReporte = false;
   fotosItemsReporte = [];
@@ -684,6 +462,7 @@ function nuevoReporte() {
             <input type="text" name="cliente" list="clientesEMS" required placeholder="Nombre o Empresa" autocomplete="off">
             <button type="button" class="mic-btn" title="Dictar por voz"><i class="fa fa-microphone"></i></button>
           </div>
+          <datalist id="clientesEMS"></datalist>
         </div>
         <div class="ems-form-group">
           <label>Hora</label>
@@ -715,20 +494,17 @@ function nuevoReporte() {
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
         <button type="button" class="btn-secondary" onclick="guardarReporteDraft(); generarPDFReporte()"><i class="fa fa-file-pdf"></i> PDF</button>
         <button type="button" class="btn-success" onclick="guardarReporteDraft(); generarPDFReporte(true)"><i class="fa fa-share-alt"></i> Compartir</button>
-        <button type="button" class="btn-danger" onclick="eliminarReporteCompleto()" style="float:right;"><i class="fa fa-trash"></i> Eliminar</button>
+        <button type="button" class="btn-danger" onclick="eliminarReporteCompleto?.()" style="float:right;"><i class="fa fa-trash"></i> Eliminar</button>
       </div>
     </form>
   `;
   const form = document.getElementById('repForm');
-  // Cargar draft si existe
   let draft = localStorage.getItem('EMS_REP_BORRADOR');
   if (draft) {
     draft = JSON.parse(draft);
-    // Campos simples
     Object.keys(draft).forEach(k => {
       if (k !== "items" && form[k] !== undefined) form[k].value = draft[k];
     });
-    // Items de tabla
     const tbody = form.querySelector("#repItemsTable tbody");
     tbody.innerHTML = "";
     fotosItemsReporte = [];
@@ -741,8 +517,9 @@ function nuevoReporte() {
     agregarRepItemRow();
   }
   setTimeout(() => {
-    actualizarPredictsEMSCloud()();
+    actualizarPredictsEMSCloud();
     agregarDictadoMicros();
+    activarPredictivosInstantaneos();
   }, 100);
   form.onsubmit = async (e) => {
     e.preventDefault();
@@ -750,362 +527,75 @@ function nuevoReporte() {
     localStorage.removeItem('EMS_REP_BORRADOR');
   };
 }
-
-
-// Abrir reporte para editar (sin duplicar imágenes)
-async function abrirReporte(numero) {
-  let doc = await db.collection("reportes").doc(numero).get();
-  if (!doc.exists) return alert("No se encontró el reporte.");
-  let datos = doc.data();
-  fotosItemsReporte = [];
-  document.getElementById('root').innerHTML = `
-    <div class="ems-header">
-      <img src="${LOGO_URL}" class="ems-logo">
-      <div>
-        <h1>Electromotores Santana</h1>
-        <span class="ems-subtitle">Editar Reporte</span>
-      </div>
-    </div>
-    <form id="repForm" class="ems-form" autocomplete="off">
-      <div class="ems-form-row">
-        <div class="ems-form-group">
-          <label>No. Reporte</label>
-          <input type="text" name="numero" required>
-        </div>
-        <div class="ems-form-group">
-          <label>Fecha</label>
-          <input type="date" name="fecha" required>
-        </div>
-      </div>
-      <div class="ems-form-row">
-        <div class="ems-form-group">
-          <label>Cliente</label>
-          <div class="ems-form-input-icon">
-            <input type="text" name="cliente" list="clientesEMS" required autocomplete="off">
-            <button type="button" class="mic-btn" title="Dictar por voz"><i class="fa fa-microphone"></i></button>
-          </div>
-        </div>
-        <div class="ems-form-group">
-          <label>Hora</label>
-          <input type="time" name="hora">
-        </div>
-      </div>
-      <div>
-        <table class="ems-items-table" id="repItemsTable">
-          <thead>
-            <tr>
-              <th>Descripción</th>
-              <th>Fotos (máx 6)</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-        <button type="button" class="btn-secondary" onclick="agregarRepItemRow()">Agregar actividad/item</button>
-      </div>
-      <div class="ems-form-group">
-        <label>Notas / Observaciones</label>
-        <div class="ems-form-input-icon">
-          <textarea name="notas" rows="3"></textarea>
-          <button type="button" class="mic-btn"><i class="fa fa-microphone"></i></button>
-        </div>
-      </div>
-      <div class="ems-form-actions">
-        <button type="button" class="btn-mini" onclick="renderInicio()"><i class="fa fa-arrow-left"></i> Cancelar</button>
-        <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
-        <button type="button" class="btn-secondary" onclick="generarPDFReporte()"><i class="fa fa-file-pdf"></i> PDF</button>
-        <button type="button" class="btn-success" onclick="generarPDFReporte(true)"><i class="fa fa-share-alt"></i> Compartir</button>
-        <button type="button" class="btn-danger" onclick="eliminarReporteCompleto()" style="float:right;"><i class="fa fa-trash"></i> Eliminar</button>
-      </div>
-    </form>
-  `;
-  setTimeout(() => {
-    actualizarPredictsEMSCloud() && actualizarPredictsEMSCloud();//actualizarPredictsEMS();
-    agregarDictadoMicros && agregarDictadoMicros();
-  }, 100);
-  const form = document.getElementById("repForm");
-  form.numero.value = datos.numero;
-  form.fecha.value = datos.fecha;
-  form.cliente.value = datos.cliente;
-  form.hora.value = datos.hora;
-  form.notas.value = datos.notas || "";
-  const tbody = form.querySelector("#repItemsTable tbody");
-  tbody.innerHTML = "";
-  (datos.items || []).forEach((item, idx) => {
-    fotosItemsReporte[idx] = Array.isArray(item.fotos) ? [...item.fotos] : [];
-    tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
-  });
-  form.onsubmit = enviarReporte;
-}
-// SUBIR imagen (con barra de progreso, Cloudinary)
-async function subirFotoRepItem(input, idx) {
-  if (!input.files || input.files.length === 0) return;
-  const files = Array.from(input.files).slice(0, 6 - (fotosItemsReporte[idx]?.length || 0));
-  if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = [];
-  input.disabled = true;
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    if (!file.type.startsWith("image/")) continue;
-    showProgress(true, Math.round((i/files.length)*80)+10, `Subiendo imagen ${i+1} de ${files.length}...`);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', 'ml_default'); // Default unsigned preset (debes tenerlo en Cloudinary)
-    try {
-      const res = await fetch('https://api.cloudinary.com/v1_1/ds9b1mczi/image/upload', {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      if (data.secure_url) {
-        if (fotosItemsReporte[idx].length < 6) fotosItemsReporte[idx].push(data.secure_url);
-      } else {
-        alert("No se pudo subir la imagen a Cloudinary");
-      }
-    } catch (err) {
-      alert("Error al subir la imagen");
-    }
-  }
-  // Renderiza de nuevo la fila
-  const tbody = document.querySelector('#repItemsTable tbody');
-  tbody.children[idx].outerHTML = renderRepItemRow({
-    descripcion: tbody.children[idx].querySelector("textarea").value,
-    fotos: fotosItemsReporte[idx]
-  }, idx, true);
-  showProgress(true, 100, "¡Imagen(es) subida(s)!");
-  setTimeout(() => showProgress(false), 900);
-  input.disabled = false;
-  input.value = "";
-}
-
-// Elimina una imagen del UI y del array (Cloudinary no permite borrar sin autenticación, así que solo del array)
-async function eliminarFotoRepItem(btn, idx, fidx, url) {
-  if (!confirm("¿Eliminar esta imagen?")) return;
-  if (fotosItemsReporte[idx]) fotosItemsReporte[idx].splice(fidx, 1);
-  const tbody = document.querySelector('#repItemsTable tbody');
-  tbody.children[idx].outerHTML = renderRepItemRow({
-    descripcion: tbody.children[idx].querySelector("textarea").value,
-    fotos: fotosItemsReporte[idx]
-  }, idx, true);
-}
-
-// Guardar el reporte en Firestore (ahora solo URLs Cloudinary)
-async function enviarReporte(e) {
+// ========== GUARDADO, PDF, EDICIÓN, DETALLE ==========
+async function enviarCotizacion(e) {
   e.preventDefault();
-  showProgress(true, 65, "Guardando...");
-  const form = document.getElementById('repForm');
+  showSaved("Guardando...");
+  const form = document.getElementById('cotForm');
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
-  let ok = true;
-  form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
-    let desc = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    let fotos = (fotosItemsReporte[idx] || []).filter(Boolean);
-    if (!desc) ok = false;
-    if (fotos.length > 6) fotos = fotos.slice(0,6);
-    items.push({ descripcion: desc, fotos });
+  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
+    items.push({
+      concepto: tr.querySelector('input[name="concepto"]').value,
+      unidad: tr.querySelector('input[name="unidad"]').value,
+      cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
+      precio: Number(tr.querySelector('input[name="precio"]').value)
+    });
   });
-  if (!datos.numero || !datos.cliente || !items.length || !ok) {
-    showProgress(false);
+  if (!datos.numero || !datos.cliente || !items.length) {
+    showSaved("Faltan datos");
     alert("Completa todos los campos requeridos.");
     return;
   }
-  const reporte = {
+  savePredictEMSCloud("cliente", datos.cliente);
+  items.forEach(it => {
+    savePredictEMSCloud("concepto", it.concepto);
+    savePredictEMSCloud("unidad", it.unidad);
+  });
+  const cotizacion = {
     ...datos,
     items,
-    tipo: 'reporte',
+    tipo: 'cotizacion',
     fecha: datos.fecha,
     hora: datos.hora || ahora(),
     creada: new Date().toISOString()
   };
-  try {
-    await db.collection("reportes").doc(datos.numero).set(reporte);
-    showProgress(true, 100, "¡Listo!");
-    setTimeout(() => showProgress(false), 900);
-    fotosItemsReporte = [];
-    renderInicio();
-  } catch (err) {
-    showProgress(false);
-    alert("Ocurrió un error al guardar el reporte. Intenta de nuevo.");
+  if (!navigator.onLine) {
+    alert("Sin conexión. Guarda localmente o espera a tener Internet.");
+    showSaved("Offline");
+    return;
   }
-}
-
-// Eliminar un reporte completo (ya no elimina imágenes de Cloudinary)
-async function eliminarReporteCompleto() {
-  const form = document.getElementById('repForm');
-  const numero = form.numero.value;
-  if (!numero) return;
-  if (!confirm("¿Eliminar este reporte? (Las imágenes seguirán en Cloudinary)")) return;
-  await db.collection("reportes").doc(numero).delete();
-  showProgress(false);
-  alert("Reporte eliminado.");
+  await db.collection("cotizaciones").doc(datos.numero).set(cotizacion);
+  showSaved("¡Cotización guardada!");
   renderInicio();
 }
-
-// -------- PDF DE REPORTE 100% FUNCIONAL --------
-async function generarPDFReporte(share = false) {
-  showProgress(true, 10, "Generando PDF...");
-  await guardarDraft('reporte');
-  const form = document.getElementById('repForm');
+async function guardarCotizacionDraft() {
+  const form = document.getElementById('cotForm');
+  if (!form) return;
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
-  form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
-    const descripcion = tr.querySelector('textarea[name="descripcion"]').value.trim();
-    const fotos = (fotosItemsReporte[idx] || []).filter(Boolean);
-    items.push({ descripcion, fotos });
-  });
-
-  const { PDFDocument, rgb, StandardFonts } = PDFLib;
-  const pdfDoc = await PDFDocument.create();
-  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-  const pageW = 595.28, pageH = 841.89;
-  const mx = 32, my = 42;
-  const usableW = pageW - mx*2;
-  let y = pageH - my;
-
-  const EMS_CONTACT = "Carr. a Chichimequillas 306, Col. Menchaca, Querétaro, Qro.\nTel: 442 469 9895 | electromotores.santana@gmail.com";
-  const VIGENCIA = "Vigencia: 15 días. Todo lo no previsto en este reporte se informará oportunamente.";
-
-  const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
-  const logoImg   = await pdfDoc.embedPng(logoBytes);
-
-
-  let page = pdfDoc.addPage([pageW, pageH]);
-  page.drawImage(logoImg, {
-  x: (pageW-260)/2,  // Centramos el logo (ajusta el 260 si prefieres más chico o más grande)
-  y: (pageH-260)/2,
-  width: 260,
-  height: 260,
-  opacity: 0.08        // HAZLO TRANSLÚCIDO
-});
-  page.drawImage(logoImg, { x: mx, y: y-54, width: 54, height: 54 });
-  page.drawText("ELECTROMOTORES SANTANA", { x: mx+64, y: y-5, size: 19, font: helvB, color: rgb(0.12,0.20,0.40) });
-  page.drawText("Reporte de Servicio", { x: mx+64, y: y-26, size: 13, font: helvB, color: rgb(1, 0.60, 0.13) });
-  page.drawText(EMS_CONTACT, {
-    x: mx+64, y: y-45, size: 9.5, font: helv, color: rgb(0.08,0.12,0.18),
-    maxWidth: usableW-68, lineHeight: 11
-  });
-  y -= 62;
-  page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 2, color: rgb(1, 0.60, 0.13) });
-  y -= 14;
-
-  // --- Datos reporte ---
-  page.drawText("Cliente:", { x: mx, y, size: 12, font: helvB });
-  page.drawText(datos.cliente || "", { x: mx+55, y, size: 12, font: helv });
-  page.drawText("Reporte No.:", { x: pageW/2+14, y, size: 12, font: helvB });
-  page.drawText(datos.numero || "", { x: pageW/2+110, y, size: 12, font: helv });
-  y -= 16;
-  page.drawText("Fecha:", { x: mx, y, size: 12, font: helvB });
-  page.drawText(datos.fecha || "", { x: mx+55, y, size: 12, font: helv });
-  page.drawText("Hora:", { x: pageW/2+60, y, size: 12, font: helvB });
-  page.drawText(datos.hora || "", { x: pageW/2+110, y, size: 12, font: helv });
-
-  y -= 26;
-
-  // --- ITEMS ---
-  for (const it of items) {
-    let fotos = it.fotos || [];
-    if (fotos.length) {
-      let imgW = fotos.length === 1 ? 240 : fotos.length === 2 ? 190 : 130;
-      let gutter = 16;
-      let imgsPerRow = fotos.length > 2 ? 2 : fotos.length;
-      for (let i = 0; i < fotos.length; i += imgsPerRow) {
-        if (y < 170) {
-          page = pdfDoc.addPage([pageW, pageH]);
-          y = pageH - my - 80;
-        }
-        let imgsRow = fotos.slice(i, i+imgsPerRow);
-        let rowStart = pageW/2 - (imgsRow.length*imgW + (imgsRow.length-1)*gutter)/2;
-        let xi = rowStart;
-        for (let k = 0; k < imgsRow.length; k++) {
-          try {
-            const bytes = await fetch(imgsRow[k]).then(r => r.arrayBuffer());
-            let img;
-            try { img = await pdfDoc.embedPng(bytes); }
-            catch { img = await pdfDoc.embedJpg(bytes); }
-            page.drawImage(img, { x: xi, y: y-imgW, width: imgW, height: imgW });
-          } catch (e) {}
-          xi += imgW + gutter;
-        }
-        y -= imgW + 16;
-      }
-    }
-    // Descripción con margen
-    if (it.descripcion?.trim()) {
-      if (y < 110) {
-        page = pdfDoc.addPage([pageW, pageH]);
-        y = pageH - my - 80;
-      }
-      page.drawText(it.descripcion, {
-        x: mx+5, y: y, size: 12, font: helv, color: rgb(0.13,0.14,0.16), maxWidth: usableW-20, lineHeight: 16
-      });
-      let descLines = Math.ceil(it.descripcion.length/(usableW/7));
-      y -= 24 + descLines*12;
-    } else {
-      y -= 20;
-    }
-    // Línea divisoria
-    page.drawLine({
-      start: { x: mx, y: y+7 },
-      end:   { x: pageW-mx, y: y+7 },
-      thickness: 1.2,
-      color: rgb(0.76,0.80,0.94)
+  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
+    items.push({
+      concepto: tr.querySelector('input[name="concepto"]').value,
+      unidad: tr.querySelector('input[name="unidad"]').value,
+      cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
+      precio: Number(tr.querySelector('input[name="precio"]').value)
     });
-    y -= 12;
-  }
-
-  // Notas / observaciones
-  if (datos.notas?.trim()) {
-    if (y < 70) {
-      page = pdfDoc.addPage([pageW, pageH]);
-      y = pageH - my - 40;
-    }
-    page.drawText("Observaciones:", { x: mx, y, size: 12, font: helvB, color: rgb(0.15,0.18,0.22) });
-    y -= 14;
-    page.drawText(datos.notas.trim(), { x: mx+14, y, size: 11, font: helv, maxWidth: usableW-22 });
-    y -= 14;
-  }
-
-  // Pie de página
-  page.drawRectangle({
-    x: mx, y: 26, width: usableW, height: 32, color: rgb(0.11, 0.24, 0.44)
   });
-  page.drawText(VIGENCIA, {
-    x: mx+14, y: 39, size: 10, font: helv, color: rgb(1,1,1),
-    maxWidth: usableW-20
-  });
-  page.drawText("Electromotores Santana © "+(new Date().getFullYear()), {
-    x: mx+14, y: 29, size: 10, font: helv, color: rgb(0.96,0.96,0.96)
-  });
-
-  // Salida PDF
-  const pdfBytes = await pdfDoc.save();
-  showProgress(false);
-  const blob = new Blob([pdfBytes], { type: "application/pdf" });
-  const file = new File([blob], `Reporte_${datos.numero||"reporte"}.pdf`, { type: "application/pdf" });
-
-  if (share && navigator.share && navigator.canShare({ files: [file] })) {
-    await navigator.share({
-      files: [file],
-      title: "Reporte de Servicio",
-      text: `Reporte ${datos.numero||""} de Electromotores Santana`
-    });
-  } else {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = file.name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-  }
+  const cotizacion = {
+    ...datos,
+    items,
+    tipo: 'cotizacion',
+    fecha: datos.fecha,
+    hora: datos.hora || ahora(),
+    creada: new Date().toISOString()
+  };
+  await db.collection("cotizaciones").doc(datos.numero).set(cotizacion);
+  showSaved("Cotización guardada");
 }
-
-
-
-// --------- PDF DE COTIZACIÓN PROFESIONAL ---------
 async function generarPDFCotizacion(share = false) {
-  showProgress(true, 10, "Generando PDF...");
-  await guardarDraft('cotizacion');
+  showSaved("Generando PDF...");
+  await guardarCotizacionDraft();
   const form = document.getElementById('cotForm');
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
@@ -1160,85 +650,84 @@ async function generarPDFCotizacion(share = false) {
   page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 140, y: y, size: 10.2, font: helvB, color: rgb(0.13,0.22,0.38) });
   page.drawText(`Fecha: ${datos.fecha||""}`, { x: mx + usableW - 140, y: y - 17, size: 10.2, font: helvB, color: rgb(0.13,0.22,0.38) });
   page.drawText(`Hora: ${datos.hora||""}`, { x: mx + usableW - 140, y: y - 34, size: 10.2, font: helvB, color: rgb(0.13,0.22,0.38) });
-  y -= logoH + 12;
+
+  y -= (logoH + 18);
+
+  // Línea divisoria
+  page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 2, color: rgb(...EMS_COLOR) });
+  y -= 16;
 
   // Tabla de items
-  const headY = y;
-  const colConcepto = mx + 6, colUnidad = mx + 190, colCantidad = mx + 300, colPrecio = mx + 370, colImporte = mx + 455;
-  const rowH = 22;
-  // Encabezados
-  page.drawText("Concepto", { x: colConcepto, y: y, size: 10.7, font: helvB });
-  page.drawText("Unidad", { x: colUnidad, y: y, size: 10.7, font: helvB });
-  page.drawText("Cantidad", { x: colCantidad, y: y, size: 10.7, font: helvB });
-  page.drawText("Precio", { x: colPrecio, y: y, size: 10.7, font: helvB });
-  page.drawText("Importe", { x: colImporte, y: y, size: 10.7, font: helvB });
+  page.drawText("Concepto", { x: mx, y, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
+  page.drawText("Unidad", { x: mx+176, y, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
+  page.drawText("Cantidad", { x: mx+265, y, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
+  page.drawText("Precio", { x: mx+350, y, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
+  page.drawText("Importe", { x: mx+440, y, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
+  y -= 14;
+  page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 1.2, color: rgb(0.76,0.80,0.94) });
+  y -= 8;
 
-  // Línea bajo encabezados
-  y -= 7;
-  page.drawLine({ start: { x: mx, y }, end: { x: mx + usableW, y }, thickness: 1, color: rgb(0.94,0.47,0.13) });
+  for (const it of items) {
+    if (y < 110) {
+      page = pdfDoc.addPage([pageW, pageH]);
+      y = pageH - my - 70;
+    }
+    page.drawText(String(it.concepto || ""), { x: mx, y, size: 10, font: helv });
+    page.drawText(String(it.unidad || ""), { x: mx+176, y, size: 10, font: helv });
+    page.drawText(String(it.cantidad || ""), { x: mx+265, y, size: 10, font: helv });
+    page.drawText(formatMoney(it.precio), { x: mx+350, y, size: 10, font: helv });
+    page.drawText(formatMoney(it.cantidad * it.precio), { x: mx+440, y, size: 10, font: helv });
+    y -= 14;
+  }
+
+  y -= 10;
+
+  // Totales
+  page.drawLine({ start: { x: mx+340, y }, end: { x: pageW-mx, y }, thickness: 1.2, color: rgb(...EMS_COLOR) });
   y -= 12;
-
-  // Items (filas)
-  items.forEach((it, idx) => {
-    page.drawText(it.concepto, { x: colConcepto, y, size: 10, font: helv });
-    page.drawText(it.unidad, { x: colUnidad, y, size: 10, font: helv });
-    page.drawText(it.cantidad.toLocaleString('es-MX'), { x: colCantidad, y, size: 10, font: helv });
-    page.drawText(it.precio.toLocaleString('es-MX', { minimumFractionDigits: 2 }), { x: colPrecio, y, size: 10, font: helv });
-    page.drawText((it.cantidad * it.precio).toLocaleString('es-MX', { minimumFractionDigits: 2 }), { x: colImporte, y, size: 10, font: helv });
-    // Línea divisoria
-    y -= rowH - 6;
-    page.drawLine({ start: { x: mx, y: y+5 }, end: { x: mx + usableW, y: y+5 }, thickness: 0.7, color: rgb(0.90,0.90,0.90) });
-    y -= 6;
-  });
-
-  y -= 4;
-
-  // Totales (bien alineados y resaltados)
-  function labelVal(label, val, bold, extraY = 0) {
-    page.drawText(label, { x: colPrecio-38, y: y+extraY, size: 10.3, font: bold ? helvB : helv });
-    page.drawText(val, { x: colImporte, y: y+extraY, size: 11, font: bold ? helvB : helv, color: rgb(0.98,0.54,0.10) });
+  page.drawText("Subtotal:", { x: mx+340, y, size: 10.5, font: helvB });
+  page.drawText(formatMoney(subtotal), { x: mx+440, y, size: 10.5, font: helvB });
+  y -= 13;
+  if (iva > 0) {
+    page.drawText("IVA (16%):", { x: mx+340, y, size: 10.5, font: helvB });
+    page.drawText(formatMoney(iva), { x: mx+440, y, size: 10.5, font: helvB });
+    y -= 13;
   }
-  labelVal("Subtotal:", subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 }), false);
-  y -= 17;
-  if (iva) {
-    labelVal("IVA (16%):", iva.toLocaleString('es-MX', { minimumFractionDigits: 2 }), false);
-    y -= 17;
-  }
-  labelVal("Total:", total.toLocaleString('es-MX', { minimumFractionDigits: 2 }), true);
-  y -= 17;
-  if (anticipo) {
-    labelVal(`Anticipo (${anticipoPorc}%):`, anticipo.toLocaleString('es-MX', { minimumFractionDigits: 2 }), false);
-    y -= 17;
+  page.drawText("Total:", { x: mx+340, y, size: 11.5, font: helvB, color: rgb(...EMS_COLOR) });
+  page.drawText(formatMoney(total), { x: mx+440, y, size: 11.5, font: helvB, color: rgb(...EMS_COLOR) });
+  y -= 15;
+  if (anticipo > 0) {
+    page.drawText(`Anticipo (${anticipoPorc}%):`, { x: mx+340, y, size: 10.5, font: helvB, color: rgb(0.13,0.18,0.38) });
+    page.drawText(formatMoney(anticipo), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.13,0.18,0.38) });
+    y -= 13;
   }
 
-  // Notas u observaciones
+  // Notas / observaciones
   if (datos.notas?.trim()) {
-    y -= 24;
-    page.drawText("Notas / Observaciones:", { x: mx, y, size: 11, font: helvB, color: rgb(0.11,0.11,0.20) });
-    y -= 17;
-    page.drawText(datos.notas.trim(), { x: mx+11, y, size: 10, font: helv, maxWidth: usableW - 22 });
-    y -= 16;
+    y -= 12;
+    page.drawText("Observaciones:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
+    y -= 13;
+    page.drawText(datos.notas.trim(), { x: mx+12, y, size: 10, font: helv, color: rgb(0.18,0.23,0.32), maxWidth: usableW-20 });
+    y -= 10;
   }
 
-  // Pie de página (banda azul con datos)
-  const pieY = 40;
+  // Pie de página con datos y vigencia
+  const pie = `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}\nTel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`;
+  const VIGENCIA = "Vigencia de la cotización: 15 días naturales a partir de la fecha de emisión.";
   page.drawRectangle({
-    x: 0, y: 0, width: pageW, height: pieY,
-    color: rgb(0.13,0.22,0.42)
+    x: mx, y: 26, width: usableW, height: 32, color: rgb(0.11, 0.24, 0.44)
   });
-  page.drawText("Electromotores Santana | Carr. a Chichimequillas 306, Colonia Menchaca, 76147 Santiago de Querétaro, Qro.", {
-    x: mx, y: 24, size: 9.6, font: helv, color: rgb(1,1,1)
+  page.drawText(pie, {
+    x: mx+14, y: 46, size: 9, font: helv, color: rgb(1,1,1),
+    maxWidth: usableW-20
   });
-  page.drawText("Tel: 442 469 9895 · electromotores.santana@gmail.com", {
-    x: mx, y: 12, size: 9.6, font: helv, color: rgb(1,1,1)
-  });
-  page.drawText("Vigencia de cotización: 15 días · Todo lo no previsto en esta cotización se le hará saber de manera oportuna.", {
-    x: mx, y: 3, size: 8.7, font: helv, color: rgb(0.92,0.92,0.92)
+  page.drawText(VIGENCIA, {
+    x: mx+14, y: 32, size: 9.7, font: helv, color: rgb(1,1,1)
   });
 
-  // Finalizar PDF
+  // Salida PDF
   const pdfBytes = await pdfDoc.save();
-  showProgress(false);
+  showSaved("PDF Listo");
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const file = new File([blob], `Cotizacion_${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
 
@@ -1257,85 +746,271 @@ async function generarPDFCotizacion(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
-
-
-
-
-
-
-function mostrarGuardado() {
-  let el = document.getElementById("guardado-msg");
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "guardado-msg";
-    el.style.position = "fixed";
-    el.style.top = "14px";
-    el.style.right = "20px";
-    el.style.zIndex = 9999;
-    el.style.background = "#e4fae7";
-    el.style.color = "#1e6e24";
-    el.style.fontWeight = "bold";
-    el.style.border = "1px solid #b9e5c8";
-    el.style.padding = "8px 16px";
-    el.style.borderRadius = "10px";
-    el.style.boxShadow = "0 2px 12px #0001";
-    document.body.appendChild(el);
+function editarCotizacion(datos) {
+  nuevaCotizacion();
+  const form = document.getElementById("cotForm");
+  form.numero.value = datos.numero;
+  form.fecha.value = datos.fecha;
+  form.cliente.value = datos.cliente;
+  form.hora.value = datos.hora;
+  if (datos.incluyeIVA) form.incluyeIVA.checked = true;
+  if (datos.anticipo) {
+    form.anticipo.checked = true;
+    form.anticipoPorc.parentElement.style.display = '';
+    form.anticipoPorc.value = datos.anticipoPorc;
   }
-  el.textContent = "¡Borrador guardado!";
-  el.style.display = "";
-  setTimeout(() => { el.style.display = "none"; }, 1200);
+  const tbody = form.querySelector("#itemsTable tbody");
+  tbody.innerHTML = "";
+  (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
+  form.notas.value = datos.notas || "";
+  setTimeout(() => {
+    actualizarPredictsEMSCloud();
+    agregarDictadoMicros();
+    activarPredictivosInstantaneos();
+  }, 100);
 }
 
-
-async function inicializarPredictsEMS() {
-  const predCol = db.collection("predicts");
-  // UNIDAD
-  const unidadPredicts = ["Pieza", "Servicio", "Metro", "Tramo"];
-  for (const unidad of unidadPredicts) {
-    await predCol.doc("unidad").set({
-      [unidad]: true
-    }, { merge: true });
-  }
-  // CONCEPTO
-  const conceptoPredicts = [
-    "Embobinado",
-    "Mantenimiento",
-    "Barnizado",
-    "Emplayado",
-    "Secado en horno",
-    "Encasquillado de tapa",
-    "Rectificado flecha",
-    "Pintado"
-  ];
-  for (const concepto of conceptoPredicts) {
-    await predCol.doc("concepto").set({
-      [concepto]: true
-    }, { merge: true });
+async function abrirDetalleEMS(tipo, numero) {
+  if (tipo === "cotizacion") {
+    let doc = await db.collection("cotizaciones").doc(numero).get();
+    if (!doc.exists) return alert("No se encontró la cotización.");
+    editarCotizacion(doc.data());
+  } else if (tipo === "reporte") {
+    window.editandoReporte = true;
+    abrirReporte?.(numero);
   }
 }
 
-window.onload = async () => {
+// ======= GUARDADO Y PDF DE REPORTES ==========
+async function enviarReporte(e) {
+  e.preventDefault();
+  showSaved("Guardando...");
+  const form = document.getElementById('repForm');
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+    items.push({
+      descripcion: tr.querySelector('textarea[name="descripcion"]').value,
+      fotos: fotosItemsReporte[Array.from(tr.parentNode.children).indexOf(tr)] || []
+    });
+  });
+  if (!datos.numero || !datos.cliente || !items.length) {
+    showSaved("Faltan datos");
+    alert("Completa todos los campos requeridos.");
+    return;
+  }
+  savePredictEMSCloud("cliente", datos.cliente);
+  items.forEach(it => savePredictEMSCloud("descripcion", it.descripcion));
+  const reporte = {
+    ...datos,
+    items,
+    tipo: 'reporte',
+    fecha: datos.fecha,
+    hora: datos.hora || ahora(),
+    creada: new Date().toISOString()
+  };
+  if (!navigator.onLine) {
+    alert("Sin conexión. Guarda localmente o espera a tener Internet.");
+    showSaved("Offline");
+    return;
+  }
+  await db.collection("reportes").doc(datos.numero).set(reporte);
+  showSaved("¡Reporte guardado!");
   renderInicio();
-  if (!navigator.onLine) showOffline(true);
-  await inicializarPredictsEMS();
-  await actualizarPredictsEMSCloud(); // <-- Esto es lo importante
-};
+}
 
+async function guardarReporteDraft() {
+  const form = document.getElementById('repForm');
+  if (!form) return;
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+    items.push({
+      descripcion: tr.querySelector('textarea[name="descripcion"]').value,
+      fotos: fotosItemsReporte[Array.from(tr.parentNode.children).indexOf(tr)] || []
+    });
+  });
+  const reporte = {
+    ...datos,
+    items,
+    tipo: 'reporte',
+    fecha: datos.fecha,
+    hora: datos.hora || ahora(),
+    creada: new Date().toISOString()
+  };
+  await db.collection("reportes").doc(datos.numero).set(reporte);
+  showSaved("Reporte guardado");
+}
 
-// --------- Protección contra cierre accidental -------------
-window.onbeforeunload = function(e) {
-  const root = document.getElementById('root');
-  if (!root) return;
-  if (root.innerHTML.includes("ems-form") && document.activeElement.tagName !== "BODY") {
-    return "¿Estás seguro de salir? Hay cambios sin guardar.";
+async function generarPDFReporte(share = false) {
+  showSaved("Generando PDF...");
+  await guardarReporteDraft();
+  const form = document.getElementById('repForm');
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+    items.push({
+      descripcion: tr.querySelector('textarea[name="descripcion"]').value,
+      fotos: fotosItemsReporte[Array.from(tr.parentNode.children).indexOf(tr)] || []
+    });
+  });
+
+  // PDF
+  const { PDFDocument, rgb, StandardFonts } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  // Medidas A4 en puntos
+  const pageW = 595.28, pageH = 841.89;
+  const mx = 32, my = 38;
+  const usableW = pageW - mx*2;
+  let y = pageH - my;
+
+  let page = pdfDoc.addPage([pageW, pageH]);
+
+  // Marca de agua (logo grande y translúcido, centrado)
+  const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
+  const logoImg   = await pdfDoc.embedPng(logoBytes);
+  page.drawImage(logoImg, {
+    x: (pageW-260)/2,
+    y: (pageH-260)/2,
+    width: 260,
+    height: 260,
+    opacity: 0.08
+  });
+
+  // Encabezado
+  const logoH = 46;
+  page.drawImage(logoImg, { x: mx, y: y - logoH + 6, width: logoH, height: logoH });
+  const leftX = mx + logoH + 14;
+  page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y, size: 16, font: helvB, color: rgb(0.10,0.20,0.40) });
+  page.drawText("REPORTE DE SERVICIO", { x: leftX, y: y - 18, size: 11, font: helvB, color: rgb(0.98,0.54,0.10) });
+  page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 34, size: 10.2, font: helv, color: rgb(0.16,0.18,0.22) });
+  page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 140, y: y, size: 10.2, font: helvB, color: rgb(0.13,0.22,0.38) });
+  page.drawText(`Fecha: ${datos.fecha||""}`, { x: mx + usableW - 140, y: y - 17, size: 10.2, font: helvB, color: rgb(0.13,0.22,0.38) });
+  page.drawText(`Hora: ${datos.hora||""}`, { x: mx + usableW - 140, y: y - 34, size: 10.2, font: helvB, color: rgb(0.13,0.22,0.38) });
+
+  y -= (logoH + 18);
+
+  // Línea divisoria
+  page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 2, color: rgb(...EMS_COLOR) });
+  y -= 16;
+
+  // Tabla de items
+  page.drawText("Actividad / Descripción", { x: mx, y, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
+  y -= 14;
+  page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 1.2, color: rgb(0.76,0.80,0.94) });
+  y -= 8;
+
+  for (let idx = 0; idx < items.length; idx++) {
+    let it = items[idx];
+    let desc = String(it.descripcion || "");
+    let descParts = [];
+    while (desc.length > 0) {
+      descParts.push(desc.slice(0, 110));
+      desc = desc.slice(110);
+    }
+    for (let part of descParts) {
+      if (y < 100) {
+        page = pdfDoc.addPage([pageW, pageH]);
+        y = pageH - my - 70;
+      }
+      page.drawText(part, { x: mx, y, size: 10, font: helv });
+      y -= 14;
+    }
+    // Fotos
+    if (it.fotos && it.fotos.length) {
+      for (let url of it.fotos) {
+        try {
+          if (y < 140) {
+            page = pdfDoc.addPage([pageW, pageH]);
+            y = pageH - my - 70;
+          }
+          const fotoBytes = await fetch(url).then(r=>r.arrayBuffer());
+          const fotoImg = await pdfDoc.embedJpg(fotoBytes);
+          page.drawImage(fotoImg, {
+            x: mx, y: y - 78, width: 100, height: 72
+          });
+          y -= 80;
+        } catch(e){}
+      }
+    }
+    y -= 10;
   }
-};
 
-// --------- Inicialización predictivos -------------
-window.addEventListener('DOMContentLoaded', () => { actualizarPredictsEMSCloud();; });
-actualizarPredictsEMSCloud();;
+  // Notas / observaciones
+  if (datos.notas?.trim()) {
+    if (y < 80) {
+      page = pdfDoc.addPage([pageW, pageH]);
+      y = pageH - my - 70;
+    }
+    page.drawText("Observaciones:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
+    y -= 13;
+    let obs = datos.notas.trim();
+    while (obs.length > 0) {
+      let line = obs.slice(0, 110);
+      page.drawText(line, { x: mx+12, y, size: 10, font: helv, color: rgb(0.18,0.23,0.32), maxWidth: usableW-20 });
+      obs = obs.slice(110);
+      y -= 12;
+    }
+  }
 
-setInterval(() => {
-  if (document.getElementById('cotForm')) guardarCotizacionDraft();
-  if (document.getElementById('repForm')) guardarReporteDraft();
-}, 15000);
+  // Pie de página con datos y leyenda
+  const pie = `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}\nTel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`;
+  const VIGENCIA = "Este reporte da fe de los trabajos realizados según solicitud del cliente.";
+  page.drawRectangle({
+    x: mx, y: 26, width: usableW, height: 32, color: rgb(0.11, 0.24, 0.44)
+  });
+  page.drawText(pie, {
+    x: mx+14, y: 46, size: 9, font: helv, color: rgb(1,1,1),
+    maxWidth: usableW-20
+  });
+  page.drawText(VIGENCIA, {
+    x: mx+14, y: 32, size: 9.7, font: helv, color: rgb(1,1,1)
+  });
+
+  // Salida PDF
+  const pdfBytes = await pdfDoc.save();
+  showSaved("PDF Listo");
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const file = new File([blob], `Reporte_${datos.numero||"reporte"}.pdf`, { type: "application/pdf" });
+
+  if (share && navigator.share && navigator.canShare({ files: [file] })) {
+    await navigator.share({
+      files: [file],
+      title: "Reporte de Servicio",
+      text: `Reporte ${datos.numero||""} de Electromotores Santana`
+    });
+  } else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+}
+
+// ======= Dictado por voz para campos con .mic-btn =======
+function agregarDictadoMicros() {
+  document.querySelectorAll(".mic-btn:not(.ems-mic-init)").forEach(btn => {
+    btn.classList.add("ems-mic-init");
+    btn.onclick = function() {
+      if (!('webkitSpeechRecognition' in window)) {
+        alert("Tu navegador no soporta dictado por voz.");
+        return;
+      }
+      const recog = new webkitSpeechRecognition();
+      recog.lang = "es-MX";
+      recog.onresult = (evt) => {
+        const val = evt.results[0][0].transcript;
+        const input = btn.parentElement.querySelector("input, textarea");
+        if (input) input.value = val;
+      };
+      recog.start();
+    };
+  });
+}
+
+// ========== Fin del archivo ==========
