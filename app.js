@@ -30,6 +30,14 @@ function safe(val) {
   return (val === undefined || val === null) ? "" : String(val);
 }
 
+async function guardarDraft(tipo) {
+  if (tipo === "cotizacion") {
+    if (document.getElementById('cotForm')) await guardarDraftCotizacion();
+  } else if (tipo === "reporte") {
+    if (document.getElementById('repForm')) await guardarDraftReporte();
+  }
+}
+
 
 function guardarCotizacionDraft() {
   const form = document.getElementById('cotForm');
@@ -935,7 +943,7 @@ async function eliminarReporteCompleto() {
 // -------- PDF DE REPORTE 100% FUNCIONAL --------
 async function generarPDFReporte(share = false) {
   showProgress(true, 10, "Generando PDF...");
-  await guardarDraft("reporte");
+  await guardarDraft('reporte');
   const form = document.getElementById('repForm');
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
@@ -945,26 +953,23 @@ async function generarPDFReporte(share = false) {
     items.push({ descripcion, fotos });
   });
 
-  // --- PDF LIB
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // --- MEDIDAS Y ESTILO ---
-  const pageW = 595.28, pageH = 841.89; // A4
+  const pageW = 595.28, pageH = 841.89;
   const mx = 32, my = 42;
   const usableW = pageW - mx*2;
   let y = pageH - my;
 
   const EMS_CONTACT = "Carr. a Chichimequillas 306, Col. Menchaca, Querétaro, Qro.\nTel: 442 469 9895 | electromotores.santana@gmail.com";
+  const VIGENCIA = "Vigencia: 15 días. Todo lo no previsto en este reporte se informará oportunamente.";
 
-  // --- LOGO Y ENCABEZADO ---
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
   const logoImg   = await pdfDoc.embedPng(logoBytes);
 
   let page = pdfDoc.addPage([pageW, pageH]);
-  // Encabezado: logo, título, info
   page.drawImage(logoImg, { x: mx, y: y-54, width: 54, height: 54 });
   page.drawText("ELECTROMOTORES SANTANA", { x: mx+64, y: y-5, size: 19, font: helvB, color: rgb(0.12,0.20,0.40) });
   page.drawText("Reporte de Servicio", { x: mx+64, y: y-26, size: 13, font: helvB, color: rgb(1, 0.60, 0.13) });
@@ -972,12 +977,11 @@ async function generarPDFReporte(share = false) {
     x: mx+64, y: y-45, size: 9.5, font: helv, color: rgb(0.08,0.12,0.18),
     maxWidth: usableW-68, lineHeight: 11
   });
-  // Línea naranja
   y -= 62;
   page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 2, color: rgb(1, 0.60, 0.13) });
   y -= 14;
 
-  // --- DATOS REPORTE ---
+  // --- Datos reporte ---
   page.drawText("Cliente:", { x: mx, y, size: 12, font: helvB });
   page.drawText(datos.cliente || "", { x: mx+55, y, size: 12, font: helv });
   page.drawText("Reporte No.:", { x: pageW/2+14, y, size: 12, font: helvB });
@@ -990,21 +994,19 @@ async function generarPDFReporte(share = false) {
 
   y -= 26;
 
-  // --- ITEMS (foto + descripción + línea) ---
+  // --- ITEMS ---
   for (const it of items) {
-    // Fotos (máx 2 por fila, grandes y centradas)
     let fotos = it.fotos || [];
     if (fotos.length) {
-      let rowW = fotos.length === 1 ? 260 : fotos.length === 2 ? 400 : 260;
-      let imgW = fotos.length === 1 ? 260 : fotos.length === 2 ? 190 : 160;
-      let xImg = fotos.length === 2 ? (pageW/2 - 200) : (pageW/2 - imgW/2);
-      for (let i = 0; i < fotos.length; i += 2) {
+      let imgW = fotos.length === 1 ? 240 : fotos.length === 2 ? 190 : 130;
+      let gutter = 16;
+      let imgsPerRow = fotos.length > 2 ? 2 : fotos.length;
+      for (let i = 0; i < fotos.length; i += imgsPerRow) {
         if (y < 170) {
           page = pdfDoc.addPage([pageW, pageH]);
           y = pageH - my - 80;
         }
-        let imgsRow = fotos.slice(i, i+2);
-        let gutter = 20;
+        let imgsRow = fotos.slice(i, i+imgsPerRow);
         let rowStart = pageW/2 - (imgsRow.length*imgW + (imgsRow.length-1)*gutter)/2;
         let xi = rowStart;
         for (let k = 0; k < imgsRow.length; k++) {
@@ -1017,38 +1019,34 @@ async function generarPDFReporte(share = false) {
           } catch (e) {}
           xi += imgW + gutter;
         }
-        y -= imgW + 14; // espacio abajo de imagen
+        y -= imgW + 16;
       }
     }
-
-    // --- Descripción ---
+    // Descripción con margen
     if (it.descripcion?.trim()) {
-      // 1. Separar bien la imagen de la descripción
       if (y < 110) {
         page = pdfDoc.addPage([pageW, pageH]);
         y = pageH - my - 80;
       }
-      // 2. Dibuja la descripción con margen abajo
       page.drawText(it.descripcion, {
         x: mx+5, y: y, size: 12, font: helv, color: rgb(0.13,0.14,0.16), maxWidth: usableW-20, lineHeight: 16
       });
-      // 3. Baja el y tanto como ocupe la descripción (aprox.)
       let descLines = Math.ceil(it.descripcion.length/(usableW/7));
-      y -= 22 + descLines*12;
+      y -= 24 + descLines*12;
     } else {
       y -= 20;
     }
-    // --- Línea divisoria abajo de la descripción ---
+    // Línea divisoria
     page.drawLine({
       start: { x: mx, y: y+7 },
       end:   { x: pageW-mx, y: y+7 },
-      thickness: 1,
-      color: rgb(0.82,0.84,0.92)
+      thickness: 1.2,
+      color: rgb(0.76,0.80,0.94)
     });
-    y -= 9;
+    y -= 12;
   }
 
-  // --- Notas / observaciones ---
+  // Notas / observaciones
   if (datos.notas?.trim()) {
     if (y < 70) {
       page = pdfDoc.addPage([pageW, pageH]);
@@ -1060,16 +1058,19 @@ async function generarPDFReporte(share = false) {
     y -= 14;
   }
 
-  // --- Pie de página: Franja azul con datos ---
+  // Pie de página
   page.drawRectangle({
     x: mx, y: 26, width: usableW, height: 32, color: rgb(0.11, 0.24, 0.44)
   });
-  page.drawText("Electromotores Santana © "+(new Date().getFullYear()) + " | Carr. a Chichimequillas 306, Col. Menchaca, Querétaro, Qro. | Tel: 442 469 9895", {
-    x: mx+12, y: 39, size: 10, font: helv, color: rgb(1,1,1),
+  page.drawText(VIGENCIA, {
+    x: mx+14, y: 39, size: 10, font: helv, color: rgb(1,1,1),
     maxWidth: usableW-20
   });
+  page.drawText("Electromotores Santana © "+(new Date().getFullYear()), {
+    x: mx+14, y: 29, size: 10, font: helv, color: rgb(0.96,0.96,0.96)
+  });
 
-  // --- Salida PDF ---
+  // Salida PDF
   const pdfBytes = await pdfDoc.save();
   showProgress(false);
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
@@ -1092,10 +1093,11 @@ async function generarPDFReporte(share = false) {
 }
 
 
+
 // --------- PDF DE COTIZACIÓN PROFESIONAL ---------
 async function generarPDFCotizacion(share = false) {
   showProgress(true, 10, "Generando PDF...");
-  await guardarDraft("cotizacion");
+  await guardarDraft('cotizacion');
   const form = document.getElementById('cotForm');
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
@@ -1109,7 +1111,6 @@ async function generarPDFCotizacion(share = false) {
     });
   });
 
-  // CALCULOS
   let subtotal = items.reduce((sum, x) => sum + (x.importe || 0), 0);
   let incluyeIVA = form.incluyeIVA?.checked || false;
   let iva = incluyeIVA ? subtotal * 0.16 : 0;
@@ -1126,7 +1127,6 @@ async function generarPDFCotizacion(share = false) {
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // --- MEDIDAS Y ESTILO ---
   const pageW = 595.28, pageH = 841.89; // A4
   const mx = 32, my = 38;
   const usableW = pageW - mx*2;
@@ -1135,7 +1135,6 @@ async function generarPDFCotizacion(share = false) {
   const EMS_CONTACT = "Carr. a Chichimequillas 306, Col. Menchaca, Querétaro, Qro.\nTel: 442 469 9895 | electromotores.santana@gmail.com";
   const VIGENCIA = "Vigencia: 15 días. Todo lo no previsto en esta cotización se informará oportunamente.";
 
-  // --- LOGO ---
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
   const logoImg   = await pdfDoc.embedPng(logoBytes);
 
@@ -1172,9 +1171,8 @@ async function generarPDFCotizacion(share = false) {
   y -= 21;
 
   // --- TABLA ---
-  // Dimensiones y diseño
-  const th = 24;  // alto de encabezado
-  const tf = 22;  // alto de fila
+  // Mejoramos el espaciado y simetría de líneas
+  const th = 25, tf = 23;
   const cols = [
     { name: "Concepto", w: 0.30 },
     { name: "Unidad",   w: 0.18 },
@@ -1186,21 +1184,20 @@ async function generarPDFCotizacion(share = false) {
   for (let i=0; i<cols.length; ++i) {
     colX.push(mx + Math.round(usableW * cols.slice(0,i+1).reduce((a,c)=>a+c.w,0)));
   }
-
-  // --- Encabezado tabla
+  // Encabezado tabla
   let yTable = y;
   page.drawRectangle({
     x: mx, y: yTable, width: usableW, height: -th,
     color: rgb(1,0.60,0.13), borderColor: rgb(1,0.60,0.13), borderWidth: 0.5
   });
   for (let i=0; i<cols.length; ++i) {
-    page.drawText(cols[i].name, { x: colX[i]+7, y: yTable-18, size: 12, font: helvB, color: rgb(0.12,0.20,0.40) });
+    page.drawText(cols[i].name, { x: colX[i]+7, y: yTable-17, size: 12, font: helvB, color: rgb(0.12,0.20,0.40) });
     if (i>0) {
-      page.drawLine({ start: {x: colX[i], y: yTable}, end: {x: colX[i], y: yTable-th-items.length*tf-8}, thickness: 1, color: rgb(0.8,0.8,0.8) });
+      page.drawLine({ start: {x: colX[i], y: yTable}, end: {x: colX[i], y: yTable-th-items.length*tf-10}, thickness: 1, color: rgb(0.8,0.8,0.8) });
     }
   }
 
-  // --- Filas de items
+  // Filas de items
   y = yTable-th;
   for (let idx=0; idx<items.length; ++idx) {
     let it = items[idx];
@@ -1209,7 +1206,7 @@ async function generarPDFCotizacion(share = false) {
         it.concepto||"", it.unidad||"", String(it.cantidad), `$${(it.precio||0).toFixed(2)}`, `$${(it.importe||0).toFixed(2)}`
       ][i];
       page.drawText(val, {
-        x: colX[i]+7, y: y-16, size: 11, font: helv, color: rgb(0.14,0.16,0.23)
+        x: colX[i]+7, y: y-15, size: 11, font: helv, color: rgb(0.14,0.16,0.23)
       });
     }
     // línea bajo fila
@@ -1220,11 +1217,11 @@ async function generarPDFCotizacion(share = false) {
     y -= tf;
   }
   // Línea naranja tras tabla
-  y -= 10;
+  y -= 8;
   page.drawLine({ start: {x: mx, y}, end: {x: pageW-mx, y}, thickness: 2, color: rgb(1, 0.60, 0.13) });
-  y -= 7;
+  y -= 8;
 
-  // --- Totales ---
+  // Totales
   let xtot = pageW-mx-170;
   page.drawText("Subtotal:", { x: xtot, y, size: 13, font: helvB, color: rgb(0.2,0.2,0.26)});
   page.drawText(`$${subtotal.toLocaleString(undefined, {minimumFractionDigits:2})}`, { x: xtot+87, y, size: 13, font: helvB, color: rgb(0.12,0.12,0.12)});
@@ -1241,7 +1238,16 @@ async function generarPDFCotizacion(share = false) {
     y -= 18;
   }
 
-  // --- Pie de página: Franja azul, vigencia y derechos ---
+  // Observaciones/Notas
+  if (datos.notas?.trim()) {
+    y -= 20;
+    page.drawText("Observaciones:", { x: mx, y, size: 12, font: helvB, color: rgb(0.14,0.15,0.20)});
+    y -= 16;
+    page.drawText(datos.notas.trim(), { x: mx+10, y, size: 11, font: helv, color: rgb(0.16,0.16,0.20), maxWidth: usableW-20, lineHeight: 13 });
+    y -= 18;
+  }
+
+  // Pie de página
   page.drawRectangle({
     x: mx, y: 26, width: usableW, height: 32, color: rgb(0.11, 0.24, 0.44)
   });
@@ -1253,7 +1259,7 @@ async function generarPDFCotizacion(share = false) {
     x: mx+14, y: 29, size: 10, font: helv, color: rgb(0.96,0.96,0.96)
   });
 
-  // --- Salida PDF ---
+  // Salida PDF
   const pdfBytes = await pdfDoc.save();
   showProgress(false);
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
