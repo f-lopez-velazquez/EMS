@@ -112,6 +112,78 @@ function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
 function formatMoney(val) {
   return "$" + Number(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+function showSaved(msg = "Guardado") {
+  let el = document.getElementById("saved-banner");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "saved-banner";
+    el.style.position = "fixed";
+    el.style.bottom = "28px";
+    el.style.right = "32px";
+    el.style.background = "#26B77A";
+    el.style.color = "#fff";
+    el.style.padding = "12px 32px";
+    el.style.borderRadius = "16px";
+    el.style.fontWeight = "bold";
+    el.style.zIndex = 1000;
+    el.style.boxShadow = "0 2px 12px #0002";
+    el.style.fontSize = "1.1em";
+    document.body.appendChild(el);
+  }
+  el.innerHTML = msg;
+  el.style.display = "block";
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.style.display = "none"; }, 1800);
+}
+
+async function guardarDraftCotizacion() {
+  const form = document.getElementById('cotForm');
+  if (!form) return;
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
+    items.push({
+      concepto: tr.querySelector('input[name="concepto"]').value,
+      unidad: tr.querySelector('input[name="unidad"]').value,
+      cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
+      precio: Number(tr.querySelector('input[name="precio"]').value)
+    });
+  });
+  const cotizacion = {
+    ...datos,
+    items,
+    tipo: 'cotizacion',
+    fecha: datos.fecha,
+    hora: datos.hora || ahora(),
+    creada: new Date().toISOString()
+  };
+  await db.collection("cotizaciones").doc(datos.numero).set(cotizacion);
+  showSaved("Cotización guardada");
+}
+
+async function guardarDraftReporte() {
+  const form = document.getElementById('repForm');
+  if (!form) return;
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
+    let desc = tr.querySelector('textarea[name="descripcion"]').value.trim();
+    let fotos = (fotosItemsReporte[idx] || []).filter(Boolean);
+    if (fotos.length > 6) fotos = fotos.slice(0,6);
+    items.push({ descripcion: desc, fotos });
+  });
+  const reporte = {
+    ...datos,
+    items,
+    tipo: 'reporte',
+    fecha: datos.fecha,
+    hora: datos.hora || ahora(),
+    creada: new Date().toISOString()
+  };
+  await db.collection("reportes").doc(datos.numero).set(reporte);
+  showSaved("Reporte guardado");
+}
+
 
 function showProgress(show = true, percent = 0, msg = "") {
   const bar = document.getElementById("progress-bar");
@@ -862,134 +934,116 @@ async function eliminarReporteCompleto() {
 
 // -------- PDF DE REPORTE 100% FUNCIONAL --------
 async function generarPDFReporte(share = false) {
-  showProgress(true, 10, "Generando PDF...");
-  const safe = (val) => (val === undefined || val === null ? "" : String(val));
+  await guardarDraftReporte();
+  const { PDFDocument, rgb, StandardFonts } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
+  // Datos
   const form = document.getElementById('repForm');
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
   form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
-    const descripcion = safe(tr.querySelector('textarea[name="descripcion"]').value.trim());
-    const fotos = (window.fotosItemsReporte && window.fotosItemsReporte[idx] ? window.fotosItemsReporte[idx].filter(Boolean) : []);
-    items.push({ descripcion, fotos });
+    let desc = tr.querySelector('textarea[name="descripcion"]').value.trim();
+    let fotos = (fotosItemsReporte[idx] || []).filter(Boolean);
+    items.push({ descripcion: desc, fotos });
   });
 
-  const { PDFDocument, rgb, StandardFonts } = PDFLib;
-  const pdfDoc = await PDFDocument.create();
-  const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helvB = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-  const pageW = 595, pageH = 842;
-  const mx = 50, my = 54;
+  // --- Encabezado
+  const pageW = 595, pageH = 842; // A4 Vertical
+  const mx = 36, my = 36;
   let y = pageH - my;
-
+  const usableW = pageW - mx * 2;
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
-  const logoImg = await pdfDoc.embedPng(logoBytes);
-
-  const EMS_CONTACT = "Carr. a Chichimequillas 306, Col. Menchaca, 76147 Santiago de Querétaro, Qro.\nTel. 442 469 9895 · electromotores.santana@gmail.com";
-
-  function drawHeader(page, firstPage = false) {
-    // Marca de agua (fondo)
-    page.drawImage(logoImg, {
-      x: (pageW-280)/2, y: (pageH-280)/2, width: 280, height: 280, opacity: 0.06
-    });
-    // Encabezado principal
-    if(firstPage){
-      page.drawImage(logoImg, { x: mx, y: y-48, width: 48, height: 48 });
-      page.drawText("ELECTROMOTORES SANTANA", { x: mx+60, y: y-8, size: 16, font: helvB, color: rgb(0.11,0.20,0.37) });
-      page.drawText("Reporte de Servicio", { x: mx+60, y: y-26, size: 12, font: helvB, color: rgb(0.97,0.54,0.11) });
-      page.drawText(safe(EMS_CONTACT), { x: mx+60, y: y-46, size: 9, font: helv, color: rgb(0.20,0.20,0.23) });
-      y -= 64;
-      page.drawLine({ start: {x: mx, y: y}, end: {x: pageW-mx, y: y}, thickness: 1, color: rgb(0.97,0.54,0.11)});
-      y -= 14;
-    }
-  }
+  const logoImg   = await pdfDoc.embedPng(logoBytes);
+  const EMS_CONTACT = "Carr. a Chichimequillas 306, Colonia Menchaca, 76147 Santiago de Querétaro, Qro.\nTel: 442 469 9895 | electromotores.santana@gmail.com";
 
   let page = pdfDoc.addPage([pageW, pageH]);
-  drawHeader(page, true);
-
-  // Info principal
-  page.drawText("Cliente:", { x: mx, y: y, size: 10, font: helvB, color: rgb(0.13,0.18,0.36)});
-  page.drawText(safe(datos.cliente), { x: mx+62, y: y, size: 10, font: helv, color: rgb(0.16,0.18,0.22)});
-  page.drawText("Fecha:", { x: pageW/2, y: y, size: 10, font: helvB });
-  page.drawText(safe(datos.fecha), { x: pageW/2+45, y: y, size: 10, font: helv });
+  // Marca de agua
+  page.drawImage(logoImg, {
+    x: pageW/2-110, y: pageH/2+20, width:220, height:220, opacity:0.05
+  });
+  // Encabezado visual profesional
+  page.drawImage(logoImg, { x: mx, y: y-56, width: 54, height: 54 });
+  page.drawText("ELECTROMOTORES SANTANA", { x: mx+70, y: y-8, size: 18, font: helvB, color: rgb(0.13,0.20,0.43) });
+  page.drawText("Reporte de Servicio", { x: mx+70, y: y-30, size: 13, font: helvB, color: rgb(0.98,0.53,0.12) });
+  page.drawText(EMS_CONTACT, { x: mx+70, y: y-46, size: 10, font: helv, color: rgb(0.16,0.18,0.22), maxWidth: 300, lineHeight: 12 });
+  // Datos básicos
+  y -= 70;
+  page.drawLine({start: {x:mx, y}, end: {x:pageW-mx, y}, thickness: 2, color: rgb(0.98,0.53,0.12)});
+  y -= 14;
+  page.drawText("Cliente:", {x: mx, y, size: 12, font: helvB});
+  page.drawText(datos.cliente||"", {x: mx+55, y, size: 12, font: helv});
+  page.drawText("No. Reporte:", {x: pageW-mx-160, y, size: 12, font: helvB});
+  page.drawText(datos.numero||"", {x: pageW-mx-60, y, size: 12, font: helv});
   y -= 18;
-  page.drawText("No. Reporte:", { x: mx, y: y, size: 10, font: helvB });
-  page.drawText(safe(datos.numero), { x: mx+62, y: y, size: 10, font: helv });
-  page.drawText("Hora:", { x: pageW/2, y: y, size: 10, font: helvB });
-  page.drawText(safe(datos.hora), { x: pageW/2+45, y: y, size: 10, font: helv });
-  y -= 26;
+  page.drawText("Fecha:", {x: mx, y, size: 12, font: helvB});
+  page.drawText(datos.fecha||"", {x: mx+55, y, size: 12, font: helv});
+  page.drawText("Hora:", {x: pageW-mx-160, y, size: 12, font: helvB});
+  page.drawText(datos.hora||"", {x: pageW-mx-60, y, size: 12, font: helv});
+  y -= 28;
 
-  // Por cada actividad/item
-  for(const it of items){
-    // Fotos grandes (máx 2 por renglón)
-    if(it.fotos && it.fotos.length){
-      for(let i=0;i<it.fotos.length;i+=2){
-        if(y<170){
-          page = pdfDoc.addPage([pageW,pageH]);
-          y=pageH-my-60;
-          drawHeader(page);
-        }
-        let imgsRow = it.fotos.slice(i,i+2);
-        let w = imgsRow.length === 2 ? 155 : 260;
-        let gutter = imgsRow.length === 2 ? 20 : 0;
-        let x = mx + (pageW-2*mx - (w*imgsRow.length + gutter*(imgsRow.length-1))) / 2;
-        for(let k=0;k<imgsRow.length;k++){
-          try{
-            const bytes = await fetch(imgsRow[k]).then(r=>r.arrayBuffer());
-            let img;
-            try{ img = await pdfDoc.embedPng(bytes); }
-            catch{ img = await pdfDoc.embedJpg(bytes); }
-            page.drawImage(img, { x, y: y-w, width: w, height: w });
-          }catch(e){}
-          x += w+gutter;
-        }
-        y -= w+12;
+  // --- ITEMS con imágenes (simétricas, grandes, separación y línea)
+  for (const it of items) {
+    // Fotos
+    if (it.fotos && it.fotos.length > 0) {
+      let x = mx;
+      let imgW = (usableW - (it.fotos.length-1)*18) / it.fotos.length;
+      if(imgW>190) imgW = 190;
+      let px = mx + (usableW - ((imgW*it.fotos.length) + (it.fotos.length-1)*18))/2;
+      for (let k = 0; k < it.fotos.length; k++) {
+        try {
+          const bytes = await fetch(it.fotos[k]).then(r => r.arrayBuffer());
+          let img;
+          try { img = await pdfDoc.embedPng(bytes); }
+          catch { img = await pdfDoc.embedJpg(bytes); }
+          page.drawImage(img, { x:px, y: y-imgW, width: imgW, height: imgW, opacity: 1 });
+        } catch (e) {}
+        px += imgW + 18;
       }
+      y -= imgW+8;
     }
-    // Descripción al final y línea separadora
-    if (it.descripcion?.trim()) {
-      if(y<100){
-        page = pdfDoc.addPage([pageW,pageH]);
-        y=pageH-my-60;
-        drawHeader(page);
-      }
-      page.drawText(safe(it.descripcion), { x: mx+8, y: y, size: 11, font: helv, color: rgb(0.15,0.19,0.28), maxWidth: pageW-2*mx-16 });
-      y -= 22;
-      // Línea separadora
-      page.drawLine({ start: {x: mx+8, y: y+8}, end: {x: pageW-mx-8, y: y+8}, thickness: 0.6, color: rgb(0.85,0.86,0.87)});
-      y -= 7;
+    // Descripción
+    if(it.descripcion?.trim()){
+      page.drawText(it.descripcion, { x: mx+8, y, size: 12, font: helv, color: rgb(0.12,0.12,0.12), maxWidth: usableW-20, lineHeight: 13 });
+      y -= 18;
+    }
+    // Línea de separación
+    page.drawLine({start:{x:mx,y}, end:{x:pageW-mx,y}, thickness:1.3, color:rgb(0.92,0.92,0.92)});
+    y -= 14;
+    if(y<160){
+      page = pdfDoc.addPage([pageW, pageH]);
+      y = pageH - my;
+      // Marca de agua
+      page.drawImage(logoImg, {
+        x: pageW/2-110, y: pageH/2+20, width:220, height:220, opacity:0.05
+      });
     }
   }
 
   // Notas
-  if (datos.notas?.trim()) {
-    if (y < 80) {
-      page = pdfDoc.addPage([pageW, pageH]);
-      y = pageH - my-60;
-      drawHeader(page);
-    }
-    page.drawText("Notas:", { x: mx, y, size: 11, font: helvB, color: rgb(0.13,0.18,0.36)});
-    y -= 15;
-    page.drawText(safe(datos.notas), { x: mx+38, y: y, size: 10, font: helv, maxWidth: pageW-mx*2-38 });
-    y -= 30;
+  if(datos.notas && datos.notas.trim().length>0){
+    y -= 8;
+    page.drawText("Notas:", {x: mx, y, size: 12, font: helvB, color:rgb(0.13,0.20,0.43)});
+    y -= 14;
+    page.drawText(datos.notas, {x: mx+38, y, size: 11, font: helv, color:rgb(0.22,0.22,0.22), maxWidth: pageW-mx*2-70});
+    y -= 18;
   }
+  // Pie de página
+  page.drawLine({start:{x:mx,y:40}, end:{x:pageW-mx,y:40}, thickness:2, color:rgb(0.98,0.53,0.12)});
+  page.drawText("Documento confidencial para uso del cliente. EMS © "+(new Date().getFullYear()), {x:mx, y:22, size:10, font:helv, color:rgb(0.55,0.55,0.55)});
 
-  // Pie profesional (sin logo)
-  page.drawLine({ start: {x: mx, y: 30}, end: {x: pageW-mx, y: 30}, thickness: 1, color: rgb(0.97,0.54,0.11)});
-  page.drawText("Electromotores Santana · "+(new Date().getFullYear()), { x: mx, y: 20, size: 10, font: helv, color: rgb(0.45,0.46,0.60)});
-  page.drawText("Documento confidencial solo para uso del cliente.", { x: pageW-mx-260, y: 20, size: 9, font: helv, color: rgb(0.52,0.51,0.48) });
-
+  // Guardar
   const pdfBytes = await pdfDoc.save();
-  showProgress(false);
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
-  const file = new File([blob], `Reporte_${safe(datos.numero)}.pdf`, { type: "application/pdf" });
+  const file = new File([blob], `Reporte_${datos.numero||"reporte"}.pdf`, { type: "application/pdf" });
 
   if (share && navigator.share && navigator.canShare({ files: [file] })) {
     await navigator.share({
       files: [file],
       title: "Reporte de Servicio",
-      text: `Reporte ${safe(datos.numero)} de Electromotores Santana`
+      text: `Reporte ${datos.numero||""} de Electromotores Santana`
     });
   } else {
     const url = URL.createObjectURL(blob);
@@ -1008,140 +1062,150 @@ async function generarPDFReporte(share = false) {
 // --------- PDF DE COTIZACIÓN ---------
 // --------- PDF DE COTIZACIÓN PROFESIONAL ---------
 async function generarPDFCotizacion(share = false) {
-  showProgress(true, 10, "Generando PDF...");
+  await guardarDraftCotizacion();
+  // --- PDFLib helpers
+  const { PDFDocument, rgb, StandardFonts } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  // --- Datos
   const form = document.getElementById('cotForm');
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
   form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
     items.push({
-      concepto: safe(tr.querySelector('input[name="concepto"]').value),
-      unidad: safe(tr.querySelector('input[name="unidad"]').value),
-      cantidad: safe(tr.querySelector('input[name="cantidad"]').value),
-      precio: safe(tr.querySelector('input[name="precio"]').value)
+      concepto: tr.querySelector('input[name="concepto"]').value,
+      unidad: tr.querySelector('input[name="unidad"]').value,
+      cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
+      precio: Number(tr.querySelector('input[name="precio"]').value)
     });
   });
 
-  // Totales
-  let subtotal = 0;
-  for (let it of items) {
-    subtotal += Number(it.cantidad) * Number(it.precio);
-  }
-  const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
-  const iva = incluyeIVA ? subtotal * 0.16 : 0;
-  const total = subtotal + iva;
-  const anticipo = (form.anticipo && form.anticipo.checked && form.anticipoPorc.value) ? (total * (parseFloat(form.anticipoPorc.value) / 100)) : 0;
-
-  // PDFLib setup
-  const { PDFDocument, rgb, StandardFonts } = PDFLib;
-  const pdfDoc = await PDFDocument.create();
-  const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helvB = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-  const pageW = 595, pageH = 842;
-  const mx = 45, my = 58;
+  // --- Logo y encabezado
+  const pageW = 842, pageH = 595; // A4 Horizontal
+  const mx = 32, my = 36;
   let y = pageH - my;
-
-  // Logo
+  const usableW = pageW - mx * 2;
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
-  const logoImg = await pdfDoc.embedPng(logoBytes);
-
-  // Encabezado
-  function drawHeader(page) {
-    page.drawImage(logoImg, {
-      x: mx, y: y-20, width: 44, height: 44
-    });
-    page.drawText("ELECTROMOTORES SANTANA", { x: mx + 55, y: y, size: 17, font: helvB, color: rgb(0.11,0.20,0.37) });
-    page.drawText("Cotización de Servicio", { x: mx + 55, y: y-20, size: 12, font: helvB, color: rgb(0.97,0.54,0.11) });
-    y -= 54;
-    page.drawText(`Dirección: Carr. a Chichimequillas 306, Colonia Menchaca, 76147 Santiago de Querétaro, Qro.`, { x: mx, y: y, size: 9.5, font: helv, color: rgb(0.22,0.22,0.27) });
-    y -= 15;
-    page.drawText(`Tel: 442 469 9895    ·    Email: electromotores.santana@gmail.com`, { x: mx, y: y, size: 9.5, font: helv, color: rgb(0.22,0.22,0.27) });
-    y -= 22;
-    page.drawText(`Cliente: ${safe(datos.cliente)}`, { x: mx, y: y, size: 11, font: helvB, color: rgb(0.16,0.18,0.22) });
-    page.drawText(`Fecha: ${safe(datos.fecha)}`, { x: pageW - mx - 110, y: y, size: 11, font: helvB, color: rgb(0.16,0.18,0.22) });
-    page.drawText(`Cotización: ${safe(datos.numero)}`, { x: pageW - mx - 110, y: y - 16, size: 11, font: helvB, color: rgb(0.16,0.18,0.22) });
-    y -= 34;
-    page.drawLine({ start: { x: mx, y: y }, end: { x: pageW - mx, y: y }, thickness: 1, color: rgb(0.93,0.54,0.13) });
-    y -= 18;
-  }
+  const logoImg   = await pdfDoc.embedPng(logoBytes);
+  const EMS_CONTACT = "Carr. a Chichimequillas 306, Colonia Menchaca, 76147 Santiago de Querétaro, Qro.\nTel: 442 469 9895 | electromotores.santana@gmail.com";
 
   const page = pdfDoc.addPage([pageW, pageH]);
-  drawHeader(page);
+  // --- Encabezado visual profesional
+  page.drawImage(logoImg, { x: mx, y: y-70, width: 70, height: 70 });
+  page.drawText("ELECTROMOTORES SANTANA", { x: mx+90, y: y-10, size: 24, font: helvB, color: rgb(0.13,0.20,0.43) });
+  page.drawText("Cotización", { x: mx+90, y: y-36, size: 18, font: helvB, color: rgb(0.98,0.53,0.12) });
+  page.drawText(EMS_CONTACT, { x: mx+90, y: y-56, size: 11, font: helv, color: rgb(0.18,0.19,0.21), maxWidth: 500, lineHeight: 14 });
 
-  // TABLA
-  let tableY = y;
-  const colX = [mx, mx + 200, mx + 260, mx + 340, mx + 435, pageW - mx];
-  const th = 22, td = 20;
+  // --- Datos cliente/cotización
+  y -= 80;
+  page.drawLine({start: {x:mx, y}, end: {x:pageW-mx, y}, thickness: 2, color: rgb(0.98,0.53,0.12)});
+  y -= 14;
+  page.drawText("Cliente:", {x: mx, y, size: 14, font: helvB});
+  page.drawText(datos.cliente||"", {x: mx+70, y, size: 13, font: helv});
+  page.drawText("Fecha:", {x: mx, y: y-22, size: 14, font: helvB});
+  page.drawText(datos.fecha||"", {x: mx+70, y: y-22, size: 13, font: helv});
+  page.drawText("Cotización No:", {x: pageW-mx-180, y, size: 14, font: helvB});
+  page.drawText(datos.numero||"", {x: pageW-mx-90, y, size: 13, font: helv});
+  page.drawText("Hora:", {x: pageW-mx-180, y: y-22, size: 14, font: helvB});
+  page.drawText(datos.hora||"", {x: pageW-mx-90, y: y-22, size: 13, font: helv});
+  y -= 40;
 
-  // Encabezados tabla
-  page.drawText("Concepto", { x: colX[0]+3, y: tableY, size: 11, font: helvB });
-  page.drawText("Unidad", { x: colX[1]+6, y: tableY, size: 11, font: helvB });
-  page.drawText("Cantidad", { x: colX[2]+8, y: tableY, size: 11, font: helvB });
-  page.drawText("Precio", { x: colX[3]+11, y: tableY, size: 11, font: helvB });
-  page.drawText("Importe", { x: colX[4]+14, y: tableY, size: 11, font: helvB });
-
-  tableY -= th;
-  page.drawLine({ start: { x: mx, y: tableY+8 }, end: { x: pageW - mx, y: tableY+8 }, thickness: 1, color: rgb(0.93,0.54,0.13) });
-
-  // Filas
-  items.forEach((it, i) => {
-    const importe = Number(it.cantidad) * Number(it.precio);
-    page.drawText(safe(it.concepto), { x: colX[0]+3, y: tableY, size: 10.4, font: helv });
-    page.drawText(safe(it.unidad), { x: colX[1]+6, y: tableY, size: 10.4, font: helv });
-    page.drawText(safe(it.cantidad), { x: colX[2]+10, y: tableY, size: 10.4, font: helv });
-    page.drawText(`$${Number(it.precio).toFixed(2)}`, { x: colX[3]+7, y: tableY, size: 10.4, font: helv });
-    page.drawText(`$${importe.toFixed(2)}`, { x: colX[4]+14, y: tableY, size: 10.4, font: helv });
-    tableY -= td;
-    // Línea de separación
-    page.drawLine({ start: { x: mx, y: tableY+6 }, end: { x: pageW - mx, y: tableY+6 }, thickness: 0.6, color: rgb(0.85,0.85,0.85) });
+  // --- TABLA (Columnas fijas, alineadas y anchos perfectos)
+  const COLS = [
+    { title: "Concepto", w: 220 },
+    { title: "Unidad",   w: 80 },
+    { title: "Cantidad", w: 75 },
+    { title: "Precio",   w: 90 },
+    { title: "Importe",  w: 110 }
+  ];
+  let x = mx;
+  // Header
+  COLS.forEach(c => {
+    page.drawText(c.title, { x, y, size: 14, font: helvB, color: rgb(0.13,0.20,0.43) });
+    x += c.w;
   });
+  y -= 12;
+  // Línea superior
+  page.drawLine({start:{x:mx,y}, end:{x:pageW-mx,y}, thickness:2, color:rgb(0.98,0.53,0.12)});
+  y -= 10;
 
-  tableY -= 5;
-  // TOTALES
-  page.drawLine({ start: { x: mx, y: tableY+18 }, end: { x: pageW - mx, y: tableY+18 }, thickness: 1.2, color: rgb(0.93,0.54,0.13) });
+  // Rows
+  let subtotal = 0;
+  items.forEach((it, idx) => {
+    let colX = mx;
+    let importe = (Number(it.cantidad)||0)*(Number(it.precio)||0);
+    subtotal += importe;
+    COLS.forEach((c,ci)=>{
+      let txt = "";
+      if(ci==0) txt = it.concepto||"";
+      if(ci==1) txt = it.unidad||"";
+      if(ci==2) txt = (it.cantidad||"").toString();
+      if(ci==3) txt = `$${Number(it.precio||0).toFixed(2)}`;
+      if(ci==4) txt = `$${importe.toFixed(2)}`;
+      page.drawText(txt, {
+        x: colX+4, y, size: 12, font: ci==4||ci==3 ? helvB:helv,
+        color: ci==4?rgb(0.13,0.20,0.43):rgb(0,0,0)
+      });
+      colX += c.w;
+    });
+    y -= 18;
+    // Línea entre filas
+    page.drawLine({start:{x:mx,y:y+4}, end:{x:pageW-mx,y:y+4}, thickness:1, color:rgb(0.90,0.90,0.90)});
+  });
+  y -= 2;
+  // Línea inferior tabla
+  page.drawLine({start:{x:mx,y}, end:{x:pageW-mx,y}, thickness:2, color:rgb(0.98,0.53,0.12)});
 
-  page.drawText("Subtotal:", { x: colX[3], y: tableY+7, size: 11, font: helvB, color: rgb(0.22,0.22,0.27) });
-  page.drawText(`$${subtotal.toFixed(2)}`, { x: colX[4]+10, y: tableY+7, size: 11, font: helvB });
-  if (incluyeIVA) {
-    tableY -= 18;
-    page.drawText("IVA (16%):", { x: colX[3], y: tableY+7, size: 11, font: helvB, color: rgb(0.22,0.22,0.27) });
-    page.drawText(`$${iva.toFixed(2)}`, { x: colX[4]+10, y: tableY+7, size: 11, font: helvB });
+  // Totales
+  let iva = (datos.incluyeIVA?0.16:0)*subtotal;
+  let total = subtotal + iva;
+  y -= 20;
+  let totX = pageW-mx-170;
+  page.drawText("Subtotal:", {x: totX, y, size:13, font:helvB, color:rgb(0.30,0.30,0.30)});
+  page.drawText(`$${subtotal.toFixed(2)}`, {x: totX+90, y, size:13, font:helvB});
+  y -= 22;
+  if(datos.incluyeIVA){
+    page.drawText("IVA (16%):", {x: totX, y, size:13, font:helvB, color:rgb(0.30,0.30,0.30)});
+    page.drawText(`$${iva.toFixed(2)}`, {x: totX+90, y, size:13, font:helvB});
+    y -= 22;
   }
-  tableY -= 18;
-  page.drawText("TOTAL:", { x: colX[3], y: tableY+7, size: 13, font: helvB, color: rgb(0.97,0.54,0.13) });
-  page.drawText(`$${total.toFixed(2)}`, { x: colX[4]+10, y: tableY+7, size: 13, font: helvB, color: rgb(0.97,0.54,0.13) });
+  page.drawText("TOTAL:", {x: totX, y, size:16, font:helvB, color:rgb(0.98,0.53,0.12)});
+  page.drawText(`$${total.toFixed(2)}`, {x: totX+90, y, size:16, font:helvB, color:rgb(0.98,0.53,0.12)});
+  y -= 26;
 
-  // Anticipo
-  if (form.anticipo && form.anticipo.checked && form.anticipoPorc.value) {
-    tableY -= 20;
-    page.drawText(`Anticipo ${form.anticipoPorc.value}%:`, { x: colX[3], y: tableY+7, size: 11, font: helvB, color: rgb(0.15,0.5,0.26) });
-    page.drawText(`$${anticipo.toFixed(2)}`, { x: colX[4]+10, y: tableY+7, size: 11, font: helvB, color: rgb(0.15,0.5,0.26) });
+  // Anticipo (si aplica)
+  if(datos.anticipo && datos.anticipoPorc && Number(datos.anticipoPorc)>0){
+    let anticipo = total*Number(datos.anticipoPorc)/100;
+    page.drawText(`Anticipo ${datos.anticipoPorc}%:`, {x: totX, y, size:14, font:helvB, color:rgb(0.22,0.56,0.22)});
+    page.drawText(`$${anticipo.toFixed(2)}`, {x: totX+90, y, size:14, font:helvB, color:rgb(0.22,0.56,0.22)});
+    y -= 22;
   }
 
-  tableY -= 30;
-  // Notas/Observaciones
-  if (datos.notas?.trim()) {
-    page.drawText("Notas/Observaciones:", { x: mx, y: tableY+13, size: 11, font: helvB, color: rgb(0.13,0.22,0.38) });
-    page.drawText(safe(datos.notas).trim(), { x: mx+138, y: tableY+13, size: 10, font: helv, maxWidth: pageW - mx*2 - 145 });
-    tableY -= 20;
+  // Notas (si hay)
+  if(datos.notas && datos.notas.trim().length>0){
+    y -= 10;
+    page.drawText("Notas:", {x: mx, y, size: 13, font: helvB, color:rgb(0.13,0.20,0.43)});
+    y -= 16;
+    page.drawText(datos.notas, {x: mx+40, y, size: 12, font: helv, color:rgb(0.22,0.22,0.22), maxWidth: pageW-mx*2-60});
+    y -= 16;
   }
 
-  // Pie de página
-  page.drawLine({ start: { x: mx, y: 40 }, end: { x: pageW - mx, y: 40 }, thickness: 1, color: rgb(0.93,0.54,0.13) });
-  page.drawText("Documento confidencial. Solo para uso del cliente.", { x: mx, y: 26, size: 9.5, font: helv, color: rgb(0.52,0.51,0.48) });
-  page.drawText("Electromotores Santana · " + (new Date().getFullYear()), { x: pageW - mx - 160, y: 26, size: 9.5, font: helv, color: rgb(0.52,0.51,0.48) });
+  // Pie de página (sin logo)
+  page.drawLine({start:{x:mx,y:40}, end:{x:pageW-mx,y:40}, thickness:2, color:rgb(0.98,0.53,0.12)});
+  page.drawText("Cotización sujeta a cambios sin previo aviso. Vigencia 15 días. EMS © "+(new Date().getFullYear()), {x:mx, y:20, size:11, font:helv, color:rgb(0.60,0.60,0.60)});
 
-  // Salida
+  // Guardar
   const pdfBytes = await pdfDoc.save();
-  showProgress(false);
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
-  const file = new File([blob], `Cotizacion_${safe(datos.numero)}.pdf`, { type: "application/pdf" });
+  const file = new File([blob], `Cotizacion_${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
 
   if (share && navigator.share && navigator.canShare({ files: [file] })) {
     await navigator.share({
       files: [file],
-      title: "Cotización de Servicio",
-      text: `Cotización ${safe(datos.numero)} de Electromotores Santana`
+      title: "Cotización",
+      text: `Cotización ${datos.numero||""} de Electromotores Santana`
     });
   } else {
     const url = URL.createObjectURL(blob);
@@ -1152,7 +1216,6 @@ async function generarPDFCotizacion(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
-
 
 
 
