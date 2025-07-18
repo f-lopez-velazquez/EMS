@@ -941,44 +941,79 @@ async function generarPDFReporte(share = false) {
 
   // Actividades
   page.drawText("Actividad / Descripción", { x: mx, y, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
-  y -= 14;
+  y -= 16;
   page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 1.2, color: rgb(0.76,0.80,0.94) });
-  y -= 8;
+  y -= 14;
 
   for (let idx = 0; idx < items.length; idx++) {
     let it = items[idx];
-    let desc = String(it.descripcion || "");
-    let descParts = [];
-    while (desc.length > 0) {
-      descParts.push(desc.slice(0, 110));
-      desc = desc.slice(110);
-    }
-    for (let part of descParts) {
-      if (y < 100) {
+    let fotos = it.fotos || [];
+    // Definir tamaño grande para fotos
+    const fotoW = 150, fotoH = 120, espacioFoto = 16;
+    let totalFotosW = fotos.length * fotoW + (fotos.length - 1) * espacioFoto;
+    let startX = mx + (usableW - totalFotosW) / 2;
+
+    // Fotos (en grande, centradas)
+    if (fotos.length) {
+      // Si no cabe en la página, crea nueva
+      if (y < 110 + fotoH) {
         page = pdfDoc.addPage([pageW, pageH]);
         y = pageH - my - 70;
       }
-      page.drawText(part, { x: mx, y, size: 10, font: helv });
-      y -= 14;
-    }
-    // Fotos
-    if (it.fotos && it.fotos.length) {
-      for (let url of it.fotos) {
+      for (let f = 0; f < fotos.length; f++) {
         try {
-          if (y < 140) {
-            page = pdfDoc.addPage([pageW, pageH]);
-            y = pageH - my - 70;
-          }
+          const url = fotos[f];
           const fotoBytes = await fetch(url).then(r=>r.arrayBuffer());
-          const fotoImg = await pdfDoc.embedJpg(fotoBytes);
+          // Detecta si es PNG o JPG
+          let fotoImg;
+          if (url.toLowerCase().endsWith('.png')) {
+            fotoImg = await pdfDoc.embedPng(fotoBytes);
+          } else {
+            fotoImg = await pdfDoc.embedJpg(fotoBytes);
+          }
           page.drawImage(fotoImg, {
-            x: mx, y: y - 78, width: 100, height: 72
+            x: startX + f*(fotoW+espacioFoto),
+            y: y - fotoH,
+            width: fotoW,
+            height: fotoH
           });
-          y -= 80;
         } catch(e){}
       }
+      y -= (fotoH + 14);
     }
-    y -= 10;
+
+    // Descripción, centrada debajo de las fotos o sola si no hay fotos
+    let desc = String(it.descripcion || "");
+    let maxWidth = fotos.length ? totalFotosW : usableW - 40;
+    let descX = fotos.length ? startX : mx + 20;
+
+    // Para centrar el texto, calcula ancho y ajusta X si quieres (opcional, pdf-lib no centra exacto pero simula)
+    // Partir en varias líneas si es largo
+    let descFontSize = 11;
+    let lines = [];
+    while (desc.length > 0) {
+      lines.push(desc.slice(0, 70));
+      desc = desc.slice(70);
+    }
+    for (let i = 0; i < lines.length; i++) {
+      page.drawText(lines[i], {
+        x: descX + (maxWidth - helv.widthOfTextAtSize(lines[i], descFontSize))/2,
+        y: y - i*15,
+        size: descFontSize,
+        font: helvB,
+        color: rgb(0.19,0.23,0.36)
+      });
+    }
+    y -= (lines.length * 15 + 10);
+
+    // Línea divisoria debajo del item
+    page.drawLine({
+      start: { x: mx+10, y: y },
+      end:   { x: pageW-mx-10, y: y },
+      thickness: 0.7,
+      color: rgb(0.80,0.82,0.85)
+    });
+    y -= 16;
   }
 
   // Notas / observaciones
@@ -1037,6 +1072,7 @@ async function generarPDFReporte(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
+
 
 
 // ======= Dictado por voz para campos con .mic-btn =======
