@@ -513,7 +513,7 @@ function nuevaCotizacion() {
     agregarCotItemRow();
   }
   setTimeout(() => {
-    actualizarPredictsEMS();
+    actualizarPredictsEMSCloud();
     agregarDictadoMicros();
   }, 100);
   form.onsubmit = async (e) => {
@@ -741,7 +741,7 @@ function nuevoReporte() {
     agregarRepItemRow();
   }
   setTimeout(() => {
-    actualizarPredictsEMS();
+    actualizarPredictsEMSCloud()();
     agregarDictadoMicros();
   }, 100);
   form.onsubmit = async (e) => {
@@ -820,7 +820,7 @@ async function abrirReporte(numero) {
     </form>
   `;
   setTimeout(() => {
-    actualizarPredictsEMS && actualizarPredictsEMSCloud();//actualizarPredictsEMS();
+    actualizarPredictsEMSCloud() && actualizarPredictsEMSCloud();//actualizarPredictsEMS();
     agregarDictadoMicros && agregarDictadoMicros();
   }, 100);
   const form = document.getElementById("repForm");
@@ -1224,17 +1224,17 @@ async function generarPDFCotizacion(share = false) {
   // Totales
   let xtot = pageW-mx-170;
   page.drawText("Subtotal:", { x: xtot, y, size: 13, font: helvB, color: rgb(0.2,0.2,0.26)});
-  page.drawText(`$${subtotal.toLocaleString(undefined, {minimumFractionDigits:2})}`, { x: xtot+87, y, size: 13, font: helvB, color: rgb(0.12,0.12,0.12)});
+  page.drawText(`$${subtotal.toLocaleString("en-US", {minimumFractionDigits:2})}`, { x: xtot+87, y, size: 13, font: helvB, color: rgb(0.12,0.12,0.12)});
   y -= 20;
   page.drawText("IVA (16%):", { x: xtot, y, size: 13, font: helvB, color: rgb(0.45,0.48,0.56)});
-  page.drawText(`$${iva.toLocaleString(undefined, {minimumFractionDigits:2})}`, { x: xtot+87, y, size: 13, font: helvB, color: rgb(0.12,0.12,0.12)});
+  page.drawText(`$${iva.toLocaleString("en-US", {minimumFractionDigits:2})}`, { x: xtot+87, y, size: 13, font: helvB, color: rgb(0.12,0.12,0.12)});
   y -= 23;
   page.drawText("TOTAL:", { x: xtot, y, size: 17, font: helvB, color: rgb(1, 0.60, 0.13)});
-  page.drawText(`$${total.toLocaleString(undefined, {minimumFractionDigits:2})}`, { x: xtot+87, y, size: 17, font: helvB, color: rgb(1, 0.48, 0.06)});
+  page.drawText(`$${total.toLocaleString("en-US", {minimumFractionDigits:2})}`, { x: xtot+87, y, size: 17, font: helvB, color: rgb(1, 0.48, 0.06)});
   y -= 22;
   if (anticipoPorc && anticipo > 0) {
     page.drawText(`Anticipo ${anticipoPorc}%:`, { x: xtot, y, size: 14, font: helvB, color: rgb(0.16, 0.58, 0.22)});
-    page.drawText(`$${anticipo.toLocaleString(undefined, {minimumFractionDigits:2})}`, { x: xtot+87, y, size: 14, font: helvB, color: rgb(0.13,0.58,0.21)});
+    page.drawText(`$${anticipo.toLocaleString("en-US", {minimumFractionDigits:2})}`, { x: xtot+87, y, size: 14, font: helvB, color: rgb(0.13,0.58,0.21)});
     y -= 18;
   }
 
