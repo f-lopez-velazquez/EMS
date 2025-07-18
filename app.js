@@ -426,6 +426,11 @@ function nuevaCotizacion() {
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
   }, 100);
+    if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
+  window.autoSaveTimer = setInterval(() => {
+    if (document.getElementById('cotForm')) guardarCotizacionDraft();
+  }, 15000);
+
   form.onsubmit = async (e) => {
     e.preventDefault();
     await enviarCotizacion(e);
@@ -521,6 +526,11 @@ function nuevoReporte() {
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
   }, 100);
+    if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
+  window.autoSaveTimer = setInterval(() => {
+    if (document.getElementById('repForm')) guardarReporteDraft();
+  }, 15000);
+
   form.onsubmit = async (e) => {
     e.preventDefault();
     await enviarReporte(e);
@@ -629,7 +639,7 @@ async function generarPDFCotizacion(share = false) {
 
   let page = pdfDoc.addPage([pageW, pageH]);
 
-  // Marca de agua (logo grande y translúcido, centrado)
+  // Marca de agua
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
   const logoImg   = await pdfDoc.embedPng(logoBytes);
   page.drawImage(logoImg, {
@@ -653,36 +663,40 @@ async function generarPDFCotizacion(share = false) {
 
   y -= (logoH + 18);
 
-  // Línea divisoria
-  page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 2, color: rgb(...EMS_COLOR) });
-  y -= 16;
-
-  // Tabla de items
+  // Tabla: Encabezados
   page.drawText("Concepto", { x: mx, y, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
   page.drawText("Unidad", { x: mx+176, y, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
   page.drawText("Cantidad", { x: mx+265, y, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
   page.drawText("Precio", { x: mx+350, y, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
   page.drawText("Importe", { x: mx+440, y, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
-  y -= 14;
-  page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 1.2, color: rgb(0.76,0.80,0.94) });
-  y -= 8;
 
+  // Tabla: Líneas de tabla
+  let rowY = y - 14;
+  let colXs = [mx, mx+176, mx+265, mx+350, mx+440, pageW-mx];
+  // Encabezado
+  page.drawLine({ start: { x: mx, y: rowY }, end: { x: pageW-mx, y: rowY }, thickness: 1.2, color: rgb(0.76,0.80,0.94) });
+  // Verticales
+  for(let cx of colXs) {
+    page.drawLine({ start: { x: cx, y: rowY }, end: { x: cx, y: rowY - 18 - 18 * items.length }, thickness: 0.8, color: rgb(0.76,0.80,0.94) });
+  }
+  y = rowY - 18;
   for (const it of items) {
     if (y < 110) {
       page = pdfDoc.addPage([pageW, pageH]);
       y = pageH - my - 70;
     }
-    page.drawText(String(it.concepto || ""), { x: mx, y, size: 10, font: helv });
-    page.drawText(String(it.unidad || ""), { x: mx+176, y, size: 10, font: helv });
-    page.drawText(String(it.cantidad || ""), { x: mx+265, y, size: 10, font: helv });
-    page.drawText(formatMoney(it.precio), { x: mx+350, y, size: 10, font: helv });
-    page.drawText(formatMoney(it.cantidad * it.precio), { x: mx+440, y, size: 10, font: helv });
-    y -= 14;
+    page.drawText(String(it.concepto || ""), { x: mx+2, y, size: 10, font: helv });
+    page.drawText(String(it.unidad || ""), { x: mx+176+2, y, size: 10, font: helv });
+    page.drawText(String(it.cantidad || ""), { x: mx+265+2, y, size: 10, font: helv });
+    page.drawText(formatMoney(it.precio), { x: mx+350+2, y, size: 10, font: helv });
+    page.drawText(formatMoney(it.cantidad * it.precio), { x: mx+440+2, y, size: 10, font: helv });
+    // Horizontal
+    page.drawLine({ start: { x: mx, y: y-3 }, end: { x: pageW-mx, y: y-3 }, thickness: 0.6, color: rgb(0.85,0.85,0.92) });
+    y -= 18;
   }
 
-  y -= 10;
-
   // Totales
+  y -= 8;
   page.drawLine({ start: { x: mx+340, y }, end: { x: pageW-mx, y }, thickness: 1.2, color: rgb(...EMS_COLOR) });
   y -= 12;
   page.drawText("Subtotal:", { x: mx+340, y, size: 10.5, font: helvB });
@@ -711,19 +725,23 @@ async function generarPDFCotizacion(share = false) {
     y -= 10;
   }
 
-  // Pie de página con datos y vigencia
-  const pie = `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}\nTel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`;
-  const VIGENCIA = "Vigencia de la cotización: 15 días naturales a partir de la fecha de emisión.";
+  // Pie de página: bien dividido en varias líneas
+  const pieArr = [
+    `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`,
+    `Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`,
+    "Vigencia de la cotización: 15 días naturales a partir de la fecha de emisión."
+  ];
   page.drawRectangle({
-    x: mx, y: 26, width: usableW, height: 32, color: rgb(0.11, 0.24, 0.44)
+    x: mx, y: 26, width: usableW, height: 42, color: rgb(0.11, 0.24, 0.44)
   });
-  page.drawText(pie, {
-    x: mx+14, y: 46, size: 9, font: helv, color: rgb(1,1,1),
-    maxWidth: usableW-20
-  });
-  page.drawText(VIGENCIA, {
-    x: mx+14, y: 32, size: 9.7, font: helv, color: rgb(1,1,1)
-  });
+  let pieY = 60;
+  for (let linea of pieArr) {
+    page.drawText(linea, {
+      x: mx+14, y: pieY, size: 9.2, font: helv, color: rgb(1,1,1),
+      maxWidth: usableW-20
+    });
+    pieY -= 13;
+  }
 
   // Salida PDF
   const pdfBytes = await pdfDoc.save();
@@ -746,6 +764,7 @@ async function generarPDFCotizacion(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
+
 function editarCotizacion(datos) {
   nuevaCotizacion();
   const form = document.getElementById("cotForm");
@@ -769,6 +788,33 @@ function editarCotizacion(datos) {
     activarPredictivosInstantaneos();
   }, 100);
 }
+
+async function abrirReporte(numero) {
+  let doc = await db.collection("reportes").doc(numero).get();
+  if (!doc.exists) return alert("No se encontró el reporte.");
+  const datos = doc.data();
+  nuevoReporte();
+  const form = document.getElementById("repForm");
+  form.numero.value = datos.numero;
+  form.fecha.value = datos.fecha;
+  form.cliente.value = datos.cliente;
+  form.hora.value = datos.hora;
+  const tbody = form.querySelector("#repItemsTable tbody");
+  tbody.innerHTML = "";
+  fotosItemsReporte = [];
+  (datos.items || []).forEach((item, idx) => {
+    fotosItemsReporte[idx] = Array.isArray(item.fotos) ? [...item.fotos] : [];
+    tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
+  });
+  if ((datos.items || []).length === 0) agregarRepItemRow();
+  form.notas.value = datos.notas || "";
+  setTimeout(() => {
+    actualizarPredictsEMSCloud();
+    agregarDictadoMicros();
+    activarPredictivosInstantaneos();
+  }, 100);
+}
+
 
 async function abrirDetalleEMS(tipo, numero) {
   if (tipo === "cotizacion") {
@@ -893,11 +939,7 @@ async function generarPDFReporte(share = false) {
 
   y -= (logoH + 18);
 
-  // Línea divisoria
-  page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 2, color: rgb(...EMS_COLOR) });
-  y -= 16;
-
-  // Tabla de items
+  // Actividades
   page.drawText("Actividad / Descripción", { x: mx, y, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
   y -= 14;
   page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 1.2, color: rgb(0.76,0.80,0.94) });
@@ -956,19 +998,23 @@ async function generarPDFReporte(share = false) {
     }
   }
 
-  // Pie de página con datos y leyenda
-  const pie = `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}\nTel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`;
-  const VIGENCIA = "Este reporte da fe de los trabajos realizados según solicitud del cliente.";
+  // Pie de página
+  const pieArr = [
+    `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`,
+    `Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`,
+    "Este reporte da fe de los trabajos realizados según solicitud del cliente."
+  ];
   page.drawRectangle({
-    x: mx, y: 26, width: usableW, height: 32, color: rgb(0.11, 0.24, 0.44)
+    x: mx, y: 26, width: usableW, height: 42, color: rgb(0.11, 0.24, 0.44)
   });
-  page.drawText(pie, {
-    x: mx+14, y: 46, size: 9, font: helv, color: rgb(1,1,1),
-    maxWidth: usableW-20
-  });
-  page.drawText(VIGENCIA, {
-    x: mx+14, y: 32, size: 9.7, font: helv, color: rgb(1,1,1)
-  });
+  let pieY = 60;
+  for (let linea of pieArr) {
+    page.drawText(linea, {
+      x: mx+14, y: pieY, size: 9.2, font: helv, color: rgb(1,1,1),
+      maxWidth: usableW-20
+    });
+    pieY -= 13;
+  }
 
   // Salida PDF
   const pdfBytes = await pdfDoc.save();
@@ -991,6 +1037,7 @@ async function generarPDFReporte(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
+
 
 // ======= Dictado por voz para campos con .mic-btn =======
 function agregarDictadoMicros() {

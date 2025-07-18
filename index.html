@@ -2,34 +2,18 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>EMS - Cotizaciones y Reportes</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#163960">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Electromotores Santana - Cotizaciones & Reportes</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="icon" href="https://i.imgur.com/RQucHEc.png">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
+  <link rel="manifest" href="manifest.json">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="https://kit.fontawesome.com/4eb8a468eb.js" crossorigin="anonymous"></script>
 </head>
 <body>
-  <div id="ems-offline-banner" style="display:none;"></div>
   <div id="root"></div>
-  <div id="progress-bar" style="display:none;">
-    <div class="progress-inner"></div>
-  </div>
-  <div id="progress-overlay"></div>
-
-  <!-- Datalists globales para predictivos/autocompletar -->
-  <datalist id="clientesEMS"></datalist>
-  <datalist id="conceptosEMS"></datalist>
-  <datalist id="unidadesEMS"></datalist>
-  <datalist id="descEMS"></datalist>
-
-  <!-- Aquí puedes agregar más datalists si algún otro campo requiere predictivo -->
-
+  <div id="progress-bar" style="display:none;position:fixed;top:0;left:0;height:5px;width:100vw;background:#26B77A;z-index:1200;"></div>
   <script src="app.js"></script>
 </body>
 </html>
