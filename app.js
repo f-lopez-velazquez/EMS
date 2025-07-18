@@ -969,6 +969,14 @@ async function generarPDFReporte(share = false) {
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
   const logoImg   = await pdfDoc.embedPng(logoBytes);
 
+page.drawImage(logoImg, {
+  x: (pageW-260)/2,  // Centramos el logo (ajusta el 260 si prefieres más chico o más grande)
+  y: (pageH-260)/2,
+  width: 260,
+  height: 260,
+  opacity: 0.08        // HAZLO TRANSLÚCIDO
+});
+
   let page = pdfDoc.addPage([pageW, pageH]);
   page.drawImage(logoImg, { x: mx, y: y-54, width: 54, height: 54 });
   page.drawText("ELECTROMOTORES SANTANA", { x: mx+64, y: y-5, size: 19, font: helvB, color: rgb(0.12,0.20,0.40) });
@@ -1097,6 +1105,8 @@ async function generarPDFReporte(share = false) {
 // --------- PDF DE COTIZACIÓN PROFESIONAL ---------
 async function generarPDFCotizacion(share = false) {
   showProgress(true, 10, "Generando PDF...");
+
+  
   await guardarDraft('cotizacion');
   const form = document.getElementById('cotForm');
   const datos = Object.fromEntries(new FormData(form));
@@ -1137,6 +1147,14 @@ async function generarPDFCotizacion(share = false) {
 
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
   const logoImg   = await pdfDoc.embedPng(logoBytes);
+
+page.drawImage(logoImg, {
+  x: (pageW-260)/2,  // Centramos el logo (ajusta el 260 si prefieres más chico o más grande)
+  y: (pageH-260)/2,
+  width: 260,
+  height: 260,
+  opacity: 0.08        // HAZLO TRANSLÚCIDO
+});
 
   let page = pdfDoc.addPage([pageW, pageH]);
   // Encabezado
@@ -1309,6 +1327,39 @@ function mostrarGuardado() {
 }
 
 
+async function inicializarPredictsEMS() {
+  const predCol = db.collection("predicts");
+  // UNIDAD
+  const unidadPredicts = ["Pieza", "Servicio", "Metro", "Tramo"];
+  for (const unidad of unidadPredicts) {
+    await predCol.doc("unidad").set({
+      [unidad]: true
+    }, { merge: true });
+  }
+  // CONCEPTO
+  const conceptoPredicts = [
+    "Embobinado",
+    "Mantenimiento",
+    "Barnizado",
+    "Emplayado",
+    "Secado en horno",
+    "Encasquillado de tapa",
+    "Rectificado flecha",
+    "Pintado"
+  ];
+  for (const concepto of conceptoPredicts) {
+    await predCol.doc("concepto").set({
+      [concepto]: true
+    }, { merge: true });
+  }
+}
+
+window.onload = async () => {
+  renderInicio();
+  if (!navigator.onLine) showOffline(true);
+  await inicializarPredictsEMS();
+  await actualizarPredictsEMSCloud(); // <-- Esto es lo importante
+};
 
 
 // --------- Protección contra cierre accidental -------------
