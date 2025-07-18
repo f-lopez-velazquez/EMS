@@ -113,6 +113,9 @@ function activarPredictivosInstantaneos() {
 
 // --------- Renderización de interfaz ---------
 function renderInicio() {
+  // Detiene el autosave si está activo
+  if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
+
   fotosItemsReporte = [];
   document.getElementById("root").innerHTML = `
     <div class="ems-header">
@@ -136,6 +139,7 @@ function renderInicio() {
   `;
   cargarHistorialEMS();
 }
+
 window.onload = () => {
   renderInicio();
   if (!navigator.onLine) showOffline?.(true);
@@ -225,35 +229,36 @@ function eliminarCotItemRow(btn) {
 // ========== Reporte (con imágenes Cloudinary) ==========
 function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
   if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
+  // Agrupa fotos de 2 en 2
   let fotosHtml = '';
-  // Agrupar de 2 en 2 y mostrar centrado
-  let fotos = fotosItemsReporte[idx] || [];
+  const fotos = fotosItemsReporte[idx] || [];
   for (let i = 0; i < fotos.length; i += 2) {
-    fotosHtml += `<div style="display:flex; justify-content:center; gap:12px; margin-bottom:6px;">`;
-    for (let j = i; j < i + 2 && j < fotos.length; j++) {
+    fotosHtml += `<div class="ems-rep-fotos-pair">`;
+    for (let j = i; j < i + 2 && j < fotos.length; ++j) {
       fotosHtml += `
-        <div class="ems-rep-foto" style="position:relative;">
-          <img src="${fotos[j]}" style="width: 100px; height: 100px; object-fit:cover; border-radius:10px; border:1.5px solid #dbe2ea;display:block;margin:auto;">
-          ${modoEdicion ? `<button type="button" class="ems-btn-delimg" title="Eliminar imagen" onclick="eliminarFotoRepItem(this, ${idx}, ${j}, '${fotos[j]}')"><i class="fa fa-times"></i></button>` : ''}
-        </div>`;
+        <div class="ems-rep-foto">
+          <img src="${fotos[j]}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #dbe2ea;display:block;margin:auto;">
+          ${modoEdicion ? `<button type="button" class="ems-btn-delimg" title="Eliminar imagen" onclick="eliminarFotoRepItem(this, ${idx}, ${j}, '${fotos[j]}')"><i class="fa fa-trash"></i></button>` : ''}
+        </div>
+      `;
     }
     fotosHtml += `</div>`;
   }
   return `
     <tr>
       <td>
-        <textarea name="descripcion" list="descEMS" rows="2" required placeholder="Describe la actividad" style="text-align:center;">${item.descripcion||""}</textarea>
+        <textarea name="descripcion" list="descEMS" rows="2" required placeholder="Describe la actividad" style="width:97%">${item.descripcion||""}</textarea>
         <datalist id="descEMS"></datalist>
       </td>
       <td>
         <div class="ems-rep-fotos-row" id="fotos-item-${idx}">
           ${fotosHtml}
-          ${modoEdicion && (fotosItemsReporte[idx]||[]).length < 6 ? `
+          ${modoEdicion && (fotos.length < 6) ? `
             <input type="file" accept="image/*" multiple
               style="display:block; margin-top:7px;"
               onchange="subirFotoRepItem(this, ${idx})"
             >
-            <div style="font-size:0.92em; color:#888;">${6 - (fotosItemsReporte[idx]||[]).length} fotos disponibles</div>
+            <div style="font-size:0.92em; color:#888;">${6 - fotos.length} fotos disponibles</div>
           ` : ""}
         </div>
       </td>
@@ -261,9 +266,9 @@ function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
         ${modoEdicion ? `<button type="button" class="ems-btn-delrow" onclick="eliminarRepItemRow(this)"><i class="fa fa-trash"></i></button>` : ''}
       </td>
     </tr>
-    <tr><td colspan="3"><hr style="border:0;border-top:1.5px solid #dbe2ea;margin:10px 0;"></td></tr>
   `;
 }
+
 
 function agregarRepItemRow() {
   const tbody = document.getElementById('repItemsTable').querySelector('tbody');
@@ -318,24 +323,30 @@ async function subirFotoRepItem(input, idx) {
   input.disabled = false;
   input.value = "";
 }
-function eliminarFotoRepItem(btn, idx, fidx, url) {
-  if (!window.fotosItemsReporte[idx]) return;
-  window.fotosItemsReporte[idx].splice(fidx, 1);
-  // Vuelve a renderizar esa fila
-  const tbody = document.getElementById('repItemsTable').querySelector('tbody');
-  const tr = tbody.children[idx];
-  if (tr) tr.outerHTML = renderRepItemRow(
-    { descripcion: tr.querySelector('textarea[name="descripcion"]').value, fotos: window.fotosItemsReporte[idx] }, 
-    idx, 
-    true
+function eliminarFotoRepItem(btn, itemIdx, fotoIdx, url) {
+  if (!fotosItemsReporte[itemIdx]) return;
+  fotosItemsReporte[itemIdx].splice(fotoIdx, 1);
+  // Re-renderiza solo el item modificado
+  const tr = btn.closest('tr');
+  const newRow = document.createElement('tr');
+  newRow.innerHTML = renderRepItemRow(
+    { descripcion: tr.querySelector('textarea[name="descripcion"]').value, fotos: fotosItemsReporte[itemIdx] },
+    itemIdx, true
   );
+  tr.parentNode.replaceChild(newRow, tr);
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
 }
 
 // ========== Cotización y Reporte: Formulario y Flujos ==========
 function nuevaCotizacion() {
-  document.getElementById('root').innerHTML = `
+  // Botón de volver al inicio arriba
+  let volverBtn = `
+    <button class="btn-secondary" onclick="renderInicio()" style="margin-bottom:14px;">
+      <i class="fa fa-arrow-left"></i> Volver al inicio
+    </button>
+  `;
+  document.getElementById('root').innerHTML = volverBtn + `
     <div class="ems-header">
       <img src="${LOGO_URL}" class="ems-logo">
       <div>
@@ -419,12 +430,14 @@ function nuevaCotizacion() {
     </form>
   `;
   const form = document.getElementById('cotForm');
+  // Draft
   let draft = localStorage.getItem('EMS_COT_BORRADOR');
   if (draft) {
     draft = JSON.parse(draft);
     Object.keys(draft).forEach(k => {
       if (k !== "items" && form[k] !== undefined) form[k].value = draft[k];
     });
+    // Items tabla
     const tbody = form.querySelector("#itemsTable tbody");
     tbody.innerHTML = "";
     (draft.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
@@ -441,22 +454,30 @@ function nuevaCotizacion() {
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
   }, 100);
-    if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
-  window.autoSaveTimer = setInterval(() => {
-    if (document.getElementById('cotForm')) guardarCotizacionDraft();
-  }, 15000);
-
   form.onsubmit = async (e) => {
     e.preventDefault();
     await enviarCotizacion(e);
     localStorage.removeItem('EMS_COT_BORRADOR');
   };
+
+  // === AUTOGUARDADO cada 15 segundos ===
+  if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
+  window.autoSaveTimer = setInterval(() => {
+    if (document.getElementById('cotForm')) guardarCotizacionDraft();
+  }, 15000);
 }
+
 
 function nuevoReporte() {
   window.editandoReporte = false;
   fotosItemsReporte = [];
-  document.getElementById('root').innerHTML = `
+  // Botón de volver al inicio arriba
+  let volverBtn = `
+    <button class="btn-secondary" onclick="renderInicio()" style="margin-bottom:14px;">
+      <i class="fa fa-arrow-left"></i> Volver al inicio
+    </button>
+  `;
+  document.getElementById('root').innerHTML = volverBtn + `
     <div class="ems-header">
       <img src="${LOGO_URL}" class="ems-logo">
       <div>
@@ -514,7 +535,7 @@ function nuevoReporte() {
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
         <button type="button" class="btn-secondary" onclick="guardarReporteDraft(); generarPDFReporte()"><i class="fa fa-file-pdf"></i> PDF</button>
         <button type="button" class="btn-success" onclick="guardarReporteDraft(); generarPDFReporte(true)"><i class="fa fa-share-alt"></i> Compartir</button>
-        <button type="button" class="btn-danger" onclick="eliminarReporteCompleto?.()" style="float:right;"><i class="fa fa-trash"></i> Eliminar</button>
+        <button type="button" class="btn-danger" onclick="eliminarReporteCompleto()" style="float:right;"><i class="fa fa-trash"></i> Eliminar</button>
       </div>
     </form>
   `;
@@ -541,17 +562,19 @@ function nuevoReporte() {
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
   }, 100);
-    if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
-  window.autoSaveTimer = setInterval(() => {
-    if (document.getElementById('repForm')) guardarReporteDraft();
-  }, 15000);
-
   form.onsubmit = async (e) => {
     e.preventDefault();
     await enviarReporte(e);
     localStorage.removeItem('EMS_REP_BORRADOR');
   };
+
+  // === AUTOGUARDADO cada 15 segundos ===
+  if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
+  window.autoSaveTimer = setInterval(() => {
+    if (document.getElementById('repForm')) guardarReporteDraft();
+  }, 15000);
 }
+
 // ========== GUARDADO, PDF, EDICIÓN, DETALLE ==========
 async function enviarCotizacion(e) {
   e.preventDefault();
