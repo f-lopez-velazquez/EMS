@@ -30,6 +30,33 @@ function formatMoney(val) {
 function hoy() { return (new Date()).toISOString().slice(0, 10); }
 function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
 
+function showProgress(show = true, percent = 60, text = "Generando...") {
+  let bar = document.getElementById("progress-bar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "progress-bar";
+    bar.style.position = "fixed";
+    bar.style.top = "0";
+    bar.style.left = "0";
+    bar.style.height = "5px";
+    bar.style.width = "100vw";
+    bar.style.background = "#26B77A";
+    bar.style.zIndex = "1200";
+    bar.style.transition = "width 0.3s";
+    document.body.appendChild(bar);
+  }
+  if (show) {
+    bar.style.display = "block";
+    bar.style.width = (percent || 60) + "%";
+    bar.innerText = text || "";
+  } else {
+    bar.style.display = "none";
+    bar.innerText = "";
+    bar.style.width = "0%";
+  }
+}
+
+
 function showSaved(msg = "Guardado") {
   let el = document.getElementById("saved-banner");
   if (!el) {
