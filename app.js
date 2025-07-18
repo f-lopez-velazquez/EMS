@@ -995,30 +995,38 @@ async function generarPDFReporte(share = false) {
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
   form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
-    if (tr.querySelector('textarea[name="descripcion"]')) {
-      items.push({
-        descripcion: tr.querySelector('textarea[name="descripcion"]').value,
-        fotos: fotosItemsReporte[Array.from(tr.parentNode.children).indexOf(tr)] || []
-      });
-    }
+    items.push({
+      descripcion: tr.querySelector('textarea[name="descripcion"]').value,
+      fotos: fotosItemsReporte[Array.from(tr.parentNode.children).indexOf(tr)] || []
+    });
   });
 
+  // PDF
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
+  // Medidas A4 en puntos
   const pageW = 595.28, pageH = 841.89;
   const mx = 32, my = 38;
   const usableW = pageW - mx*2;
   let y = pageH - my;
 
   let page = pdfDoc.addPage([pageW, pageH]);
+
+  // Marca de agua (logo grande y translúcido, centrado)
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
   const logoImg   = await pdfDoc.embedPng(logoBytes);
+  page.drawImage(logoImg, {
+    x: (pageW-260)/2,
+    y: (pageH-260)/2,
+    width: 260,
+    height: 260,
+    opacity: 0.08
+  });
 
-  // Marca de agua y encabezado igual...
-  page.drawImage(logoImg, { x: (pageW-260)/2, y: (pageH-260)/2, width: 260, height: 260, opacity: 0.08 });
+  // Encabezado
   const logoH = 46;
   page.drawImage(logoImg, { x: mx, y: y - logoH + 6, width: logoH, height: logoH });
   const leftX = mx + logoH + 14;
@@ -1033,56 +1041,75 @@ async function generarPDFReporte(share = false) {
 
   // Línea divisoria
   page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 2, color: rgb(...EMS_COLOR) });
-  y -= 16;
+  y -= 18;
 
-  page.drawText("Actividad / Descripción", { x: mx, y, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
+  // Tabla de items
+  page.drawText("Actividades y Evidencias:", { x: mx, y, size: 11.5, font: helvB, color: rgb(0.12,0.20,0.40) });
   y -= 14;
-  page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 1.2, color: rgb(0.76,0.80,0.94) });
+  page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 1, color: rgb(0.76,0.80,0.94) });
   y -= 8;
 
   for (let idx = 0; idx < items.length; idx++) {
     let it = items[idx];
-    let desc = String(it.descripcion || "");
-    // Centrar la descripción debajo de las fotos
-    let descParts = [];
-    while (desc.length > 0) {
-      descParts.push(desc.slice(0, 80));
-      desc = desc.slice(80);
-    }
-    // Mostrar fotos en bloques de 2, centradas y grandes
+
+    // Si hay imágenes, máx 2 por fila
     let fotos = it.fotos || [];
     for (let i = 0; i < fotos.length; i += 2) {
-      if (y < 180) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my - 70; }
-      let count = Math.min(2, fotos.length - i);
-      let gap = 24, imgW = 140, imgH = 120;
-      let totalW = count * imgW + (count - 1) * gap;
-      let xStart = mx + (usableW - totalW) / 2;
-      for (let j = 0; j < count; j++) {
-        try {
-          const fotoBytes = await fetch(fotos[i+j]).then(r=>r.arrayBuffer());
-          const fotoImg = await pdfDoc.embedJpg(fotoBytes);
-          page.drawImage(fotoImg, { x: xStart + j*(imgW+gap), y: y-imgH, width: imgW, height: imgH });
-        } catch (e) {}
+      if (y < 180) { // Salto de página si ya no hay espacio
+        page = pdfDoc.addPage([pageW, pageH]);
+        y = pageH - my - 70;
       }
-      y -= imgH + 6;
+      let x1 = mx + 35, x2 = mx + usableW/2 + 15;
+      // Imprime hasta 2 imágenes por fila
+      for (let j = 0; j < 2 && i+j < fotos.length; j++) {
+        let imgUrl = fotos[i+j];
+        let imgBytes = await fetch(imgUrl).then(r=>r.arrayBuffer()).catch(()=>null);
+        if (!imgBytes) continue;
+        let img, ext = imgUrl.split('.').pop().toLowerCase();
+        try {
+          if (ext === "png" || ext.startsWith("png")) img = await pdfDoc.embedPng(imgBytes);
+          else img = await pdfDoc.embedJpg(imgBytes);
+        } catch {
+          // Si PNG falla, intenta como JPG
+          try { img = await pdfDoc.embedJpg(imgBytes); } catch { continue; }
+        }
+        let x = (j === 0) ? x1 : x2;
+        page.drawImage(img, {
+          x: x, y: y - 120, width: 140, height: 110
+        });
+        // Descripción abajo de cada imagen, centrada
+        let desc = it.descripcion || "";
+        let textWidth = helv.widthOfTextAtSize(desc, 10);
+        let textX = x + 70 - textWidth/2;
+        page.drawText(desc, {
+          x: textX, y: y - 130, size: 10, font: helv, color: rgb(0.15,0.18,0.22)
+        });
+      }
+      y -= 135;
     }
-    // Descripción centrada
-    for (let part of descParts) {
-      page.drawText(part, { x: mx, y: y, size: 10.8, font: helv, color: rgb(0.18,0.23,0.32), maxWidth: usableW, align: 'center' });
-      y -= 14;
+    // Si no hay imágenes, solo descripción centrada
+    if (!fotos.length) {
+      let desc = it.descripcion || "";
+      let textWidth = helv.widthOfTextAtSize(desc, 11);
+      let textX = mx + usableW/2 - textWidth/2;
+      page.drawText(desc, { x: textX, y: y, size: 11, font: helv, color: rgb(0.15,0.18,0.22) });
+      y -= 18;
     }
-    y -= 4;
-    // Separador
-    page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 1.2, color: rgb(0.80,0.82,0.87) });
+    // Línea divisoria fina entre items
+    page.drawLine({ start: { x: mx+10, y: y+4 }, end: { x: pageW-mx-10, y: y+4 }, thickness: 0.6, color: rgb(0.85,0.87,0.92) });
     y -= 8;
   }
 
   // Notas / observaciones
   if (datos.notas?.trim()) {
-    if (y < 80) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my - 70; }
+    if (y < 80) {
+      page = pdfDoc.addPage([pageW, pageH]);
+      y = pageH - my - 70;
+    }
     page.drawText("Observaciones:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
     y -= 13;
     let obs = datos.notas.trim();
+    // Divide el texto para que no se corte
     while (obs.length > 0) {
       let line = obs.slice(0, 110);
       page.drawText(line, { x: mx+12, y, size: 10, font: helv, color: rgb(0.18,0.23,0.32), maxWidth: usableW-20 });
@@ -1091,12 +1118,26 @@ async function generarPDFReporte(share = false) {
     }
   }
 
-  // Pie de página
-  const pie = `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}\nTel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`;
-  const VIGENCIA = "Este reporte da fe de los trabajos realizados según solicitud del cliente.";
-  page.drawRectangle({ x: mx, y: 26, width: usableW, height: 32, color: rgb(0.11, 0.24, 0.44) });
-  page.drawText(pie, { x: mx+14, y: 46, size: 9, font: helv, color: rgb(1,1,1), maxWidth: usableW-20 });
-  page.drawText(VIGENCIA, { x: mx+14, y: 32, size: 9.7, font: helv, color: rgb(1,1,1) });
+  // Pie de página limpio y NUNCA cortado
+  let pie1 = `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`;
+  let pie2 = "Este reporte da fe de los trabajos realizados según solicitud del cliente.";
+  let pie3 = `Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`;
+  // Ajusta el tamaño del rectángulo según la cantidad de texto
+  page.drawRectangle({
+    x: mx, y: 26, width: usableW, height: 44, color: rgb(0.11, 0.24, 0.44)
+  });
+  page.drawText(pie1, {
+    x: mx+14, y: 61, size: 9, font: helv, color: rgb(1,1,1),
+    maxWidth: usableW-20
+  });
+  page.drawText(pie2, {
+    x: mx+14, y: 48, size: 9.7, font: helv, color: rgb(1,1,1),
+    maxWidth: usableW-20
+  });
+  page.drawText(pie3, {
+    x: mx+14, y: 35, size: 9, font: helv, color: rgb(1,1,1),
+    maxWidth: usableW-20
+  });
 
   // Salida PDF
   const pdfBytes = await pdfDoc.save();
@@ -1119,6 +1160,7 @@ async function generarPDFReporte(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
+
 
 
 
