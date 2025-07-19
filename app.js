@@ -419,6 +419,7 @@ function eliminarFotoRepItem(btn, idx, fidx, url) {
 
 // ========== Cotización y Reporte: Formulario y Flujos ==========
 function nuevaCotizacion() {
+  // Botón de volver al inicio arriba
   let volverBtn = `
     <button class="btn-secondary" onclick="renderInicio()" style="margin-bottom:14px;">
       <i class="fa fa-arrow-left"></i> Volver al inicio
@@ -452,6 +453,7 @@ function nuevaCotizacion() {
           </div>
           <datalist id="clientesEMS"></datalist>
         </div>
+        
       </div>
       <div class="ems-form-row">
         <div class="ems-form-group">
@@ -500,7 +502,6 @@ function nuevaCotizacion() {
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
         <button type="button" class="btn-secondary" onclick="guardarCotizacionDraft(); generarPDFCotizacion()"><i class="fa fa-file-pdf"></i> PDF</button>
         <button type="button" class="btn-success" onclick="guardarCotizacionDraft(); generarPDFCotizacion(true)"><i class="fa fa-share-alt"></i> Compartir</button>
-        <button type="button" class="btn-danger" onclick="eliminarCotizacionCompleta()" style="float:right;"><i class="fa fa-trash"></i> Eliminar</button>
       </div>
     </form>
   `;
@@ -512,6 +513,7 @@ function nuevaCotizacion() {
     Object.keys(draft).forEach(k => {
       if (k !== "items" && form[k] !== undefined) form[k].value = draft[k];
     });
+    // Items tabla
     const tbody = form.querySelector("#itemsTable tbody");
     tbody.innerHTML = "";
     (draft.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
@@ -542,12 +544,10 @@ function nuevaCotizacion() {
 }
 
 
-
-
 function nuevoReporte() {
   window.editandoReporte = false;
   fotosItemsReporte = [];
-  // Botón volver arriba
+  // Botón de volver al inicio arriba
   let volverBtn = `
     <button class="btn-secondary" onclick="renderInicio()" style="margin-bottom:14px;">
       <i class="fa fa-arrow-left"></i> Volver al inicio
@@ -581,6 +581,7 @@ function nuevoReporte() {
           </div>
           <datalist id="clientesEMS"></datalist>
         </div>
+        
       </div>
       <div>
         <table class="ems-items-table" id="repItemsTable">
@@ -647,11 +648,10 @@ function nuevoReporte() {
   }, 15000);
 }
 
-
 // ========== GUARDADO, PDF, EDICIÓN, DETALLE ==========
 async function enviarCotizacion(e) {
   e.preventDefault();
-  showProgress(true, 70, "Guardando...");
+  showSaved("Guardando...");
   const form = document.getElementById('cotForm');
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
@@ -664,35 +664,32 @@ async function enviarCotizacion(e) {
     });
   });
   if (!datos.numero || !datos.cliente || !items.length) {
-    showProgress(false);
+    showSaved("Faltan datos");
     alert("Completa todos los campos requeridos.");
     return;
   }
-  // Guardar predictivos
   savePredictEMSCloud("cliente", datos.cliente);
   items.forEach(it => {
     savePredictEMSCloud("concepto", it.concepto);
     savePredictEMSCloud("unidad", it.unidad);
   });
-
   const cotizacion = {
     ...datos,
     items,
     tipo: 'cotizacion',
     fecha: datos.fecha,
+    hora: datos.hora || ahora(),
     creada: new Date().toISOString()
   };
   if (!navigator.onLine) {
     alert("Sin conexión. Guarda localmente o espera a tener Internet.");
-    showProgress(false);
+    showSaved("Offline");
     return;
   }
   await db.collection("cotizaciones").doc(datos.numero).set(cotizacion);
-  showProgress(true, 100, "¡Listo!");
-  setTimeout(() => showProgress(false), 1000);
+  showSaved("¡Cotización guardada!");
   renderInicio();
 }
-
 async function guardarCotizacionDraft() {
   const form = document.getElementById('cotForm');
   if (!form) return;
@@ -711,13 +708,12 @@ async function guardarCotizacionDraft() {
     items,
     tipo: 'cotizacion',
     fecha: datos.fecha,
+    hora: datos.hora || ahora(),
     creada: new Date().toISOString()
   };
-  localStorage.setItem('EMS_COT_BORRADOR', JSON.stringify(cotizacion));
+  await db.collection("cotizaciones").doc(datos.numero).set(cotizacion);
   showSaved("Cotización guardada");
 }
-
-
 async function generarPDFCotizacion(share = false) {
   showSaved("Generando PDF...");
   await guardarCotizacionDraft();
@@ -882,69 +878,38 @@ async function generarPDFCotizacion(share = false) {
 
 function editarCotizacion(datos) {
   nuevaCotizacion();
+  const form = document.getElementById("cotForm");
+  form.numero.value = datos.numero;
+  form.fecha.value = datos.fecha;
+  form.cliente.value = datos.cliente;
+  form.hora.value = datos.hora;
+  if (datos.incluyeIVA) form.incluyeIVA.checked = true;
+  if (datos.anticipo) {
+    form.anticipo.checked = true;
+    form.anticipoPorc.parentElement.style.display = '';
+    form.anticipoPorc.value = datos.anticipoPorc;
+  }
+  const tbody = form.querySelector("#itemsTable tbody");
+  tbody.innerHTML = "";
+  (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
+  form.notas.value = datos.notas || "";
   setTimeout(() => {
-    const form = document.getElementById("cotForm");
-    if (!form) return;
-    const tbody = form.querySelector("#itemsTable tbody");
-    tbody.innerHTML = "";
-    (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
-    if (form.numero) form.numero.value = datos.numero || "";
-    if (form.fecha) form.fecha.value = datos.fecha || "";
-    if (form.cliente) form.cliente.value = datos.cliente || "";
-    if (form.incluyeIVA) form.incluyeIVA.checked = !!datos.incluyeIVA;
-    if (form.anticipo) {
-      form.anticipo.checked = !!datos.anticipo;
-      form.anticipoPorc.parentElement.style.display = form.anticipo.checked ? '' : 'none';
-      form.anticipoPorc.value = datos.anticipoPorc || "";
-    }
-    if (form.notas) form.notas.value = datos.notas || "";
-    // NO asignes form.hora si ya no tienes input hora
-    setTimeout(() => {
-      actualizarPredictsEMSCloud();
-      agregarDictadoMicros();
-      activarPredictivosInstantaneos();
-    }, 100);
-  }, 120);
+    actualizarPredictsEMSCloud();
+    agregarDictadoMicros();
+    activarPredictivosInstantaneos();
+  }, 100);
 }
-
 
 async function abrirReporte(numero) {
   let doc = await db.collection("reportes").doc(numero).get();
   if (!doc.exists) return alert("No se encontró el reporte.");
-  nuevoReporte();
-  setTimeout(() => {
-    const form = document.getElementById("repForm");
-    let datos = doc.data();
-    const tbody = form.querySelector("#repItemsTable tbody");
-    tbody.innerHTML = "";
-    fotosItemsReporte = [];
-    (datos.items || []).forEach((item, idx) => {
-      fotosItemsReporte[idx] = Array.isArray(item.fotos) ? [...item.fotos] : [];
-      tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
-    });
-    if (form.numero) form.numero.value = datos.numero || "";
-    if (form.fecha) form.fecha.value = datos.fecha || "";
-    if (form.cliente) form.cliente.value = datos.cliente || "";
-    if (form.notas) form.notas.value = datos.notas || "";
-    setTimeout(() => {
-      actualizarPredictsEMSCloud();
-      agregarDictadoMicros();
-      activarPredictivosInstantaneos();
-    }, 100);
-  }, 120);
-}
-
-
-
-
-
-async function abrirReporte(numero) {
-  let doc = await db.collection("reportes").doc(numero).get();
-  if (!doc.exists) return alert("No se encontró el reporte.");
+  const datos = doc.data();
   nuevoReporte();
   const form = document.getElementById("repForm");
-  let datos = doc.data();
-  // PINTA LOS ITEMS ANTES
+  form.numero.value = datos.numero;
+  form.fecha.value = datos.fecha;
+  form.cliente.value = datos.cliente;
+  form.hora.value = datos.hora;
   const tbody = form.querySelector("#repItemsTable tbody");
   tbody.innerHTML = "";
   fotosItemsReporte = [];
@@ -952,18 +917,14 @@ async function abrirReporte(numero) {
     fotosItemsReporte[idx] = Array.isArray(item.fotos) ? [...item.fotos] : [];
     tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
   });
-  // LUEGO SETEA LOS CAMPOS
-  if (form.numero) form.numero.value = datos.numero || "";
-  if (form.fecha) form.fecha.value = datos.fecha || "";
-  if (form.cliente) form.cliente.value = datos.cliente || "";
-  if (form.notas) form.notas.value = datos.notas || "";
+  if ((datos.items || []).length === 0) agregarRepItemRow();
+  form.notas.value = datos.notas || "";
   setTimeout(() => {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
-  }, 120);
+  }, 100);
 }
-
 
 
 async function abrirDetalleEMS(tipo, numero) {
@@ -980,7 +941,7 @@ async function abrirDetalleEMS(tipo, numero) {
 // ======= GUARDADO Y PDF DE REPORTES ==========
 async function enviarReporte(e) {
   e.preventDefault();
-  showProgress(true, 70, "Guardando...");
+  showSaved("Guardando...");
   const form = document.getElementById('repForm');
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
@@ -991,42 +952,39 @@ async function enviarReporte(e) {
     });
   });
   if (!datos.numero || !datos.cliente || !items.length) {
-    showProgress(false);
+    showSaved("Faltan datos");
     alert("Completa todos los campos requeridos.");
     return;
   }
-  // Predictivos
   savePredictEMSCloud("cliente", datos.cliente);
   items.forEach(it => savePredictEMSCloud("descripcion", it.descripcion));
-
   const reporte = {
     ...datos,
     items,
     tipo: 'reporte',
     fecha: datos.fecha,
+    hora: datos.hora || ahora(),
     creada: new Date().toISOString()
   };
   if (!navigator.onLine) {
     alert("Sin conexión. Guarda localmente o espera a tener Internet.");
-    showProgress(false);
+    showSaved("Offline");
     return;
   }
   await db.collection("reportes").doc(datos.numero).set(reporte);
-  showProgress(true, 100, "¡Listo!");
-  setTimeout(() => showProgress(false), 1000);
+  showSaved("¡Reporte guardado!");
   renderInicio();
 }
-
 
 async function guardarReporteDraft() {
   const form = document.getElementById('repForm');
   if (!form) return;
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
-  form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
+  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
     items.push({
       descripcion: tr.querySelector('textarea[name="descripcion"]').value,
-      fotos: fotosItemsReporte[idx] || []
+      fotos: fotosItemsReporte[Array.from(tr.parentNode.children).indexOf(tr)] || []
     });
   });
   const reporte = {
@@ -1034,13 +992,12 @@ async function guardarReporteDraft() {
     items,
     tipo: 'reporte',
     fecha: datos.fecha,
+    hora: datos.hora || ahora(),
     creada: new Date().toISOString()
   };
-  localStorage.setItem('EMS_REP_BORRADOR', JSON.stringify(reporte));
+  await db.collection("reportes").doc(datos.numero).set(reporte);
   showSaved("Reporte guardado");
 }
-
-
 
 // Helper: Corta texto en líneas sin exceder ancho en puntos (px) usando la fuente PDF
 function breakTextLines(text, font, fontSize, maxWidth) {
@@ -1260,26 +1217,7 @@ async function generarPDFReporte(share = false) {
 
 
 
-async function eliminarCotizacionCompleta() {
-  const form = document.getElementById('cotForm');
-  if (!form) return;
-  const numero = form.numero.value;
-  if (!numero) return;
-  if (!confirm("¿Seguro que quieres eliminar esta cotización?")) return;
-  await db.collection("cotizaciones").doc(numero).delete();
-  showSaved("Cotización eliminada");
-  renderInicio();
-}
-async function eliminarReporteCompleto() {
-  const form = document.getElementById('repForm');
-  if (!form) return;
-  const numero = form.numero.value;
-  if (!numero) return;
-  if (!confirm("¿Seguro que quieres eliminar este reporte?")) return;
-  await db.collection("reportes").doc(numero).delete();
-  showSaved("Reporte eliminado");
-  renderInicio();
-}
+
 
 // ======= Dictado por voz para campos con .mic-btn =======
 function agregarDictadoMicros() {
@@ -1301,7 +1239,5 @@ function agregarDictadoMicros() {
     };
   });
 }
-
-
 
 // ========== Fin del archivo ==========

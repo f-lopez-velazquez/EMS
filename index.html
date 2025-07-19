@@ -2,36 +2,21 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Electromotores Santana - EMS</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" href="icons/icon-192.png" type="image/png">
-  <meta name="theme-color" content="#f88a1d">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Electromotores Santana - Cotizaciones & Reportes</title>
   <link rel="stylesheet" href="styles.css">
-  <!-- FontAwesome para íconos -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"/>
-  <!-- pdf-lib -->
-  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/8.6.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.6.1/firebase-firestore.js"></script>
+  <link rel="manifest" href="manifest.json">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="https://kit.fontawesome.com/4eb8a468eb.js" crossorigin="anonymous"></script>
+  <!-- Puedes quitar esta línea si NO tienes iconos en /icons/ (y te da error 404):
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  -->
 </head>
 <body>
   <div id="root"></div>
-  <div id="saved-banner" style="display:none;"></div>
-  <div id="mensaje-guardado" style="display:none;"></div>
-
+  <div id="progress-bar" style="display:none;position:fixed;top:0;left:0;height:5px;width:100vw;background:#26B77A;z-index:1200;"></div>
   <script src="app.js"></script>
-  <script>
-    // PWA: registrar service worker
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function() {
-        navigator.serviceWorker.register('service-worker.js');
-      });
-    }
-  </script>
 </body>
 </html>
