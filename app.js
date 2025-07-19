@@ -46,6 +46,23 @@ function showProgress(visible = true, percent = 60, msg = "Generando...") {
     bar.style.width = "0%";
   }
 }
+// Helper: Corta texto en líneas sin exceder ancho en puntos (px) usando la fuente PDF
+function breakTextLines(text, font, fontSize, maxWidth) {
+  let lines = [];
+  let currentLine = "";
+  for (let char of text) {
+    let nextLine = currentLine + char;
+    let width = font.widthOfTextAtSize(nextLine, fontSize);
+    if (width > maxWidth && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = char;
+    } else {
+      currentLine = nextLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
+}
 
 
 function safe(val) {
@@ -988,6 +1005,24 @@ async function guardarReporteDraft() {
   showSaved("Reporte guardado");
 }
 
+// Helper: Corta texto en líneas sin exceder ancho en puntos (px) usando la fuente PDF
+function breakTextLines(text, font, fontSize, maxWidth) {
+  let lines = [];
+  let currentLine = "";
+  for (let char of text) {
+    let nextLine = currentLine + char;
+    let width = font.widthOfTextAtSize(nextLine, fontSize);
+    if (width > maxWidth && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = char;
+    } else {
+      currentLine = nextLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
+}
+
 async function generarPDFReporte(share = false) {
   showProgress(true, 10, "Generando PDF...");
   await guardarReporteDraft();
@@ -1055,7 +1090,7 @@ async function generarPDFReporte(share = false) {
     let fotos = it.fotos || [];
     let hasFotos = fotos.length > 0;
     let maxImgsPerRow = 2;
-    let imgW = 170, imgH = 135; // Aumenta tamaño
+    let imgW = 170, imgH = 135; // Tamaño de las imágenes
     let imgPad = 26;
 
     // FOTOS (máximo 2 por fila)
@@ -1094,16 +1129,7 @@ async function generarPDFReporte(share = false) {
       // DESCRIPCIÓN DEL ITEM, centrada abajo del bloque de imágenes
       let desc = it.descripcion || "";
       let maxTextW = usableW - 40;
-      let lines = [];
-      while (desc.length > 0) {
-        // Parte en líneas cortas (máx 72 chars) para no desbordar
-        let chunk = desc.slice(0, 72);
-        // Si hay un espacio cerca del final, parte ahí para no cortar palabras
-        let lastSpace = chunk.lastIndexOf(' ');
-        if (lastSpace > 50 && lastSpace < chunk.length-1) chunk = chunk.slice(0, lastSpace);
-        lines.push(chunk);
-        desc = desc.slice(chunk.length).trim();
-      }
+      let lines = breakTextLines(desc, helv, 11, maxTextW);
       for (let li = 0; li < lines.length; li++) {
         let textWidth = helv.widthOfTextAtSize(lines[li], 11);
         let textX = mx + usableW/2 - textWidth/2;
@@ -1114,14 +1140,7 @@ async function generarPDFReporte(share = false) {
       // Si no hay fotos, solo descripción centrada
       let desc = it.descripcion || "";
       let maxTextW = usableW - 40;
-      let lines = [];
-      while (desc.length > 0) {
-        let chunk = desc.slice(0, 72);
-        let lastSpace = chunk.lastIndexOf(' ');
-        if (lastSpace > 50 && lastSpace < chunk.length-1) chunk = chunk.slice(0, lastSpace);
-        lines.push(chunk);
-        desc = desc.slice(chunk.length).trim();
-      }
+      let lines = breakTextLines(desc, helv, 11, maxTextW);
       for (let li = 0; li < lines.length; li++) {
         let textWidth = helv.widthOfTextAtSize(lines[li], 11);
         let textX = mx + usableW/2 - textWidth/2;
@@ -1143,11 +1162,9 @@ async function generarPDFReporte(share = false) {
     page.drawText("Observaciones:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
     y -= 13;
     let obs = datos.notas.trim();
-    // Divide el texto para que no se corte
-    while (obs.length > 0) {
-      let line = obs.slice(0, 110);
-      page.drawText(line, { x: mx+12, y, size: 10, font: helv, color: rgb(0.18,0.23,0.32), maxWidth: usableW-20 });
-      obs = obs.slice(110);
+    let obsLines = breakTextLines(obs, helv, 10, usableW-20);
+    for (let ol = 0; ol < obsLines.length; ol++) {
+      page.drawText(obsLines[ol], { x: mx+12, y, size: 10, font: helv, color: rgb(0.18,0.23,0.32) });
       y -= 12;
     }
   }
@@ -1193,6 +1210,7 @@ async function generarPDFReporte(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
+
 
 
 
