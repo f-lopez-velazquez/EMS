@@ -1,8 +1,8 @@
 // === INICIALIZACIÓN Y UTILIDADES ===
 const EMS_CONTACT = {
   empresa: "ELECTROMOTORES SANTANA",
-  direccion: "Carr. a Chichimequillas 306, Colonia Menchaca, 76147 Santiago de Querétaro, Qro.",
-  telefono: "442 469 9895",
+  direccion: "Carr. a Chichimequillas 306, Colonia Menchaca 2, 76147 Santiago de Querétaro, Qro.",
+  telefono: "442 469 9895; tel/fax: 4422208910",
   correo: "electromotores.santana@gmail.com"
 };
 const EMS_COLOR = [0.97, 0.54, 0.11]; // rgb(248,138,29)
@@ -17,7 +17,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const LOGO_URL = "https://i.imgur.com/RQucHEc.png";
+const LOGO_URL = "https://i.imgur.com/CKDrg9w.png";
 let fotosItemsReporte = [];
 let autoSaveTimer = null;
 
@@ -453,10 +453,7 @@ function nuevaCotizacion() {
           </div>
           <datalist id="clientesEMS"></datalist>
         </div>
-        <div class="ems-form-group">
-          <label>Hora</label>
-          <input type="time" name="hora" value="${ahora()}">
-        </div>
+        
       </div>
       <div class="ems-form-row">
         <div class="ems-form-group">
@@ -584,10 +581,7 @@ function nuevoReporte() {
           </div>
           <datalist id="clientesEMS"></datalist>
         </div>
-        <div class="ems-form-group">
-          <label>Hora</label>
-          <input type="time" name="hora" value="${ahora()}">
-        </div>
+        
       </div>
       <div>
         <table class="ems-items-table" id="repItemsTable">
@@ -1244,6 +1238,16 @@ function agregarDictadoMicros() {
       recog.start();
     };
   });
+}
+async function eliminarCotizacionCompleta() {
+  if (!confirm("¿Seguro que quieres eliminar esta cotización?")) return;
+  const form = document.getElementById('cotForm');
+  if (!form) return;
+  const numero = form.numero.value;
+  if (!numero) return;
+  await db.collection("cotizaciones").doc(numero).delete();
+  showSaved("Cotización eliminada");
+  renderInicio();
 }
 
 // ========== Fin del archivo ==========
