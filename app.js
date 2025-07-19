@@ -882,25 +882,28 @@ async function generarPDFCotizacion(share = false) {
 function editarCotizacion(datos) {
   nuevaCotizacion();
   const form = document.getElementById("cotForm");
-  form.numero.value = datos.numero;
-  form.fecha.value = datos.fecha;
-  form.cliente.value = datos.cliente;
-  if (datos.incluyeIVA) form.incluyeIVA.checked = true;
-  if (datos.anticipo) {
-    form.anticipo.checked = true;
-    form.anticipoPorc.parentElement.style.display = '';
-    form.anticipoPorc.value = datos.anticipoPorc;
-  }
+  // PINTA LOS ITEMS ANTES
   const tbody = form.querySelector("#itemsTable tbody");
   tbody.innerHTML = "";
   (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
-  form.notas.value = datos.notas || "";
+  // LUEGO SETEA LOS CAMPOS
+  if (form.numero) form.numero.value = datos.numero || "";
+  if (form.fecha) form.fecha.value = datos.fecha || "";
+  if (form.cliente) form.cliente.value = datos.cliente || "";
+  if (form.incluyeIVA) form.incluyeIVA.checked = !!datos.incluyeIVA;
+  if (form.anticipo) {
+    form.anticipo.checked = !!datos.anticipo;
+    form.anticipoPorc.parentElement.style.display = form.anticipo.checked ? '' : 'none';
+    form.anticipoPorc.value = datos.anticipoPorc || "";
+  }
+  if (form.notas) form.notas.value = datos.notas || "";
   setTimeout(() => {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
-  }, 100);
+  }, 120);
 }
+
 
 function editarReporte(datos) {
   nuevoReporte();
@@ -928,13 +931,10 @@ function editarReporte(datos) {
 async function abrirReporte(numero) {
   let doc = await db.collection("reportes").doc(numero).get();
   if (!doc.exists) return alert("No se encontró el reporte.");
-  const datos = doc.data();
   nuevoReporte();
   const form = document.getElementById("repForm");
-  form.numero.value = datos.numero;
-  form.fecha.value = datos.fecha;
-  form.cliente.value = datos.cliente;
-  form.hora.value = datos.hora;
+  let datos = doc.data();
+  // PINTA LOS ITEMS ANTES
   const tbody = form.querySelector("#repItemsTable tbody");
   tbody.innerHTML = "";
   fotosItemsReporte = [];
@@ -942,14 +942,18 @@ async function abrirReporte(numero) {
     fotosItemsReporte[idx] = Array.isArray(item.fotos) ? [...item.fotos] : [];
     tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
   });
-  if ((datos.items || []).length === 0) agregarRepItemRow();
-  form.notas.value = datos.notas || "";
+  // LUEGO SETEA LOS CAMPOS
+  if (form.numero) form.numero.value = datos.numero || "";
+  if (form.fecha) form.fecha.value = datos.fecha || "";
+  if (form.cliente) form.cliente.value = datos.cliente || "";
+  if (form.notas) form.notas.value = datos.notas || "";
   setTimeout(() => {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
-  }, 100);
+  }, 120);
 }
+
 
 
 async function abrirDetalleEMS(tipo, numero) {
