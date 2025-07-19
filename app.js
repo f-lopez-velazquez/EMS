@@ -882,51 +882,59 @@ async function generarPDFCotizacion(share = false) {
 
 function editarCotizacion(datos) {
   nuevaCotizacion();
-  const form = document.getElementById("cotForm");
-  // PINTA LOS ITEMS PRIMERO
-  const tbody = form.querySelector("#itemsTable tbody");
-  tbody.innerHTML = "";
-  (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
-  // LUEGO SETEA LOS CAMPOS
-  if (form.numero) form.numero.value = datos.numero || "";
-  if (form.fecha) form.fecha.value = datos.fecha || "";
-  if (form.cliente) form.cliente.value = datos.cliente || "";
-  if (form.incluyeIVA) form.incluyeIVA.checked = !!datos.incluyeIVA;
-  if (form.anticipo) {
-    form.anticipo.checked = !!datos.anticipo;
-    form.anticipoPorc.parentElement.style.display = form.anticipo.checked ? '' : 'none';
-    form.anticipoPorc.value = datos.anticipoPorc || "";
-  }
-  if (form.notas) form.notas.value = datos.notas || "";
   setTimeout(() => {
-    actualizarPredictsEMSCloud();
-    agregarDictadoMicros();
-    activarPredictivosInstantaneos();
+    const form = document.getElementById("cotForm");
+    if (!form) return;
+    const tbody = form.querySelector("#itemsTable tbody");
+    tbody.innerHTML = "";
+    (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
+    if (form.numero) form.numero.value = datos.numero || "";
+    if (form.fecha) form.fecha.value = datos.fecha || "";
+    if (form.cliente) form.cliente.value = datos.cliente || "";
+    if (form.incluyeIVA) form.incluyeIVA.checked = !!datos.incluyeIVA;
+    if (form.anticipo) {
+      form.anticipo.checked = !!datos.anticipo;
+      form.anticipoPorc.parentElement.style.display = form.anticipo.checked ? '' : 'none';
+      form.anticipoPorc.value = datos.anticipoPorc || "";
+    }
+    if (form.notas) form.notas.value = datos.notas || "";
+    // NO asignes form.hora si ya no tienes input hora
+    setTimeout(() => {
+      actualizarPredictsEMSCloud();
+      agregarDictadoMicros();
+      activarPredictivosInstantaneos();
+    }, 100);
   }, 120);
 }
 
 
-
-function editarReporte(datos) {
+async function abrirReporte(numero) {
+  let doc = await db.collection("reportes").doc(numero).get();
+  if (!doc.exists) return alert("No se encontró el reporte.");
   nuevoReporte();
-  const form = document.getElementById("repForm");
-  if (form.numero) form.numero.value = datos.numero || "";
-  if (form.fecha) form.fecha.value = datos.fecha || "";
-  if (form.cliente) form.cliente.value = datos.cliente || "";
-  const tbody = form.querySelector("#repItemsTable tbody");
-  tbody.innerHTML = "";
-  fotosItemsReporte = [];
-  (datos.items || []).forEach((item, idx) => {
-    fotosItemsReporte[idx] = Array.isArray(item.fotos) ? [...item.fotos] : [];
-    tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
-  });
-  if (form.notas) form.notas.value = datos.notas || "";
   setTimeout(() => {
-    actualizarPredictsEMSCloud();
-    agregarDictadoMicros();
-    activarPredictivosInstantaneos();
-  }, 100);
+    const form = document.getElementById("repForm");
+    let datos = doc.data();
+    const tbody = form.querySelector("#repItemsTable tbody");
+    tbody.innerHTML = "";
+    fotosItemsReporte = [];
+    (datos.items || []).forEach((item, idx) => {
+      fotosItemsReporte[idx] = Array.isArray(item.fotos) ? [...item.fotos] : [];
+      tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
+    });
+    if (form.numero) form.numero.value = datos.numero || "";
+    if (form.fecha) form.fecha.value = datos.fecha || "";
+    if (form.cliente) form.cliente.value = datos.cliente || "";
+    if (form.notas) form.notas.value = datos.notas || "";
+    setTimeout(() => {
+      actualizarPredictsEMSCloud();
+      agregarDictadoMicros();
+      activarPredictivosInstantaneos();
+    }, 100);
+  }, 120);
 }
+
+
 
 
 
