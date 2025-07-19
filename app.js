@@ -2,7 +2,7 @@
 const EMS_CONTACT = {
   empresa: "ELECTROMOTORES SANTANA",
   direccion: "Carr. a Chichimequillas 306, Colonia Menchaca 2, 76147 Santiago de Querétaro, Qro.",
-  telefono: "442 469 9895; tel/fax: 4422208910",
+  telefono: "442 469 9895",
   correo: "electromotores.santana@gmail.com"
 };
 const EMS_COLOR = [0.97, 0.54, 0.11]; // rgb(248,138,29)
@@ -114,7 +114,26 @@ function showProgress(visible = true, percent = 0, msg = "") {
   }
 }
 
-
+async function eliminarCotizacionCompleta() {
+  const form = document.getElementById('cotForm');
+  if (!form) return;
+  const numero = form.numero.value;
+  if (!numero) return;
+  if (!confirm("¿Seguro que quieres eliminar esta cotización?")) return;
+  await db.collection("cotizaciones").doc(numero).delete();
+  showSaved("Cotización eliminada");
+  renderInicio();
+}
+async function eliminarReporteCompleto() {
+  const form = document.getElementById('repForm');
+  if (!form) return;
+  const numero = form.numero.value;
+  if (!numero) return;
+  if (!confirm("¿Seguro que quieres eliminar este reporte?")) return;
+  await db.collection("reportes").doc(numero).delete();
+  showSaved("Reporte eliminado");
+  renderInicio();
+}
 
 function showSaved(msg = "Guardado") {
   let el = document.getElementById("saved-banner");
@@ -874,6 +893,27 @@ async function generarPDFCotizacion(share = false) {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
+}
+
+function editarReporte(datos) {
+  nuevoReporte();
+  const form = document.getElementById("repForm");
+  form.numero.value = datos.numero;
+  form.fecha.value = datos.fecha;
+  form.cliente.value = datos.cliente;
+  const tbody = form.querySelector("#repItemsTable tbody");
+  tbody.innerHTML = "";
+  fotosItemsReporte = [];
+  (datos.items || []).forEach((item, idx) => {
+    fotosItemsReporte[idx] = Array.isArray(item.fotos) ? [...item.fotos] : [];
+    tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
+  });
+  form.notas.value = datos.notas || "";
+  setTimeout(() => {
+    actualizarPredictsEMSCloud();
+    agregarDictadoMicros();
+    activarPredictivosInstantaneos();
+  }, 100);
 }
 
 function editarCotizacion(datos) {
