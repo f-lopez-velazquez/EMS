@@ -505,6 +505,7 @@ function nuevaCotizacion() {
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
         <button type="button" class="btn-secondary" onclick="guardarCotizacionDraft(); generarPDFCotizacion()"><i class="fa fa-file-pdf"></i> PDF</button>
         <button type="button" class="btn-success" onclick="guardarCotizacionDraft(); generarPDFCotizacion(true)"><i class="fa fa-share-alt"></i> Compartir</button>
+        <!-- El botón de eliminar se insertará dinámicamente -->
       </div>
     </form>
   `;
@@ -544,7 +545,22 @@ function nuevaCotizacion() {
   window.autoSaveTimer = setInterval(() => {
     if (document.getElementById('cotForm')) guardarCotizacionDraft();
   }, 15000);
+
+  // === BOTÓN ELIMINAR SOLO EN EDICIÓN ===
+  setTimeout(() => {
+    if(form && form.numero && form.numero.value && !document.getElementById('btnEliminarCot')){
+      let btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-danger";
+      btn.id = "btnEliminarCot";
+      btn.style.float = "right";
+      btn.innerHTML = '<i class="fa fa-trash"></i> Eliminar';
+      btn.onclick = function(){ eliminarCotizacionCompleta(); };
+      form.querySelector(".ems-form-actions").appendChild(btn);
+    }
+  }, 300);
 }
+
 
 
 function nuevoReporte() {
@@ -614,7 +630,7 @@ function nuevoReporte() {
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
         <button type="button" class="btn-secondary" onclick="guardarReporteDraft(); generarPDFReporte()"><i class="fa fa-file-pdf"></i> PDF</button>
         <button type="button" class="btn-success" onclick="guardarReporteDraft(); generarPDFReporte(true)"><i class="fa fa-share-alt"></i> Compartir</button>
-        <button type="button" class="btn-danger" onclick="eliminarReporteCompleto()" style="float:right;"><i class="fa fa-trash"></i> Eliminar</button>
+        <!-- El botón de eliminar se insertará dinámicamente -->
       </div>
     </form>
   `;
@@ -652,7 +668,22 @@ function nuevoReporte() {
   window.autoSaveTimer = setInterval(() => {
     if (document.getElementById('repForm')) guardarReporteDraft();
   }, 15000);
+
+  // === BOTÓN ELIMINAR SOLO EN EDICIÓN ===
+  setTimeout(() => {
+    if(form && form.numero && form.numero.value && !document.getElementById('btnEliminarRep')){
+      let btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-danger";
+      btn.id = "btnEliminarRep";
+      btn.style.float = "right";
+      btn.innerHTML = '<i class="fa fa-trash"></i> Eliminar';
+      btn.onclick = function(){ eliminarReporteCompleto(); };
+      form.querySelector(".ems-form-actions").appendChild(btn);
+    }
+  }, 300);
 }
+
 
 // ========== GUARDADO, PDF, EDICIÓN, DETALLE ==========
 async function enviarCotizacion(e) {
@@ -1023,6 +1054,8 @@ function breakTextLines(text, font, fontSize, maxWidth) {
   return lines;
 }
 
+
+
 async function generarPDFReporte(share = false) {
   showProgress(true, 10, "Generando PDF...");
   await guardarReporteDraft();
@@ -1222,6 +1255,46 @@ async function generarPDFReporte(share = false) {
 
 
 
+
+async function eliminarCotizacionCompleta(numero) {
+  // Si no se pasa argumento, trata de tomar el valor del formulario abierto
+  if (!numero) {
+    const form = document.getElementById('cotForm');
+    if (form && form.numero && form.numero.value) {
+      numero = form.numero.value;
+    }
+  }
+  if (!numero) return alert("No se encontró el número de cotización.");
+  if (!confirm("¿Estás seguro que deseas eliminar esta cotización? Esta acción no se puede deshacer.")) return;
+  try {
+    await db.collection("cotizaciones").doc(numero).delete();
+    showSaved("Cotización eliminada");
+    localStorage.removeItem('EMS_COT_BORRADOR'); // o 'EMS_REP_BORRADOR' según el caso
+
+    renderInicio();
+  } catch (e) {
+    alert("Error eliminando cotización: " + (e.message || e));
+  }
+}
+async function eliminarReporteCompleto(numero) {
+  // Si no se pasa argumento, trata de tomar el valor del formulario abierto
+  if (!numero) {
+    const form = document.getElementById('repForm');
+    if (form && form.numero && form.numero.value) {
+      numero = form.numero.value;
+    }
+  }
+  if (!numero) return alert("No se encontró el número de reporte.");
+  if (!confirm("¿Estás seguro que deseas eliminar este reporte? Esta acción no se puede deshacer.")) return;
+  try {
+    await db.collection("reportes").doc(numero).delete();
+    showSaved("Reporte eliminado");
+    localStorage.removeItem('EMS_COT_BORRADOR'); // o 'EMS_REP_BORRADOR' según el caso
+    renderInicio();
+  } catch (e) {
+    alert("Error eliminando reporte: " + (e.message || e));
+  }
+}
 
 
 
