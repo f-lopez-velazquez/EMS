@@ -1049,51 +1049,85 @@ async function generarPDFReporte(share = false) {
   page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 1, color: rgb(0.76,0.80,0.94) });
   y -= 8;
 
+  // ---- PARA CADA ITEM ----
   for (let idx = 0; idx < items.length; idx++) {
     let it = items[idx];
-
-    // Si hay imágenes, máx 2 por fila
     let fotos = it.fotos || [];
-    for (let i = 0; i < fotos.length; i += 2) {
-      if (y < 180) { // Salto de página si ya no hay espacio
-        page = pdfDoc.addPage([pageW, pageH]);
-        y = pageH - my - 70;
-      }
-      let x1 = mx + 35, x2 = mx + usableW/2 + 15;
-      // Imprime hasta 2 imágenes por fila
-      for (let j = 0; j < 2 && i+j < fotos.length; j++) {
-        let imgUrl = fotos[i+j];
-        let imgBytes = await fetch(imgUrl).then(r=>r.arrayBuffer()).catch(()=>null);
-        if (!imgBytes) continue;
-        let img, ext = imgUrl.split('.').pop().toLowerCase();
-        try {
-          if (ext === "png" || ext.startsWith("png")) img = await pdfDoc.embedPng(imgBytes);
-          else img = await pdfDoc.embedJpg(imgBytes);
-        } catch {
-          // Si PNG falla, intenta como JPG
-          try { img = await pdfDoc.embedJpg(imgBytes); } catch { continue; }
+    let hasFotos = fotos.length > 0;
+    let maxImgsPerRow = 2;
+    let imgW = 170, imgH = 135; // Aumenta tamaño
+    let imgPad = 26;
+
+    // FOTOS (máximo 2 por fila)
+    if (hasFotos) {
+      for (let i = 0; i < fotos.length; i += maxImgsPerRow) {
+        if (y < 140) { // Salto de página si ya no hay espacio
+          page = pdfDoc.addPage([pageW, pageH]);
+          y = pageH - my - 70;
         }
-        let x = (j === 0) ? x1 : x2;
-        page.drawImage(img, {
-          x: x, y: y - 120, width: 140, height: 110
-        });
-        // Descripción abajo de cada imagen, centrada
-        let desc = it.descripcion || "";
-        let textWidth = helv.widthOfTextAtSize(desc, 10);
-        let textX = x + 70 - textWidth/2;
-        page.drawText(desc, {
-          x: textX, y: y - 130, size: 10, font: helv, color: rgb(0.15,0.18,0.22)
-        });
+        let rowCount = Math.min(maxImgsPerRow, fotos.length - i);
+        for (let j = 0; j < rowCount; j++) {
+          let imgUrl = fotos[i+j];
+          let imgBytes = await fetch(imgUrl).then(r=>r.arrayBuffer()).catch(()=>null);
+          if (!imgBytes) continue;
+          let img, ext = imgUrl.split('.').pop().toLowerCase();
+          try {
+            if (ext === "png" || ext.startsWith("png")) img = await pdfDoc.embedPng(imgBytes);
+            else img = await pdfDoc.embedJpg(imgBytes);
+          } catch {
+            // Si PNG falla, intenta como JPG
+            try { img = await pdfDoc.embedJpg(imgBytes); } catch { continue; }
+          }
+          // Centra las imágenes de la fila
+          let totalImgsW = rowCount * imgW + (rowCount-1)*imgPad;
+          let startX = mx + (usableW - totalImgsW) / 2;
+          let x = startX + j * (imgW + imgPad);
+          page.drawImage(img, {
+            x: x,
+            y: y - imgH,
+            width: imgW,
+            height: imgH
+          });
+        }
+        y -= (imgH + 10);
       }
-      y -= 135;
-    }
-    // Si no hay imágenes, solo descripción centrada
-    if (!fotos.length) {
+      // DESCRIPCIÓN DEL ITEM, centrada abajo del bloque de imágenes
       let desc = it.descripcion || "";
-      let textWidth = helv.widthOfTextAtSize(desc, 11);
-      let textX = mx + usableW/2 - textWidth/2;
-      page.drawText(desc, { x: textX, y: y, size: 11, font: helv, color: rgb(0.15,0.18,0.22) });
-      y -= 18;
+      let maxTextW = usableW - 40;
+      let lines = [];
+      while (desc.length > 0) {
+        // Parte en líneas cortas (máx 72 chars) para no desbordar
+        let chunk = desc.slice(0, 72);
+        // Si hay un espacio cerca del final, parte ahí para no cortar palabras
+        let lastSpace = chunk.lastIndexOf(' ');
+        if (lastSpace > 50 && lastSpace < chunk.length-1) chunk = chunk.slice(0, lastSpace);
+        lines.push(chunk);
+        desc = desc.slice(chunk.length).trim();
+      }
+      for (let li = 0; li < lines.length; li++) {
+        let textWidth = helv.widthOfTextAtSize(lines[li], 11);
+        let textX = mx + usableW/2 - textWidth/2;
+        page.drawText(lines[li], { x: textX, y: y - 2 - li*14, size: 11, font: helv, color: rgb(0.15,0.18,0.22) });
+      }
+      y -= (lines.length*14 + 12);
+    } else {
+      // Si no hay fotos, solo descripción centrada
+      let desc = it.descripcion || "";
+      let maxTextW = usableW - 40;
+      let lines = [];
+      while (desc.length > 0) {
+        let chunk = desc.slice(0, 72);
+        let lastSpace = chunk.lastIndexOf(' ');
+        if (lastSpace > 50 && lastSpace < chunk.length-1) chunk = chunk.slice(0, lastSpace);
+        lines.push(chunk);
+        desc = desc.slice(chunk.length).trim();
+      }
+      for (let li = 0; li < lines.length; li++) {
+        let textWidth = helv.widthOfTextAtSize(lines[li], 11);
+        let textX = mx + usableW/2 - textWidth/2;
+        page.drawText(lines[li], { x: textX, y: y - 2 - li*14, size: 11, font: helv, color: rgb(0.15,0.18,0.22) });
+      }
+      y -= (lines.length*14 + 12);
     }
     // Línea divisoria fina entre items
     page.drawLine({ start: { x: mx+10, y: y+4 }, end: { x: pageW-mx-10, y: y+4 }, thickness: 0.6, color: rgb(0.85,0.87,0.92) });
@@ -1122,7 +1156,6 @@ async function generarPDFReporte(share = false) {
   let pie1 = `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`;
   let pie2 = "Este reporte da fe de los trabajos realizados según solicitud del cliente.";
   let pie3 = `Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`;
-  // Ajusta el tamaño del rectángulo según la cantidad de texto
   page.drawRectangle({
     x: mx, y: 26, width: usableW, height: 44, color: rgb(0.11, 0.24, 0.44)
   });
