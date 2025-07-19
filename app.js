@@ -717,6 +717,7 @@ async function guardarCotizacionDraft() {
   showSaved("Cotización guardada");
 }
 
+
 async function generarPDFCotizacion(share = false) {
   showSaved("Generando PDF...");
   await guardarCotizacionDraft();
@@ -882,7 +883,7 @@ async function generarPDFCotizacion(share = false) {
 function editarCotizacion(datos) {
   nuevaCotizacion();
   const form = document.getElementById("cotForm");
-  // PINTA LOS ITEMS ANTES
+  // PINTA LOS ITEMS PRIMERO
   const tbody = form.querySelector("#itemsTable tbody");
   tbody.innerHTML = "";
   (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
@@ -905,12 +906,13 @@ function editarCotizacion(datos) {
 }
 
 
+
 function editarReporte(datos) {
   nuevoReporte();
   const form = document.getElementById("repForm");
-  form.numero.value = datos.numero;
-  form.fecha.value = datos.fecha;
-  form.cliente.value = datos.cliente;
+  if (form.numero) form.numero.value = datos.numero || "";
+  if (form.fecha) form.fecha.value = datos.fecha || "";
+  if (form.cliente) form.cliente.value = datos.cliente || "";
   const tbody = form.querySelector("#repItemsTable tbody");
   tbody.innerHTML = "";
   fotosItemsReporte = [];
@@ -918,7 +920,7 @@ function editarReporte(datos) {
     fotosItemsReporte[idx] = Array.isArray(item.fotos) ? [...item.fotos] : [];
     tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
   });
-  form.notas.value = datos.notas || "";
+  if (form.notas) form.notas.value = datos.notas || "";
   setTimeout(() => {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
@@ -1013,10 +1015,10 @@ async function guardarReporteDraft() {
   if (!form) return;
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
-  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+  form.querySelectorAll('#repItemsTable tbody tr').forEach((tr, idx) => {
     items.push({
       descripcion: tr.querySelector('textarea[name="descripcion"]').value,
-      fotos: fotosItemsReporte[Array.from(tr.parentNode.children).indexOf(tr)] || []
+      fotos: fotosItemsReporte[idx] || []
     });
   });
   const reporte = {
@@ -1029,6 +1031,7 @@ async function guardarReporteDraft() {
   localStorage.setItem('EMS_REP_BORRADOR', JSON.stringify(reporte));
   showSaved("Reporte guardado");
 }
+
 
 
 // Helper: Corta texto en líneas sin exceder ancho en puntos (px) usando la fuente PDF
