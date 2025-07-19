@@ -1093,13 +1093,28 @@ async function generarPDFReporte(share = false) {
     let imgW = 170, imgH = 135; // Tamaño de las imágenes
     let imgPad = 26;
 
+    // Prepara la descripción
+    let desc = it.descripcion || "";
+    let maxTextW = usableW - 40;
+    let lines = breakTextLines(desc, helv, 11, maxTextW);
+    let descBlockHeight = lines.length * 14 + 12;
+
+    // Prepara el espacio necesario para las fotos
+    let totalFotoRows = hasFotos ? Math.ceil(fotos.length / maxImgsPerRow) : 0;
+    let fotosBlockHeight = totalFotoRows * (imgH + 10);
+
+    // Suma todo lo que ocupa este item (fotos, descripción y margen)
+    let requiredHeight = fotosBlockHeight + descBlockHeight + 24;
+
+    // Si no cabe, haz salto de página ANTES de imprimir nada del item
+    if (y < requiredHeight + 80) {
+      page = pdfDoc.addPage([pageW, pageH]);
+      y = pageH - my - 70;
+    }
+
     // FOTOS (máximo 2 por fila)
     if (hasFotos) {
       for (let i = 0; i < fotos.length; i += maxImgsPerRow) {
-        if (y < 140) { // Salto de página si ya no hay espacio
-          page = pdfDoc.addPage([pageW, pageH]);
-          y = pageH - my - 70;
-        }
         let rowCount = Math.min(maxImgsPerRow, fotos.length - i);
         for (let j = 0; j < rowCount; j++) {
           let imgUrl = fotos[i+j];
@@ -1127,9 +1142,6 @@ async function generarPDFReporte(share = false) {
         y -= (imgH + 10);
       }
       // DESCRIPCIÓN DEL ITEM, centrada abajo del bloque de imágenes
-      let desc = it.descripcion || "";
-      let maxTextW = usableW - 40;
-      let lines = breakTextLines(desc, helv, 11, maxTextW);
       for (let li = 0; li < lines.length; li++) {
         let textWidth = helv.widthOfTextAtSize(lines[li], 11);
         let textX = mx + usableW/2 - textWidth/2;
@@ -1138,9 +1150,6 @@ async function generarPDFReporte(share = false) {
       y -= (lines.length*14 + 12);
     } else {
       // Si no hay fotos, solo descripción centrada
-      let desc = it.descripcion || "";
-      let maxTextW = usableW - 40;
-      let lines = breakTextLines(desc, helv, 11, maxTextW);
       for (let li = 0; li < lines.length; li++) {
         let textWidth = helv.widthOfTextAtSize(lines[li], 11);
         let textX = mx + usableW/2 - textWidth/2;
