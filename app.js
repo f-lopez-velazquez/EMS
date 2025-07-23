@@ -486,11 +486,6 @@ function nuevaCotizacion() {
           </label>
         </div>
       </div>
-      <!-- CAMPO NUEVO DE TÍTULO -->
-      <div class="ems-form-group">
-        <label>Título del trabajo/equipo</label>
-        <input type="text" name="titulo" placeholder="Ej: Motor de 5 HP, Rebobinado de alternador..." autocomplete="off">
-      </div>
       <div>
         <table class="ems-items-table" id="itemsTable">
           <thead>
@@ -573,7 +568,6 @@ function nuevaCotizacion() {
     }
   }, 300);
 }
-
 
 
 
