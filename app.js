@@ -54,6 +54,7 @@ function mostrarPrecio(val) {
   return "$" + Number(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+
 // Helper: Corta texto en líneas sin exceder ancho en puntos (px) usando la fuente PDF
 function breakTextLines(text, font, fontSize, maxWidth) {
   let lines = [];
@@ -486,6 +487,11 @@ function nuevaCotizacion() {
           </label>
         </div>
       </div>
+      <!-- CAMPO NUEVO DE TÍTULO -->
+      <div class="ems-form-group">
+        <label>Título del trabajo/equipo</label>
+        <input type="text" name="titulo" placeholder="Ej: Motor de 5 HP, Rebobinado de alternador..." autocomplete="off">
+      </div>
       <div>
         <table class="ems-items-table" id="itemsTable">
           <thead>
@@ -568,6 +574,7 @@ function nuevaCotizacion() {
     }
   }, 300);
 }
+
 
 
 
@@ -960,16 +967,19 @@ async function generarPDFCotizacion(share = false) {
 function editarCotizacion(datos) {
   nuevaCotizacion();
   const form = document.getElementById("cotForm");
-  form.numero.value = datos.numero;
-  form.fecha.value = datos.fecha;
-  form.cliente.value = datos.cliente;
-  form.hora.value = datos.hora;
+  form.numero.value = datos.numero || "";
+  form.fecha.value = datos.fecha || "";
+  form.cliente.value = datos.cliente || "";
+  form.hora.value = datos.hora || "";
   if (datos.incluyeIVA) form.incluyeIVA.checked = true;
   if (datos.anticipo) {
     form.anticipo.checked = true;
     form.anticipoPorc.parentElement.style.display = '';
-    form.anticipoPorc.value = datos.anticipoPorc;
+    form.anticipoPorc.value = datos.anticipoPorc || "";
   }
+  // === Título del trabajo/equipo ===
+  if (form.titulo) form.titulo.value = datos.titulo || "";
+
   const tbody = form.querySelector("#itemsTable tbody");
   tbody.innerHTML = "";
   (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
@@ -980,6 +990,7 @@ function editarCotizacion(datos) {
     activarPredictivosInstantaneos();
   }, 100);
 }
+
 
 async function abrirReporte(numero) {
   let doc = await db.collection("reportes").doc(numero).get();
