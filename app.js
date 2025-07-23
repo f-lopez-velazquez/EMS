@@ -776,11 +776,11 @@ async function generarPDFCotizacion(share = false) {
       concepto: tr.querySelector('input[name="concepto"]').value,
       unidad: tr.querySelector('input[name="unidad"]').value,
       cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
-      precio: tr.querySelector('input[name="precio"]').value
+      precio: tr.querySelector('input[name="precio"]').value // mantener como string para el chequeo de ".", "-"
     });
   });
 
-  // Cálculo de totales
+  // Cálculo de totales (sólo suma los precios que no sean ".", "-" ni vacíos)
   let subtotal = items.reduce((acc, x) => {
     const precioNum = (typeof x.precio === "string" && (x.precio.trim() === "." || x.precio.trim() === "-")) ? 0 : Number(x.precio || 0);
     if (isNaN(precioNum) || precioNum === 0 && (x.precio === "." || x.precio === "-")) return acc;
@@ -805,70 +805,61 @@ async function generarPDFCotizacion(share = false) {
 
   let page = pdfDoc.addPage([pageW, pageH]);
 
-  // Marca de agua, más sutil y abajo
+  // Marca de agua
   const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
   const logoImg   = await pdfDoc.embedPng(logoBytes);
   page.drawImage(logoImg, {
-    x: (pageW-220)/2,
-    y: (pageH-260)/2 - 38,
-    width: 220,
-    height: 220,
-    opacity: 0.07
+    x: (pageW-260)/2,
+    y: (pageH-260)/2,
+    width: 260,
+    height: 260,
+    opacity: 0.08
   });
 
-  // Encabezado superior
+  // Encabezado
   const logoH = 46;
-  page.drawImage(logoImg, { x: mx, y: y - logoH + 10, width: logoH, height: logoH });
+  page.drawImage(logoImg, { x: mx, y: y - logoH + 6, width: logoH, height: logoH });
   const leftX = mx + logoH + 14;
-  page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y + 2, size: 17, font: helvB, color: rgb(0.10,0.20,0.40) });
-  page.drawText("COTIZACIÓN", { x: leftX, y: y - 16, size: 12, font: helvB, color: rgb(0.98,0.54,0.10) });
-  page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 32, size: 10.5, font: helv, color: rgb(0.16,0.18,0.22) });
-  page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 180, y: y + 2, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
-  page.drawText(`Fecha: ${datos.fecha||""}`, { x: mx + usableW - 180, y: y - 15, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
+  page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y, size: 16, font: helvB, color: rgb(0.10,0.20,0.40) });
+  page.drawText("COTIZACIÓN", { x: leftX, y: y - 18, size: 11, font: helvB, color: rgb(0.98,0.54,0.10) });
+  page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 34, size: 10.2, font: helv, color: rgb(0.16,0.18,0.22) });
+  page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 140, y: y, size: 10.2, font: helvB, color: rgb(0.13,0.22,0.38) });
+  page.drawText(`Fecha: ${datos.fecha||""}`, { x: mx + usableW - 140, y: y - 17, size: 10.2, font: helvB, color: rgb(0.13,0.22,0.38) });
 
-  y -= (logoH + 24); // <-- mayor separación antes del título y tabla
+  y -= (logoH + 12);
 
-  // TÍTULO centrado perfecto (horizontal y vertical)
+  // TÍTULO del trabajo/equipo (si hay)
   if (datos.titulo && datos.titulo.trim()) {
-    const titulo = datos.titulo.trim();
-    const fontSizeTitulo = 14.5;
-    const rectHeight = 29;
-    // Dibuja rectángulo naranja claro
     page.drawRectangle({
-      x: mx, y: y - rectHeight + 7, width: usableW, height: rectHeight,
-      color: rgb(0.97, 0.54, 0.11), opacity: 0.18, borderColor: rgb(0.97, 0.54, 0.11), borderWidth: 1.1
+      x: mx, y: y - 27, width: usableW, height: 30,
+      color: rgb(0.98, 0.84, 0.65), opacity: 0.33, borderColor: rgb(0.97, 0.54, 0.11), borderWidth: 1.1
     });
-    // Dibuja texto centrado horizontal y vertical en el rectángulo
-    const textWidth = helvB.widthOfTextAtSize(titulo, fontSizeTitulo);
-    const textX = mx + (usableW - textWidth) / 2;
-    const textY = y - rectHeight/2 + 8; // centrado vertical
-    page.drawText(titulo, {
-      x: textX,
-      y: textY,
-      size: fontSizeTitulo,
-      font: helvB,
-      color: rgb(0.97, 0.54, 0.11)
+    page.drawText(datos.titulo, {
+      x: mx + 20, y: y - 14, size: 16,
+      font: helvB, color: rgb(0.97, 0.54, 0.11)
     });
-    y -= rectHeight + 13; // separa la tabla
+    y -= 38;
   }
 
-  // CABECERA DE TABLA naranja con letras blancas
+  // Cabecera tabla: fondo colorido
   page.drawRectangle({
-    x: mx, y: y + 2, width: usableW, height: 20,
-    color: rgb(0.98,0.54,0.11), opacity: 0.97
+    x: mx, y: y - 2, width: usableW, height: 20,
+    color: rgb(0.97, 0.54, 0.11), opacity: 0.13
   });
-  page.drawText("Concepto", { x: mx + 2, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
-  page.drawText("Unidad",   { x: mx+176, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
-  page.drawText("Cantidad", { x: mx+265, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
-  page.drawText("Precio",   { x: mx+350, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
-  page.drawText("Importe",  { x: mx+440, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
+  page.drawText("Concepto", { x: mx + 2, y: y + 2, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
+  page.drawText("Unidad", { x: mx+176, y: y + 2, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
+  page.drawText("Cantidad", { x: mx+265, y: y + 2, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
+  page.drawText("Precio", { x: mx+350, y: y + 2, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
+  page.drawText("Importe", { x: mx+440, y: y + 2, size: 11, font: helvB, color: rgb(0.12,0.20,0.40) });
 
-  // Líneas verticales y horizontal de tabla
-  let rowY = y - 16;
+  // Tabla: líneas de tabla
+  let rowY = y - 14;
   let colXs = [mx, mx+176, mx+265, mx+350, mx+440, pageW-mx];
-  page.drawLine({ start: { x: mx, y: rowY }, end: { x: pageW-mx, y: rowY }, thickness: 1.1, color: rgb(0.96,0.78,0.30) });
+  // Encabezado
+  page.drawLine({ start: { x: mx, y: rowY }, end: { x: pageW-mx, y: rowY }, thickness: 1.2, color: rgb(0.76,0.80,0.94) });
+  // Verticales
   for(let cx of colXs) {
-    page.drawLine({ start: { x: cx, y: rowY }, end: { x: cx, y: rowY - 18 - 18 * items.length }, thickness: 0.8, color: rgb(0.96,0.78,0.30) });
+    page.drawLine({ start: { x: cx, y: rowY }, end: { x: cx, y: rowY - 18 - 18 * items.length }, thickness: 0.8, color: rgb(0.76,0.80,0.94) });
   }
   y = rowY - 18;
 
@@ -879,85 +870,72 @@ async function generarPDFCotizacion(share = false) {
       page = pdfDoc.addPage([pageW, pageH]);
       y = pageH - my - 70;
     }
+
     if (i % 2 === 0) {
       page.drawRectangle({
         x: mx, y: y - 2, width: usableW, height: 18,
-        color: rgb(0.98,0.91,0.75), opacity: 0.35
+        color: rgb(0.97, 0.94, 0.86), opacity: 0.37
       });
     }
-    // Columnas de tabla
-    page.drawText(String(it.concepto || ""), { x: mx+2, y, size: 10, font: helv, color: rgb(0.12,0.20,0.40) });
-    page.drawText(String(it.unidad || ""),   { x: mx+176+2, y, size: 10, font: helv, color: rgb(0.12,0.20,0.40) });
-    page.drawText(String(it.cantidad || ""), { x: mx+265+2, y, size: 10, font: helv, color: rgb(0.12,0.20,0.40) });
-    // Precio
-    const mostrarPrecioLimpio = (val) => {
-      if (val === undefined || val === null) return "";
-      if (typeof val === "string" && (val.trim() === "." || val.trim() === "-")) return "";
-      if (Number(val) === 0 && (val === "." || val === "-")) return "";
-      if (isNaN(Number(val)) || val === "") return "";
-      return "$" + Number(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    };
-    page.drawText(mostrarPrecioLimpio(it.precio),  { x: mx+350+2, y, size: 10, font: helv, color: rgb(0.10,0.35,0.16) });
-    // Importe: también vacío si precio es "." o "-"
-    let importe = "";
-    if (
-      typeof it.precio === "string"
-      && (it.precio.trim() === "." || it.precio.trim() === "-")
-    ) {
-      // importe vacío
-    } else if (it.precio !== undefined && it.precio !== null && it.precio !== "") {
-      let precioNum = Number(it.precio);
-      if (!isNaN(precioNum) && !(precioNum === 0 && (it.precio === "." || it.precio === "-"))) {
-        importe = mostrarPrecioLimpio(it.cantidad * precioNum);
-      }
-    }
-    page.drawText(importe, { x: mx+440+2, y, size: 10, font: helv, color: rgb(0.10,0.35,0.16) });
-    // Línea horizontal sutil
-    page.drawLine({ start: { x: mx, y: y-3 }, end: { x: pageW-mx, y: y-3 }, thickness: 0.47, color: rgb(0.98,0.85,0.48) });
+
+    page.drawText(String(it.concepto || ""), { x: mx+2, y, size: 10, font: helv });
+    page.drawText(String(it.unidad || ""), { x: mx+176+2, y, size: 10, font: helv });
+    page.drawText(String(it.cantidad || ""), { x: mx+265+2, y, size: 10, font: helv });
+    page.drawText(mostrarPrecio(it.precio), { x: mx+350+2, y, size: 10, font: helv });
+    // El importe también oculta $0 si el precio era . o -
+    let precioNum = (typeof it.precio === "string" && (it.precio.trim() === "." || it.precio.trim() === "-")) ? "" : Number(it.precio || 0);
+    let importe = (precioNum === "" || isNaN(precioNum)) ? "" : it.cantidad * precioNum;
+    page.drawText(mostrarPrecio(importe), { x: mx+440+2, y, size: 10, font: helv });
+
+    // Horizontal
+    page.drawLine({ start: { x: mx, y: y-3 }, end: { x: pageW-mx, y: y-3 }, thickness: 0.6, color: rgb(0.85,0.85,0.92) });
     y -= 18;
   }
 
   // Totales
   y -= 8;
-  page.drawLine({ start: { x: mx+340, y }, end: { x: pageW-mx, y }, thickness: 1.1, color: rgb(0.97, 0.54, 0.11) });
-  y -= 13;
-  page.drawText("Subtotal:", { x: mx+340, y, size: 10.5, font: helvB, color: rgb(0.12,0.20,0.40) });
-  page.drawText(mostrarPrecioLimpio(subtotal), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.12,0.20,0.40) });
+  page.drawLine({ start: { x: mx+340, y }, end: { x: pageW-mx, y }, thickness: 1.2, color: rgb(...EMS_COLOR) });
+  y -= 12;
+  page.drawText("Subtotal:", { x: mx+340, y, size: 10.5, font: helvB });
+  page.drawText(mostrarPrecio(subtotal), { x: mx+440, y, size: 10.5, font: helvB });
   y -= 13;
   if (iva > 0) {
-    page.drawText("IVA (16%):", { x: mx+340, y, size: 10.5, font: helvB, color: rgb(0.12,0.20,0.40) });
-    page.drawText(mostrarPrecioLimpio(iva), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.97,0.54,0.11) });
+    page.drawText("IVA (16%):", { x: mx+340, y, size: 10.5, font: helvB });
+    page.drawText(mostrarPrecio(iva), { x: mx+440, y, size: 10.5, font: helvB });
     y -= 13;
   }
-  page.drawText("Total:", { x: mx+340, y, size: 11.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-  page.drawText(mostrarPrecioLimpio(total), { x: mx+440, y, size: 11.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-  y -= 17;
+  page.drawText("Total:", { x: mx+340, y, size: 11.5, font: helvB, color: rgb(...EMS_COLOR) });
+  page.drawText(mostrarPrecio(total), { x: mx+440, y, size: 11.5, font: helvB, color: rgb(...EMS_COLOR) });
+  y -= 15;
   if (anticipo > 0) {
-    page.drawText(`Anticipo (${anticipoPorc}%):`, { x: mx+340, y, size: 10.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-    page.drawText(mostrarPrecioLimpio(anticipo), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.97,0.54,0.11) });
+    page.drawText(`Anticipo (${anticipoPorc}%):`, { x: mx+340, y, size: 10.5, font: helvB, color: rgb(0.13,0.18,0.38) });
+    page.drawText(mostrarPrecio(anticipo), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.13,0.18,0.38) });
     y -= 13;
   }
 
   // Notas / observaciones
   if (datos.notas?.trim()) {
-    y -= 10;
+    y -= 12;
     page.drawText("Observaciones:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
     y -= 13;
     page.drawText(datos.notas.trim(), { x: mx+12, y, size: 10, font: helv, color: rgb(0.18,0.23,0.32), maxWidth: usableW-20 });
     y -= 10;
   }
 
-  // PIE DE PÁGINA — Solo texto azul, sin fondo
+  // Pie de página: bien dividido en varias líneas
   const pieArr = [
     `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`,
     `Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`,
     "Vigencia de la cotización: 15 días naturales a partir de la fecha de emisión."
   ];
-  let pieY = 56;
+  page.drawRectangle({
+    x: mx, y: 26, width: usableW, height: 42, color: rgb(0.11, 0.24, 0.44)
+  });
+  let pieY = 60;
   for (let linea of pieArr) {
     page.drawText(linea, {
-      x: mx+8, y: pieY, size: 9.2, font: helv, color: rgb(0.10,0.20,0.56),
-      maxWidth: usableW-16
+      x: mx+14, y: pieY, size: 9.2, font: helv, color: rgb(1,1,1),
+      maxWidth: usableW-20
     });
     pieY -= 13;
   }
@@ -983,7 +961,6 @@ async function generarPDFCotizacion(share = false) {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
-
 
 
 function editarCotizacion(datos) {
