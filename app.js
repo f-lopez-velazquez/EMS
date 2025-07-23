@@ -966,19 +966,16 @@ async function generarPDFCotizacion(share = false) {
 function editarCotizacion(datos) {
   nuevaCotizacion();
   const form = document.getElementById("cotForm");
-  form.numero.value = datos.numero || "";
-  form.fecha.value = datos.fecha || "";
-  form.cliente.value = datos.cliente || "";
-  form.hora.value = datos.hora || "";
+  form.numero.value = datos.numero;
+  form.fecha.value = datos.fecha;
+  form.cliente.value = datos.cliente;
+  form.hora.value = datos.hora;
   if (datos.incluyeIVA) form.incluyeIVA.checked = true;
   if (datos.anticipo) {
     form.anticipo.checked = true;
     form.anticipoPorc.parentElement.style.display = '';
-    form.anticipoPorc.value = datos.anticipoPorc || "";
+    form.anticipoPorc.value = datos.anticipoPorc;
   }
-  // === Título del trabajo/equipo ===
-  if (form.titulo) form.titulo.value = datos.titulo || "";
-
   const tbody = form.querySelector("#itemsTable tbody");
   tbody.innerHTML = "";
   (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
@@ -989,7 +986,6 @@ function editarCotizacion(datos) {
     activarPredictivosInstantaneos();
   }, 100);
 }
-
 
 async function abrirReporte(numero) {
   let doc = await db.collection("reportes").doc(numero).get();
