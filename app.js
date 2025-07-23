@@ -816,7 +816,7 @@ async function generarPDFCotizacion(share = false) {
     opacity: 0.07
   });
 
-  // Encabezado superior (con mejor organización)
+  // Encabezado superior
   const logoH = 46;
   page.drawImage(logoImg, { x: mx, y: y - logoH + 10, width: logoH, height: logoH });
   const leftX = mx + logoH + 14;
@@ -826,27 +826,30 @@ async function generarPDFCotizacion(share = false) {
   page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 180, y: y + 2, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
   page.drawText(`Fecha: ${datos.fecha||""}`, { x: mx + usableW - 180, y: y - 15, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
 
-  y -= (logoH + 16);
+  y -= (logoH + 24); // <-- mayor separación antes del título y tabla
 
-  // TÍTULO centrado, grande y elegante
+  // TÍTULO centrado perfecto (horizontal y vertical)
   if (datos.titulo && datos.titulo.trim()) {
     const titulo = datos.titulo.trim();
-    const tituloW = helvB.widthOfTextAtSize(titulo, 18);
-    const tituloX = (pageW - tituloW) / 2;
-    // Sombra sutil
+    const fontSizeTitulo = 14.5;
+    const rectHeight = 29;
+    // Dibuja rectángulo naranja claro
     page.drawRectangle({
-      x: mx, y: y - 26, width: usableW, height: 34,
-      color: rgb(0.97, 0.54, 0.11), opacity: 0.15, borderColor: rgb(0.97, 0.54, 0.11), borderWidth: 1.2
+      x: mx, y: y - rectHeight + 7, width: usableW, height: rectHeight,
+      color: rgb(0.97, 0.54, 0.11), opacity: 0.18, borderColor: rgb(0.97, 0.54, 0.11), borderWidth: 1.1
     });
-    // Línea decorativa superior
-    page.drawLine({ start: {x: mx, y: y + 7}, end: {x: pageW - mx, y: y + 7}, thickness: 2, color: rgb(0.97, 0.54, 0.11) });
+    // Dibuja texto centrado horizontal y vertical en el rectángulo
+    const textWidth = helvB.widthOfTextAtSize(titulo, fontSizeTitulo);
+    const textX = mx + (usableW - textWidth) / 2;
+    const textY = y - rectHeight/2 + 8; // centrado vertical
     page.drawText(titulo, {
-      x: tituloX, y: y - 7,
-      size: 18,
+      x: textX,
+      y: textY,
+      size: fontSizeTitulo,
       font: helvB,
       color: rgb(0.97, 0.54, 0.11)
     });
-    y -= 40;
+    y -= rectHeight + 13; // separa la tabla
   }
 
   // CABECERA DE TABLA naranja con letras blancas
@@ -882,14 +885,33 @@ async function generarPDFCotizacion(share = false) {
         color: rgb(0.98,0.91,0.75), opacity: 0.35
       });
     }
+    // Columnas de tabla
     page.drawText(String(it.concepto || ""), { x: mx+2, y, size: 10, font: helv, color: rgb(0.12,0.20,0.40) });
     page.drawText(String(it.unidad || ""),   { x: mx+176+2, y, size: 10, font: helv, color: rgb(0.12,0.20,0.40) });
     page.drawText(String(it.cantidad || ""), { x: mx+265+2, y, size: 10, font: helv, color: rgb(0.12,0.20,0.40) });
-    page.drawText(mostrarPrecio(it.precio),  { x: mx+350+2, y, size: 10, font: helv, color: rgb(0.10,0.35,0.16) });
-    // Importe igual
-    let precioNum = (typeof it.precio === "string" && (it.precio.trim() === "." || it.precio.trim() === "-")) ? "" : Number(it.precio || 0);
-    let importe = (precioNum === "" || isNaN(precioNum)) ? "" : it.cantidad * precioNum;
-    page.drawText(mostrarPrecio(importe), { x: mx+440+2, y, size: 10, font: helv, color: rgb(0.10,0.35,0.16) });
+    // Precio
+    const mostrarPrecioLimpio = (val) => {
+      if (val === undefined || val === null) return "";
+      if (typeof val === "string" && (val.trim() === "." || val.trim() === "-")) return "";
+      if (Number(val) === 0 && (val === "." || val === "-")) return "";
+      if (isNaN(Number(val)) || val === "") return "";
+      return "$" + Number(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+    page.drawText(mostrarPrecioLimpio(it.precio),  { x: mx+350+2, y, size: 10, font: helv, color: rgb(0.10,0.35,0.16) });
+    // Importe: también vacío si precio es "." o "-"
+    let importe = "";
+    if (
+      typeof it.precio === "string"
+      && (it.precio.trim() === "." || it.precio.trim() === "-")
+    ) {
+      // importe vacío
+    } else if (it.precio !== undefined && it.precio !== null && it.precio !== "") {
+      let precioNum = Number(it.precio);
+      if (!isNaN(precioNum) && !(precioNum === 0 && (it.precio === "." || it.precio === "-"))) {
+        importe = mostrarPrecioLimpio(it.cantidad * precioNum);
+      }
+    }
+    page.drawText(importe, { x: mx+440+2, y, size: 10, font: helv, color: rgb(0.10,0.35,0.16) });
     // Línea horizontal sutil
     page.drawLine({ start: { x: mx, y: y-3 }, end: { x: pageW-mx, y: y-3 }, thickness: 0.47, color: rgb(0.98,0.85,0.48) });
     y -= 18;
@@ -900,19 +922,19 @@ async function generarPDFCotizacion(share = false) {
   page.drawLine({ start: { x: mx+340, y }, end: { x: pageW-mx, y }, thickness: 1.1, color: rgb(0.97, 0.54, 0.11) });
   y -= 13;
   page.drawText("Subtotal:", { x: mx+340, y, size: 10.5, font: helvB, color: rgb(0.12,0.20,0.40) });
-  page.drawText(mostrarPrecio(subtotal), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.12,0.20,0.40) });
+  page.drawText(mostrarPrecioLimpio(subtotal), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.12,0.20,0.40) });
   y -= 13;
   if (iva > 0) {
     page.drawText("IVA (16%):", { x: mx+340, y, size: 10.5, font: helvB, color: rgb(0.12,0.20,0.40) });
-    page.drawText(mostrarPrecio(iva), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.97,0.54,0.11) });
+    page.drawText(mostrarPrecioLimpio(iva), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.97,0.54,0.11) });
     y -= 13;
   }
   page.drawText("Total:", { x: mx+340, y, size: 11.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-  page.drawText(mostrarPrecio(total), { x: mx+440, y, size: 11.5, font: helvB, color: rgb(0.97,0.54,0.11) });
+  page.drawText(mostrarPrecioLimpio(total), { x: mx+440, y, size: 11.5, font: helvB, color: rgb(0.97,0.54,0.11) });
   y -= 17;
   if (anticipo > 0) {
     page.drawText(`Anticipo (${anticipoPorc}%):`, { x: mx+340, y, size: 10.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-    page.drawText(mostrarPrecio(anticipo), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.97,0.54,0.11) });
+    page.drawText(mostrarPrecioLimpio(anticipo), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.97,0.54,0.11) });
     y -= 13;
   }
 
