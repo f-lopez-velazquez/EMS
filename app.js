@@ -19,6 +19,7 @@ const db = firebase.firestore();
 
 const LOGO_URL = "https://i.imgur.com/CKDrg9w.png";
 let fotosItemsReporte = [];
+let fotosCotizacion = []; // Hasta 5 fotos por cotización
 let autoSaveTimer = null;
 
 function showProgress(visible = true, percent = 60, msg = "Generando...") {
@@ -425,6 +426,79 @@ function eliminarFotoRepItem(btn, idx, fidx, url) {
   btn.parentElement.remove();
 }
 
+// === Fotos de COTIZACIÓN (Cloudinary, máx 5) ===
+async function subirFotosCot(input) {
+  if (!input.files || input.files.length === 0) return;
+  const cupo = 5 - (fotosCotizacion?.length || 0);
+  if (cupo <= 0) { alert("Máximo 5 imágenes."); input.value = ""; return; }
+
+  const files = Array.from(input.files).slice(0, cupo);
+  input.disabled = true;
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (!file.type.startsWith("image/")) continue;
+
+    showSaved(`Subiendo imagen ${i+1} de ${files.length}...`);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'ml_default'); // mismo preset que reportes
+
+    try {
+      const res = await fetch('https://api.cloudinary.com/v1_1/ds9b1mczi/image/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.secure_url) {
+        if (fotosCotizacion.length < 5) fotosCotizacion.push(data.secure_url);
+      } else {
+        alert("No se pudo subir la imagen a Cloudinary");
+      }
+    } catch (e) {
+      alert("Error al subir la imagen");
+    }
+  }
+
+  renderCotFotosPreview();
+  input.disabled = false;
+  input.value = "";
+
+  // Opcional: dispara guardado periódico
+  try { guardarCotizacionDraft(); } catch(e) {}
+}
+
+function renderCotFotosPreview() {
+  const cont = document.getElementById('cotFotosPreview');
+  if (!cont) return;
+  const fotos = fotosCotizacion || [];
+  let html = '';
+  for (let i = 0; i < fotos.length; i += 2) {
+    html += `<div class="ems-rep-fotos-pair">`;
+    for (let j = i; j < i + 2 && j < fotos.length; ++j) {
+      html += `
+        <div class="ems-rep-foto">
+          <img src="${fotos[j]}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #dbe2ea;display:block;margin:auto;">
+          <button type="button" class="ems-btn-delimg" title="Eliminar" onclick="eliminarFotoCot(${j})">
+            <i class="fa fa-trash"></i>
+          </button>
+        </div>
+      `;
+    }
+    html += `</div>`;
+  }
+  // Indicador del cupo restante
+  html += `<div style="font-size:0.92em; color:#888;">${Math.max(0, 5 - fotos.length)} fotos disponibles</div>`;
+  cont.innerHTML = html;
+}
+
+function eliminarFotoCot(index) {
+  fotosCotizacion.splice(index, 1);
+  renderCotFotosPreview();
+  try { guardarCotizacionDraft(); } catch(e) {}
+}
+
+
 
 // ========== Cotización y Reporte: Formulario y Flujos ==========
 function nuevaCotizacion() {
@@ -514,7 +588,15 @@ function nuevaCotizacion() {
           <button type="button" class="mic-btn"><i class="fa fa-microphone"></i></button>
         </div>
       </div>
-      <div class="ems-form-actions">
+      
+      <!-- Imágenes para PDF (hasta 5) -->
+      <div class="ems-form-group">
+        <label>Imágenes para el PDF (hasta 5)</label>
+        <div id="cotFotosPreview" class="ems-rep-fotos-row"></div>
+        <input id="cotFotosInput" type="file" accept="image/*" multiple onchange="subirFotosCot(this)">
+        <small>Se suben a Cloudinary y se insertan al final del PDF.</small>
+      </div>
+<div class="ems-form-actions">
         <button type="button" class="btn-mini" onclick="renderInicio(); localStorage.removeItem('EMS_COT_BORRADOR')"><i class="fa fa-arrow-left"></i> Cancelar</button>
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
         <button type="button" class="btn-secondary" onclick="guardarCotizacionDraft(); generarPDFCotizacion()"><i class="fa fa-file-pdf"></i> PDF</button>
@@ -523,7 +605,10 @@ function nuevaCotizacion() {
       </div>
     </form>
   `;
-  const form = document.getElementById('cotForm');
+  $1
+  // Inicializa fotos de cotización
+  fotosCotizacion = [];
+
   // Draft
   let draft = localStorage.getItem('EMS_COT_BORRADOR');
   if (draft) {
@@ -543,6 +628,12 @@ function nuevaCotizacion() {
   } else {
     agregarCotItemRow();
   }
+
+  // Render previsualización de fotos (si hay en draft)
+  if (draft && Array.isArray(draft.fotos)) {
+    fotosCotizacion = [...draft.fotos];
+  }
+  renderCotFotosPreview();
   setTimeout(() => {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
@@ -728,6 +819,8 @@ async function enviarCotizacion(e) {
   const cotizacion = {
     ...datos,
     items,
+    fotos: fotosCotizacion,
+    fotos: fotosCotizacion,
     tipo: 'cotizacion',
     fecha: datos.fecha,
     hora: datos.hora || ahora(),
@@ -758,6 +851,7 @@ async function guardarCotizacionDraft() {
   const cotizacion = {
     ...datos,
     items,
+    fotos: fotosCotizacion,
     tipo: 'cotizacion',
     fecha: datos.fecha,
     hora: datos.hora || ahora(),
@@ -953,6 +1047,56 @@ async function generarPDFCotizacion(share = false) {
   // Notas / observaciones
   if (datos.notas?.trim()) {
     y -= 10;
+  // Imágenes de cotización (hasta 5) - se muestran al final
+  if (Array.isArray(fotosCotizacion) && fotosCotizacion.length) {
+    const pad = 16;
+    const maxPorFila = 2;
+    const maxAncho = Math.floor((usableW - pad) / 2);
+    const maxAlto = 180;
+
+    let idx = 0;
+    // Título
+    if (y < 80) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
+    page.drawText("Imágenes:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
+    y -= 14;
+
+    while (idx < fotosCotizacion.length) {
+      const fila = fotosCotizacion.slice(idx, idx + maxPorFila);
+      // Si no cabe una fila más, nueva página
+      if (y - maxAlto - 24 < my) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
+
+      const escalas = [];
+      let totalW = 0;
+      for (let j = 0; j < fila.length; j++) {
+        const url = fila[j];
+        let bytes, img;
+        try {
+          bytes = await fetch(url).then(r => r.arrayBuffer());
+          try { img = await pdfDoc.embedPng(bytes); }
+          catch { img = await pdfDoc.embedJpg(bytes); }
+        } catch { continue; }
+        let w = img.width, h = img.height;
+        let scale = Math.min(maxAncho / w, maxAlto / h);
+        w = w * scale; h = h * scale;
+        escalas.push({ img, w, h });
+        totalW += w;
+      }
+
+      const gaps = (escalas.length > 1) ? pad : 0;
+      let startX = mx + (usableW - (totalW + gaps)) / 2;
+
+      let x = startX;
+      for (let j = 0; j < escalas.length; j++) {
+        const { img, w, h } = escalas[j];
+        page.drawImage(img, { x, y: y - h, width: w, height: h });
+        x += w + pad;
+      }
+
+      y -= (Math.max(...escalas.map(e => e.h)) + 16);
+      idx += maxPorFila;
+    }
+  }
+
     page.drawText("Observaciones:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
     y -= 13;
     page.drawText(datos.notas.trim(), { x: mx+12, y, size: 10, font: helv, color: rgb(0.18,0.23,0.32), maxWidth: usableW-20 });
@@ -1018,6 +1162,10 @@ function editarCotizacion(datos) {
   tbody.innerHTML = "";
   (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
   form.notas.value = datos.notas || "";
+  // Fotos de cotización
+  fotosCotizacion = Array.isArray(datos.fotos) ? [...datos.fotos] : [];
+  renderCotFotosPreview();
+
   setTimeout(() => {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
