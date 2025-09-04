@@ -6,6 +6,8 @@ const EMS_CONTACT = {
   correo: "electromotores.santana@gmail.com"
 };
 const EMS_COLOR = [0.97, 0.54, 0.11]; // rgb(248,138,29)
+
+// === Firebase (tus credenciales) ===
 const firebaseConfig = {
   apiKey: "AIzaSyDsXSbJWdMyBgTedntNv3ppj5GAvRUImyc",
   authDomain: "elms-26a5d.firebaseapp.com",
@@ -17,36 +19,22 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+// === Cloudinary usado en reportes (lo reutilizamos en cotización) ===
+const CLOUDINARY_CLOUD = "ds9b1mczi";
+const CLOUDINARY_PRESET = "ml_default";
+
 const LOGO_URL = "https://i.imgur.com/CKDrg9w.png";
+
 let fotosItemsReporte = [];
 let fotosCotizacion = []; // Hasta 5 fotos por cotización
 let autoSaveTimer = null;
 
-function showProgress(visible = true, percent = 60, msg = "Generando...") {
-  let bar = document.getElementById("progress-bar");
-  if (!bar) {
-    bar = document.createElement("div");
-    bar.id = "progress-bar";
-    bar.style.position = "fixed";
-    bar.style.top = "0";
-    bar.style.left = "0";
-    bar.style.height = "5px";
-    bar.style.width = "100vw";
-    bar.style.background = "#26B77A";
-    bar.style.zIndex = "1200";
-    bar.style.transition = "width 0.3s";
-    document.body.appendChild(bar);
-  }
-  if (visible) {
-    bar.style.display = "block";
-    bar.style.width = (percent || 60) + "%";
-    bar.innerText = msg || "";
-  } else {
-    bar.style.display = "none";
-    bar.innerText = "";
-    bar.style.width = "0%";
-  }
-}
+// ---- Helpers generales ----
+function safe(val) { return (val === undefined || val === null) ? "" : String(val); }
+function formatMoney(val) { return "$" + Number(val || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function hoy() { return (new Date()).toISOString().slice(0, 10); }
+function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
+
 function mostrarPrecio(val) {
   if (val === undefined || val === null) return "";
   if (typeof val === "string" && (val.trim() === "." || val.trim() === "-")) return "";
@@ -54,36 +42,14 @@ function mostrarPrecio(val) {
   if (isNaN(Number(val)) || val === "") return "";
   return "$" + Number(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-
-
-// Helper: Corta texto en líneas sin exceder ancho en puntos (px) usando la fuente PDF
-function breakTextLines(text, font, fontSize, maxWidth) {
-  let lines = [];
-  let currentLine = "";
-  for (let char of text) {
-    let nextLine = currentLine + char;
-    let width = font.widthOfTextAtSize(nextLine, fontSize);
-    if (width > maxWidth && currentLine.length > 0) {
-      lines.push(currentLine);
-      currentLine = char;
-    } else {
-      currentLine = nextLine;
-    }
-  }
-  if (currentLine) lines.push(currentLine);
-  return lines;
+function mostrarPrecioLimpio(val) {
+  if (val === undefined || val === null) return "";
+  if (typeof val === "string" && (val.trim() === "." || val.trim() === "-")) return "";
+  if (isNaN(Number(val)) || val === "") return "";
+  return "$" + Number(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-
-function safe(val) {
-  return (val === undefined || val === null) ? "" : String(val);
-}
-function formatMoney(val) {
-  return "$" + Number(val || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-function hoy() { return (new Date()).toISOString().slice(0, 10); }
-function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
-
+// Barra de progreso
 function showProgress(visible = true, percent = 0, msg = "") {
   let bar = document.getElementById("progress-bar");
   if (!bar) {
@@ -102,29 +68,26 @@ function showProgress(visible = true, percent = 0, msg = "") {
     bar.innerHTML = '';
     document.body.appendChild(bar);
   }
-  if (!bar.querySelector(".progress-inner")) {
-    let inner = document.createElement("div");
+  let inner = bar.querySelector(".progress-inner");
+  if (!inner) {
+    inner = document.createElement("div");
     inner.className = "progress-inner";
+    inner.style.height = "100%";
     inner.style.width = percent + "%";
     inner.innerText = msg;
     bar.appendChild(inner);
   }
   bar.style.display = visible ? "flex" : "none";
-  let inner = bar.querySelector(".progress-inner");
-  if (inner) {
-    inner.style.width = percent + "%";
-    inner.innerText = msg;
-  }
+  inner.style.width = percent + "%";
+  inner.innerText = msg;
   if (!visible) {
     setTimeout(() => {
       bar.style.display = "none";
-      if (inner) inner.innerText = "";
-      if (inner) inner.style.width = "0%";
+      inner.innerText = "";
+      inner.style.width = "0%";
     }, 400);
   }
 }
-
-
 
 function showSaved(msg = "Guardado") {
   let el = document.getElementById("saved-banner");
@@ -148,6 +111,24 @@ function showSaved(msg = "Guardado") {
   el.style.display = "block";
   clearTimeout(el._timer);
   el._timer = setTimeout(() => { el.style.display = "none"; }, 1800);
+}
+
+// Helper PDF: cortar texto por ancho
+function breakTextLines(text = "", font, fontSize, maxWidth) {
+  let lines = [];
+  let currentLine = "";
+  for (let char of text) {
+    let nextLine = currentLine + char;
+    let width = font.widthOfTextAtSize(nextLine, fontSize);
+    if (width > maxWidth && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = char;
+    } else {
+      currentLine = nextLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
 }
 
 // ====== Predictivos Firestore ======
@@ -209,10 +190,9 @@ function activarPredictivosInstantaneos() {
 
 // --------- Renderización de interfaz ---------
 function renderInicio() {
-  // Detiene el autosave si está activo
   if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
-
   fotosItemsReporte = [];
+  fotosCotizacion = [];
   document.getElementById("root").innerHTML = `
     <div class="ems-header">
       <img src="${LOGO_URL}" class="ems-logo">
@@ -240,6 +220,7 @@ window.onload = () => {
   renderInicio();
   if (!navigator.onLine) showOffline?.(true);
 };
+
 async function cargarHistorialEMS(filtro = "") {
   const cont = document.getElementById("historialEMS");
   if (!cont) return;
@@ -322,110 +303,6 @@ function eliminarCotItemRow(btn) {
   btn.closest('tr').remove();
 }
 
-// ========== Reporte (con imágenes Cloudinary) ==========
-function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
-  if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
-  // Agrupa fotos de 2 en 2
-  let fotosHtml = '';
-  const fotos = fotosItemsReporte[idx] || [];
-  for (let i = 0; i < fotos.length; i += 2) {
-    fotosHtml += `<div class="ems-rep-fotos-pair">`;
-    for (let j = i; j < i + 2 && j < fotos.length; ++j) {
-      fotosHtml += `
-        <div class="ems-rep-foto">
-          <img src="${fotos[j]}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #dbe2ea;display:block;margin:auto;">
-          ${modoEdicion ? `<button type="button" class="ems-btn-delimg" title="Eliminar imagen" onclick="eliminarFotoRepItem(this, ${idx}, ${j}, '${fotos[j]}')"><i class="fa fa-trash"></i></button>` : ''}
-        </div>
-      `;
-    }
-    fotosHtml += `</div>`;
-  }
-  return `
-    <tr>
-      <td>
-        <textarea name="descripcion" list="descEMS" rows="2" required placeholder="Describe la actividad" style="width:97%">${item.descripcion||""}</textarea>
-        <datalist id="descEMS"></datalist>
-      </td>
-      <td>
-        <div class="ems-rep-fotos-row" id="fotos-item-${idx}">
-          ${fotosHtml}
-          ${modoEdicion && (fotos.length < 6) ? `
-            <input type="file" accept="image/*" multiple
-              style="display:block; margin-top:7px;"
-              onchange="subirFotoRepItem(this, ${idx})"
-            >
-            <div style="font-size:0.92em; color:#888;">${6 - fotos.length} fotos disponibles</div>
-          ` : ""}
-        </div>
-      </td>
-      <td>
-        ${modoEdicion ? `<button type="button" class="ems-btn-delrow" onclick="eliminarRepItemRow(this)"><i class="fa fa-trash"></i></button>` : ''}
-      </td>
-    </tr>
-  `;
-}
-
-
-function agregarRepItemRow() {
-  const tbody = document.getElementById('repItemsTable').querySelector('tbody');
-  const idx = tbody.children.length;
-  fotosItemsReporte[idx] = [];
-  tbody.insertAdjacentHTML('beforeend', renderRepItemRow({}, idx, true));
-  agregarDictadoMicros();
-  activarPredictivosInstantaneos();
-}
-function eliminarRepItemRow(btn) {
-  const tr = btn.closest('tr');
-  const idx = Array.from(tr.parentNode.children).indexOf(tr);
-  fotosItemsReporte.splice(idx, 1);
-  tr.remove();
-}
-
-// === Subida de fotos Cloudinary ===
-async function subirFotoRepItem(input, idx) {
-  if (!input.files || input.files.length === 0) return;
-  const files = Array.from(input.files).slice(0, 6 - (fotosItemsReporte[idx]?.length || 0));
-  if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = [];
-  input.disabled = true;
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    if (!file.type.startsWith("image/")) continue;
-    showSaved(`Subiendo imagen ${i+1} de ${files.length}...`);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', 'ml_default'); // <-- CAMBIA si usas otro
-    try {
-      const res = await fetch('https://api.cloudinary.com/v1_1/ds9b1mczi/image/upload', {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      if (data.secure_url) {
-        if (fotosItemsReporte[idx].length < 6) fotosItemsReporte[idx].push(data.secure_url);
-      } else {
-        alert("No se pudo subir la imagen a Cloudinary");
-      }
-    } catch (err) {
-      alert("Error al subir la imagen");
-    }
-  }
-  // Re-renderiza la fila
-  const tbody = document.querySelector('#repItemsTable tbody');
-  tbody.children[idx].outerHTML = renderRepItemRow({
-    descripcion: tbody.children[idx].querySelector("textarea").value,
-    fotos: fotosItemsReporte[idx]
-  }, idx, true);
-  showSaved("¡Imagen(es) subida(s)!");
-  input.disabled = false;
-  input.value = "";
-}
-function eliminarFotoRepItem(btn, idx, fidx, url) {
-  if (!fotosItemsReporte[idx]) return;
-  fotosItemsReporte[idx].splice(fidx, 1);
-  // Elimina la miniatura del DOM
-  btn.parentElement.remove();
-}
-
 // === Fotos de COTIZACIÓN (Cloudinary, máx 5) ===
 async function subirFotosCot(input) {
   if (!input.files || input.files.length === 0) return;
@@ -442,10 +319,10 @@ async function subirFotosCot(input) {
     showSaved(`Subiendo imagen ${i+1} de ${files.length}...`);
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('upload_preset', 'ml_default'); // mismo preset que reportes
+    formData.append('upload_preset', CLOUDINARY_PRESET);
 
     try {
-      const res = await fetch('https://api.cloudinary.com/v1_1/ds9b1mczi/image/upload', {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
         method: 'POST',
         body: formData
       });
@@ -464,10 +341,8 @@ async function subirFotosCot(input) {
   input.disabled = false;
   input.value = "";
 
-  // Opcional: dispara guardado periódico
   try { guardarCotizacionDraft(); } catch(e) {}
 }
-
 function renderCotFotosPreview() {
   const cont = document.getElementById('cotFotosPreview');
   if (!cont) return;
@@ -479,28 +354,21 @@ function renderCotFotosPreview() {
       html += `
         <div class="ems-rep-foto">
           <img src="${fotos[j]}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #dbe2ea;display:block;margin:auto;">
-          <button type="button" class="ems-btn-delimg" title="Eliminar" onclick="eliminarFotoCot(${j})">
-            <i class="fa fa-trash"></i>
-          </button>
+          <button type="button" class="ems-btn-delimg" title="Eliminar" onclick="eliminarFotoCot(${j})"><i class="fa fa-trash"></i></button>
         </div>
       `;
     }
     html += `</div>`;
   }
-  // Indicador del cupo restante
   html += `<div style="font-size:0.92em; color:#888;">${Math.max(0, 5 - fotos.length)} fotos disponibles</div>`;
   cont.innerHTML = html;
 }
-
 function eliminarFotoCot(index) {
   fotosCotizacion.splice(index, 1);
   renderCotFotosPreview();
   try { guardarCotizacionDraft(); } catch(e) {}
 }
 
-
-
-// ========== Cotización y Reporte: Formulario y Flujos ==========
 function nuevaCotizacion() {
   // Botón de volver al inicio arriba
   let volverBtn = `
@@ -543,22 +411,14 @@ function nuevaCotizacion() {
       </div>
       <div class="ems-form-row">
         <div class="ems-form-group">
-          <label>
-            <input type="checkbox" name="incluyeIVA"> Incluir IVA (16%)
-          </label>
+          <label><input type="checkbox" name="incluyeIVA"> Incluir IVA (16%)</label>
         </div>
         <div class="ems-form-group">
-          <label>
-            <input type="checkbox" name="anticipo" onchange="this.form.anticipoPorc.parentElement.style.display=this.checked?'':'none'"> Con anticipo
-          </label>
-          <div style="display:none">
-            <input type="number" name="anticipoPorc" min="0" max="100" placeholder="% Anticipo"> %
-          </div>
+          <label><input type="checkbox" name="anticipo" onchange="this.form.anticipoPorc.parentElement.style.display=this.checked?'':'none'"> Con anticipo</label>
+          <div style="display:none"><input type="number" name="anticipoPorc" min="0" max="100" placeholder="% Anticipo"> %</div>
         </div>
         <div class="ems-form-group">
-          <label>
-            <input type="checkbox" name="corrigeIA"> Mejorar redacción con IA
-          </label>
+          <label><input type="checkbox" name="corrigeIA"> Mejorar redacción con IA</label>
         </div>
       </div>
       <!-- CAMPO NUEVO DE TÍTULO -->
@@ -588,7 +448,6 @@ function nuevaCotizacion() {
           <button type="button" class="mic-btn"><i class="fa fa-microphone"></i></button>
         </div>
       </div>
-      
       <!-- Imágenes para PDF (hasta 5) -->
       <div class="ems-form-group">
         <label>Imágenes para el PDF (hasta 5)</label>
@@ -596,7 +455,7 @@ function nuevaCotizacion() {
         <input id="cotFotosInput" type="file" accept="image/*" multiple onchange="subirFotosCot(this)">
         <small>Se suben a Cloudinary y se insertan al final del PDF.</small>
       </div>
-<div class="ems-form-actions">
+      <div class="ems-form-actions">
         <button type="button" class="btn-mini" onclick="renderInicio(); localStorage.removeItem('EMS_COT_BORRADOR')"><i class="fa fa-arrow-left"></i> Cancelar</button>
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
         <button type="button" class="btn-secondary" onclick="guardarCotizacionDraft(); generarPDFCotizacion()"><i class="fa fa-file-pdf"></i> PDF</button>
@@ -605,7 +464,10 @@ function nuevaCotizacion() {
       </div>
     </form>
   `;
-  $1
+
+  // <<< CORRECCIÓN: definir 'form' y quitar el $1 que rompía >>>
+  const form = document.getElementById('cotForm');
+
   // Inicializa fotos de cotización
   fotosCotizacion = [];
 
@@ -614,7 +476,7 @@ function nuevaCotizacion() {
   if (draft) {
     draft = JSON.parse(draft);
     Object.keys(draft).forEach(k => {
-      if (k !== "items" && form[k] !== undefined) form[k].value = draft[k];
+      if (k !== "items" && k !== "fotos" && form[k] !== undefined) form[k].value = draft[k];
     });
     // Items tabla
     const tbody = form.querySelector("#itemsTable tbody");
@@ -625,33 +487,33 @@ function nuevaCotizacion() {
       form.anticipoPorc.parentElement.style.display = '';
       form.anticipoPorc.value = draft.anticipoPorc || "";
     }
+    // Fotos desde draft
+    if (Array.isArray(draft.fotos)) fotosCotizacion = [...draft.fotos];
   } else {
     agregarCotItemRow();
   }
 
-  // Render previsualización de fotos (si hay en draft)
-  if (draft && Array.isArray(draft.fotos)) {
-    fotosCotizacion = [...draft.fotos];
-  }
   renderCotFotosPreview();
+
   setTimeout(() => {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
   }, 100);
+
   form.onsubmit = async (e) => {
     e.preventDefault();
     await enviarCotizacion(e);
     localStorage.removeItem('EMS_COT_BORRADOR');
   };
 
-  // === AUTOGUARDADO cada 15 segundos ===
+  // AUTOGUARDADO cada 15 s
   if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
   window.autoSaveTimer = setInterval(() => {
     if (document.getElementById('cotForm')) guardarCotizacionDraft();
   }, 15000);
 
-  // === BOTÓN ELIMINAR SOLO EN EDICIÓN ===
+  // BOTÓN ELIMINAR SOLO EN EDICIÓN
   setTimeout(() => {
     if(form && form.numero && form.numero.value && !document.getElementById('btnEliminarCot')){
       let btn = document.createElement("button");
@@ -666,13 +528,108 @@ function nuevaCotizacion() {
   }, 300);
 }
 
+// ========== Reporte (con imágenes Cloudinary) ==========
+function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
+  if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
+  // Agrupa fotos de 2 en 2
+  let fotosHtml = '';
+  const fotos = fotosItemsReporte[idx] || [];
+  for (let i = 0; i < fotos.length; i += 2) {
+    fotosHtml += `<div class="ems-rep-fotos-pair">`;
+    for (let j = i; j < i + 2 && j < fotos.length; ++j) {
+      fotosHtml += `
+        <div class="ems-rep-foto">
+          <img src="${fotos[j]}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #dbe2ea;display:block;margin:auto;">
+          ${modoEdicion ? `<button type="button" class="ems-btn-delimg" title="Eliminar imagen" onclick="eliminarFotoRepItem(this, ${idx}, ${j}, '${fotos[j]}')"><i class="fa fa-trash"></i></button>` : ''}
+        </div>
+      `;
+    }
+    fotosHtml += `</div>`;
+  }
+  return `
+    <tr>
+      <td>
+        <textarea name="descripcion" list="descEMS" rows="2" required placeholder="Describe la actividad" style="width:97%">${item.descripcion||""}</textarea>
+        <datalist id="descEMS"></datalist>
+      </td>
+      <td>
+        <div class="ems-rep-fotos-row" id="fotos-item-${idx}">
+          ${fotosHtml}
+          ${modoEdicion && (fotos.length < 6) ? `
+            <input type="file" accept="image/*" multiple
+              style="display:block; margin-top:7px;"
+              onchange="subirFotoRepItem(this, ${idx})">
+            <div style="font-size:0.92em; color:#888;">${6 - fotos.length} fotos disponibles</div>
+          ` : ""}
+        </div>
+      </td>
+      <td>
+        ${modoEdicion ? `<button type="button" class="ems-btn-delrow" onclick="eliminarRepItemRow(this)"><i class="fa fa-trash"></i></button>` : ''}
+      </td>
+    </tr>
+  `;
+}
+function agregarRepItemRow() {
+  const tbody = document.getElementById('repItemsTable').querySelector('tbody');
+  const idx = tbody.children.length;
+  fotosItemsReporte[idx] = [];
+  tbody.insertAdjacentHTML('beforeend', renderRepItemRow({}, idx, true));
+  agregarDictadoMicros();
+  activarPredictivosInstantaneos();
+}
+function eliminarRepItemRow(btn) {
+  const tr = btn.closest('tr');
+  const idx = Array.from(tr.parentNode.children).indexOf(tr);
+  fotosItemsReporte.splice(idx, 1);
+  tr.remove();
+}
+async function subirFotoRepItem(input, idx) {
+  if (!input.files || input.files.length === 0) return;
+  const files = Array.from(input.files).slice(0, 6 - (fotosItemsReporte[idx]?.length || 0));
+  if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = [];
+  input.disabled = true;
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (!file.type.startsWith("image/")) continue;
+    showSaved(`Subiendo imagen ${i+1} de ${files.length}...`);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_PRESET);
+    try {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.secure_url) {
+        if (fotosItemsReporte[idx].length < 6) fotosItemsReporte[idx].push(data.secure_url);
+      } else {
+        alert("No se pudo subir la imagen a Cloudinary");
+      }
+    } catch (err) {
+      alert("Error al subir la imagen");
+    }
+  }
+  // Re-renderiza la fila
+  const tbody = document.querySelector('#repItemsTable tbody');
+  const tr = tbody.children[idx];
+  const desc = tr.querySelector("textarea")?.value || "";
+  tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporte[idx] }, idx, true);
+  showSaved("¡Imagen(es) subida(s)!");
+  input.disabled = false;
+  input.value = "";
+}
+function eliminarFotoRepItem(btn, idx, fidx/*, url*/) {
+  if (!fotosItemsReporte[idx]) return;
+  fotosItemsReporte[idx].splice(fidx, 1);
+  const tr = btn.closest('tr');
+  const tbody = tr.parentElement;
+  const desc = tr.querySelector("textarea")?.value || "";
+  tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporte[idx] }, idx, true);
+}
 
-
-
+// ========== Reporte: Formulario y Flujos ==========
 function nuevoReporte() {
   window.editandoReporte = false;
   fotosItemsReporte = [];
-  // Botón de volver al inicio arriba
+
   let volverBtn = `
     <button class="btn-secondary" onclick="renderInicio()" style="margin-bottom:14px;">
       <i class="fa fa-arrow-left"></i> Volver al inicio
@@ -736,7 +693,6 @@ function nuevoReporte() {
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
         <button type="button" class="btn-secondary" onclick="guardarReporteDraft(); generarPDFReporte()"><i class="fa fa-file-pdf"></i> PDF</button>
         <button type="button" class="btn-success" onclick="guardarReporteDraft(); generarPDFReporte(true)"><i class="fa fa-share-alt"></i> Compartir</button>
-        <!-- El botón de eliminar se insertará dinámicamente -->
       </div>
     </form>
   `;
@@ -769,13 +725,11 @@ function nuevoReporte() {
     localStorage.removeItem('EMS_REP_BORRADOR');
   };
 
-  // === AUTOGUARDADO cada 15 segundos ===
   if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
   window.autoSaveTimer = setInterval(() => {
     if (document.getElementById('repForm')) guardarReporteDraft();
   }, 15000);
 
-  // === BOTÓN ELIMINAR SOLO EN EDICIÓN ===
   setTimeout(() => {
     if(form && form.numero && form.numero.value && !document.getElementById('btnEliminarRep')){
       let btn = document.createElement("button");
@@ -789,7 +743,6 @@ function nuevoReporte() {
     }
   }, 300);
 }
-
 
 // ========== GUARDADO, PDF, EDICIÓN, DETALLE ==========
 async function enviarCotizacion(e) {
@@ -819,8 +772,7 @@ async function enviarCotizacion(e) {
   const cotizacion = {
     ...datos,
     items,
-    fotos: fotosCotizacion,
-    fotos: fotosCotizacion,
+    fotos: fotosCotizacion.slice(0,5),
     tipo: 'cotizacion',
     fecha: datos.fecha,
     hora: datos.hora || ahora(),
@@ -832,9 +784,11 @@ async function enviarCotizacion(e) {
     return;
   }
   await db.collection("cotizaciones").doc(datos.numero).set(cotizacion);
+  localStorage.removeItem('EMS_COT_BORRADOR');
   showSaved("¡Cotización guardada!");
   renderInicio();
 }
+
 async function guardarCotizacionDraft() {
   const form = document.getElementById('cotForm');
   if (!form) return;
@@ -851,15 +805,18 @@ async function guardarCotizacionDraft() {
   const cotizacion = {
     ...datos,
     items,
-    fotos: fotosCotizacion,
+    fotos: fotosCotizacion.slice(0,5),
     tipo: 'cotizacion',
     fecha: datos.fecha,
     hora: datos.hora || ahora(),
     creada: new Date().toISOString()
   };
-  await db.collection("cotizaciones").doc(datos.numero).set(cotizacion);
+  // Guarda remoto (como antes) y también local para recuperación offline
+  await db.collection("cotizaciones").doc(datos.numero || "BORRADOR").set(cotizacion);
+  localStorage.setItem('EMS_COT_BORRADOR', JSON.stringify(cotizacion));
   showSaved("Cotización guardada");
 }
+
 async function generarPDFCotizacion(share = false) {
   showSaved("Generando PDF...");
   await guardarCotizacionDraft();
@@ -871,11 +828,11 @@ async function generarPDFCotizacion(share = false) {
       concepto: tr.querySelector('input[name="concepto"]').value,
       unidad: tr.querySelector('input[name="unidad"]').value,
       cantidad: tr.querySelector('input[name="cantidad"]').value,
-      precio: tr.querySelector('input[name="precio"]').value // Mantener como string para chequeo
+      precio: tr.querySelector('input[name="precio"]').value // string para validaciones
     });
   });
 
-  // Totales solo si precio y cantidad no son "." ni "-"
+  // Totales con chequeo de ".", "-"
   let subtotal = items.reduce((acc, x) => {
     const cantidadVal = String(x.cantidad).trim();
     const precioVal = String(x.precio).trim();
@@ -888,20 +845,12 @@ async function generarPDFCotizacion(share = false) {
     if (isNaN(cantidad) || isNaN(precio)) return acc;
     return acc + (cantidad * precio);
   }, 0);
-  let iva = (form.incluyeIVA && form.incluyeIVA.checked) ? subtotal * 0.16 : 0;
-  let total = subtotal + iva;
-  let anticipoPorc = (form.anticipo && form.anticipo.checked && form.anticipoPorc.value) ? parseFloat(form.anticipoPorc.value) : 0;
-  let anticipo = anticipoPorc ? (total * (anticipoPorc/100)) : 0;
+  const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
+  const iva = incluyeIVA ? subtotal * 0.16 : 0;
+  const total = subtotal + iva;
+  const anticipoPorc = (form.anticipo && form.anticipo.checked && form.anticipoPorc.value) ? parseFloat(form.anticipoPorc.value) : 0;
+  const anticipo = anticipoPorc ? (total * (anticipoPorc/100)) : 0;
 
-  // Helper para mostrar precios limpios
-  function mostrarPrecioLimpio(val) {
-    if (val === undefined || val === null) return "";
-    if (typeof val === "string" && (val.trim() === "." || val.trim() === "-")) return "";
-    if (isNaN(Number(val)) || val === "") return "";
-    return "$" + Number(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-
-  // PDF
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -915,78 +864,57 @@ async function generarPDFCotizacion(share = false) {
 
   let page = pdfDoc.addPage([pageW, pageH]);
 
-  // Marca de agua sutil
-  const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
-  const logoImg   = await pdfDoc.embedPng(logoBytes);
-  page.drawImage(logoImg, {
-    x: (pageW-220)/2,
-    y: (pageH-240)/2,
-    width: 220,
-    height: 220,
-    opacity: 0.06
-  });
+  // Marca de agua
+  try {
+    const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
+    const logoImg   = await pdfDoc.embedPng(logoBytes);
+    page.drawImage(logoImg, { x: (pageW-220)/2, y: (pageH-240)/2, width: 220, height: 220, opacity: 0.06 });
 
-  // Encabezado
-  const logoH = 46;
-  page.drawImage(logoImg, { x: mx, y: y - logoH + 10, width: logoH, height: logoH });
-  const leftX = mx + logoH + 14;
-  page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y + 2, size: 17, font: helvB, color: rgb(0.10,0.20,0.40) });
-  page.drawText("COTIZACIÓN", { x: leftX, y: y - 16, size: 12, font: helvB, color: rgb(0.98,0.54,0.10) });
-  page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 32, size: 10.5, font: helv, color: rgb(0.16,0.18,0.22) });
-  page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 180, y: y + 2, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
-  page.drawText(`Fecha: ${datos.fecha||""}`, { x: mx + usableW - 180, y: y - 15, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
+    const logoH = 46;
+    page.drawImage(logoImg, { x: mx, y: y - logoH + 10, width: logoH, height: logoH });
 
-  y -= (logoH + 24);
+    const leftX = mx + logoH + 14;
+    page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y + 2, size: 17, font: helvB, color: rgb(0.10,0.20,0.40) });
+    page.drawText("COTIZACIÓN", { x: leftX, y: y - 16, size: 12, font: helvB, color: rgb(0.98,0.54,0.10) });
+    page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 32, size: 10.5, font: helv, color: rgb(0.16,0.18,0.22) });
+    page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 180, y: y + 2, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
+    page.drawText(`Fecha: ${datos.fecha||""}`, { x: mx + usableW - 180, y: y - 15, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
+  } catch { /* sin logo, continúa */ }
 
-  // TÍTULO: rectángulo colorido centrado
+  y -= (46 + 24);
+
+  // TÍTULO (opcional)
   if (datos.titulo && datos.titulo.trim()) {
     const titulo = datos.titulo.trim();
     const fontSizeTitulo = 15;
     const rectHeight = 33;
-    // Fondo naranja clarito
     page.drawRectangle({
       x: mx, y: y - rectHeight + 9, width: usableW, height: rectHeight,
       color: rgb(0.97, 0.54, 0.11), opacity: 0.17, borderColor: rgb(0.97, 0.54, 0.11), borderWidth: 1.2
     });
-    // Centrado horizontal y vertical en el rectángulo
     const textWidth = helvB.widthOfTextAtSize(titulo, fontSizeTitulo);
     const textX = mx + (usableW - textWidth) / 2;
     const textY = y - rectHeight/2 + 10;
-    page.drawText(titulo, {
-      x: textX,
-      y: textY,
-      size: fontSizeTitulo,
-      font: helvB,
-      color: rgb(0.97, 0.54, 0.11)
-    });
+    page.drawText(titulo, { x: textX, y: textY, size: fontSizeTitulo, font: helvB, color: rgb(0.97, 0.54, 0.11) });
     y -= rectHeight + 13;
   } else {
     y -= 10;
   }
 
-  // Tabla: CABECERA naranja fuerte
-  page.drawRectangle({
-    x: mx, y: y + 2, width: usableW, height: 20,
-    color: rgb(0.98,0.54,0.11), opacity: 0.97
-  });
+  // Tabla cabecera
+  page.drawRectangle({ x: mx, y: y + 2, width: usableW, height: 20, color: rgb(0.98,0.54,0.11), opacity: 0.97 });
   page.drawText("Concepto", { x: mx + 2, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
   page.drawText("Unidad",   { x: mx+176, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
   page.drawText("Cantidad", { x: mx+265, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
   page.drawText("Precio",   { x: mx+350, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
   page.drawText("Importe",  { x: mx+440, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
 
-  // Líneas verticales y horizontal de tabla
+  // Líneas y filas
   let rowY = y - 16;
   let colXs = [mx, mx+176, mx+265, mx+350, mx+440, pageW-mx];
-  // Encabezado horizontal
   page.drawLine({ start: { x: mx, y: rowY }, end: { x: pageW-mx, y: rowY }, thickness: 1.1, color: rgb(0.96,0.78,0.30) });
-  // Verticales
-  for(let cx of colXs) {
-    page.drawLine({ start: { x: cx, y: rowY }, end: { x: cx, y: rowY - 18 - 18 * items.length }, thickness: 0.8, color: rgb(0.96,0.78,0.30) });
-  }
   y = rowY - 18;
 
-  // Filas de la tabla con fondo alterno
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
     const cantidadVal = String(it.cantidad).trim();
@@ -995,35 +923,26 @@ async function generarPDFCotizacion(share = false) {
       page = pdfDoc.addPage([pageW, pageH]);
       y = pageH - my - 70;
     }
-    // Fondo alterno en filas pares
     if (i % 2 === 0) {
-      page.drawRectangle({
-        x: mx, y: y - 2, width: usableW, height: 18,
-        color: rgb(0.98,0.91,0.75), opacity: 0.29
-      });
+      page.drawRectangle({ x: mx, y: y - 2, width: usableW, height: 18, color: rgb(0.98,0.91,0.75), opacity: 0.29 });
     }
     page.drawText(String(it.concepto || ""), { x: mx+2, y, size: 10, font: helv, color: rgb(0.13,0.18,0.38) });
     page.drawText(String(it.unidad || ""),   { x: mx+176+2, y, size: 10, font: helv, color: rgb(0.13,0.18,0.38) });
     page.drawText(String(it.cantidad || ""), { x: mx+265+2, y, size: 10, font: helv, color: rgb(0.13,0.18,0.38) });
     page.drawText(mostrarPrecioLimpio(it.precio),  { x: mx+350+2, y, size: 10, font: helv, color: rgb(0.10,0.35,0.16) });
 
-    // Importe: vacío si precio o cantidad son ".", "-" o vacío
     let importe = "";
-    if (
-      cantidadVal === "" || cantidadVal === "." || cantidadVal === "-" ||
-      precioVal === "" || precioVal === "." || precioVal === "-"
-    ) {
-      // Importe vacío
-    } else if (!isNaN(Number(it.cantidad)) && !isNaN(Number(it.precio))) {
+    if (cantidadVal !== "" && cantidadVal !== "." && cantidadVal !== "-" &&
+        precioVal   !== "" && precioVal   !== "." && precioVal   !== "-" &&
+        !isNaN(Number(it.cantidad)) && !isNaN(Number(it.precio))) {
       importe = mostrarPrecioLimpio(Number(it.cantidad) * Number(it.precio));
     }
     page.drawText(importe, { x: mx+440+2, y, size: 10, font: helv, color: rgb(0.10,0.35,0.16) });
-    // Línea horizontal sutil
     page.drawLine({ start: { x: mx, y: y-3 }, end: { x: pageW-mx, y: y-3 }, thickness: 0.47, color: rgb(0.98,0.85,0.48) });
     y -= 18;
   }
 
-  // Totales: bien separados y vistosos
+  // Totales
   y -= 8;
   page.drawLine({ start: { x: mx+340, y }, end: { x: pageW-mx, y }, thickness: 1.1, color: rgb(0.97, 0.54, 0.11) });
   y -= 13;
@@ -1044,25 +963,20 @@ async function generarPDFCotizacion(share = false) {
     y -= 13;
   }
 
-  // Notas / observaciones
-  if (datos.notas?.trim()) {
-    y -= 10;
-  // Imágenes de cotización (hasta 5) - se muestran al final
+  // IMÁGENES DE COTIZACIÓN (si existen) — SIEMPRE fuera de "notas"
   if (Array.isArray(fotosCotizacion) && fotosCotizacion.length) {
     const pad = 16;
     const maxPorFila = 2;
     const maxAncho = Math.floor((usableW - pad) / 2);
     const maxAlto = 180;
 
-    let idx = 0;
-    // Título
     if (y < 80) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
     page.drawText("Imágenes:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
     y -= 14;
 
+    let idx = 0;
     while (idx < fotosCotizacion.length) {
       const fila = fotosCotizacion.slice(idx, idx + maxPorFila);
-      // Si no cabe una fila más, nueva página
       if (y - maxAlto - 24 < my) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
 
       const escalas = [];
@@ -1072,8 +986,7 @@ async function generarPDFCotizacion(share = false) {
         let bytes, img;
         try {
           bytes = await fetch(url).then(r => r.arrayBuffer());
-          try { img = await pdfDoc.embedPng(bytes); }
-          catch { img = await pdfDoc.embedJpg(bytes); }
+          try { img = await pdfDoc.embedPng(bytes); } catch { img = await pdfDoc.embedJpg(bytes); }
         } catch { continue; }
         let w = img.width, h = img.height;
         let scale = Math.min(maxAncho / w, maxAlto / h);
@@ -1097,13 +1010,16 @@ async function generarPDFCotizacion(share = false) {
     }
   }
 
+  // Notas / observaciones
+  if (datos.notas?.trim()) {
+    if (y < 80) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
     page.drawText("Observaciones:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
     y -= 13;
     page.drawText(datos.notas.trim(), { x: mx+12, y, size: 10, font: helv, color: rgb(0.18,0.23,0.32), maxWidth: usableW-20 });
     y -= 10;
   }
 
-  // PIE DE PÁGINA: solo letras azules, sin fondo
+  // Pie
   const pieArr = [
     `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`,
     `Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`,
@@ -1111,36 +1027,24 @@ async function generarPDFCotizacion(share = false) {
   ];
   let pieY = 56;
   for (let linea of pieArr) {
-    page.drawText(linea, {
-      x: mx+8, y: pieY, size: 9.2, font: helv, color: rgb(0.10,0.20,0.56),
-      maxWidth: usableW-16
-    });
+    page.drawText(linea, { x: mx+8, y: pieY, size: 9.2, font: helv, color: rgb(0.10,0.20,0.56), maxWidth: usableW-16 });
     pieY -= 13;
   }
 
-  // Salida PDF
   const pdfBytes = await pdfDoc.save();
   showSaved("PDF Listo");
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const file = new File([blob], `Cotizacion_${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
 
-  if (share && navigator.share && navigator.canShare({ files: [file] })) {
-    await navigator.share({
-      files: [file],
-      title: "Cotización",
-      text: `Cotización ${datos.numero||""} de Electromotores Santana`
-    });
+  if (share && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    await navigator.share({ files: [file], title: "Cotización", text: `Cotización ${datos.numero||""} de Electromotores Santana` });
   } else {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = file.name;
-    a.click();
+    a.href = url; a.download = file.name; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
-
-
 
 function editarCotizacion(datos) {
   nuevaCotizacion();
@@ -1155,14 +1059,14 @@ function editarCotizacion(datos) {
     form.anticipoPorc.parentElement.style.display = '';
     form.anticipoPorc.value = datos.anticipoPorc || "";
   }
-  // === Título del trabajo/equipo ===
   if (form.titulo) form.titulo.value = datos.titulo || "";
 
   const tbody = form.querySelector("#itemsTable tbody");
   tbody.innerHTML = "";
   (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
   form.notas.value = datos.notas || "";
-  // Fotos de cotización
+
+  // Fotos cotización
   fotosCotizacion = Array.isArray(datos.fotos) ? [...datos.fotos] : [];
   renderCotFotosPreview();
 
@@ -1173,7 +1077,7 @@ function editarCotizacion(datos) {
   }, 100);
 }
 
-
+// ----- Abrir detalle desde Historial -----
 async function abrirReporte(numero) {
   let doc = await db.collection("reportes").doc(numero).get();
   if (!doc.exists) return alert("No se encontró el reporte.");
@@ -1199,7 +1103,6 @@ async function abrirReporte(numero) {
     activarPredictivosInstantaneos();
   }, 100);
 }
-
 
 async function abrirDetalleEMS(tipo, numero) {
   if (tipo === "cotizacion") {
@@ -1246,6 +1149,7 @@ async function enviarReporte(e) {
     return;
   }
   await db.collection("reportes").doc(datos.numero).set(reporte);
+  localStorage.removeItem('EMS_REP_BORRADOR');
   showSaved("¡Reporte guardado!");
   renderInicio();
 }
@@ -1269,50 +1173,35 @@ async function guardarReporteDraft() {
     hora: datos.hora || ahora(),
     creada: new Date().toISOString()
   };
-  await db.collection("reportes").doc(datos.numero).set(reporte);
+  await db.collection("reportes").doc(datos.numero || "BORRADOR").set(reporte);
+  localStorage.setItem('EMS_REP_BORRADOR', JSON.stringify(reporte));
   showSaved("Reporte guardado");
 }
 
-// Helper: Corta texto en líneas sin exceder ancho en puntos (px) usando la fuente PDF
-function breakTextLines(text, font, fontSize, maxWidth) {
-  let lines = [];
-  let currentLine = "";
-  for (let char of text) {
-    let nextLine = currentLine + char;
-    let width = font.widthOfTextAtSize(nextLine, fontSize);
-    if (width > maxWidth && currentLine.length > 0) {
-      lines.push(currentLine);
-      currentLine = char;
-    } else {
-      currentLine = nextLine;
-    }
-  }
-  if (currentLine) lines.push(currentLine);
-  return lines;
-}
-
-
-
 async function generarPDFReporte(share = false) {
+  // Progreso
   showProgress(true, 10, "Generando PDF...");
   await guardarReporteDraft();
+
   const form = document.getElementById('repForm');
+  if (!form) { showProgress(false); alert("No hay formulario de reporte activo."); return; }
+
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
   form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+    const idx = Array.from(tr.parentNode.children).indexOf(tr);
     items.push({
       descripcion: tr.querySelector('textarea[name="descripcion"]').value,
-      fotos: fotosItemsReporte[Array.from(tr.parentNode.children).indexOf(tr)] || []
+      fotos: (fotosItemsReporte[idx] || []).slice(0, 6),
     });
   });
 
-  // PDF
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // Medidas A4 en puntos
+  // Medidas A4
   const pageW = 595.28, pageH = 841.89;
   const mx = 32, my = 38;
   const usableW = pageW - mx*2;
@@ -1320,240 +1209,215 @@ async function generarPDFReporte(share = false) {
 
   let page = pdfDoc.addPage([pageW, pageH]);
 
-  // Marca de agua (logo grande y translúcido, centrado)
-  const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
-  const logoImg   = await pdfDoc.embedPng(logoBytes);
-  page.drawImage(logoImg, {
-    x: (pageW-260)/2,
-    y: (pageH-260)/2,
-    width: 260,
-    height: 260,
-    opacity: 0.08
-  });
+  // Marca de agua + cabecera
+  try {
+    const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
+    const logoImg   = await pdfDoc.embedPng(logoBytes);
+    page.drawImage(logoImg, { x: (pageW-220)/2, y: (pageH-240)/2, width: 220, height: 220, opacity: 0.06 });
 
-  // Encabezado
-  const logoH = 46;
-  page.drawImage(logoImg, { x: mx, y: y - logoH + 6, width: logoH, height: logoH });
-  const leftX = mx + logoH + 14;
-  page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y, size: 16, font: helvB, color: rgb(0.10,0.20,0.40) });
-  page.drawText("REPORTE DE SERVICIO", { x: leftX, y: y - 18, size: 11, font: helvB, color: rgb(0.98,0.54,0.10) });
-  page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 34, size: 10.2, font: helv, color: rgb(0.16,0.18,0.22) });
-  page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 140, y: y, size: 10.2, font: helvB, color: rgb(0.13,0.22,0.38) });
-  page.drawText(`Fecha: ${datos.fecha||""}`, { x: mx + usableW - 140, y: y - 17, size: 10.2, font: helvB, color: rgb(0.13,0.22,0.38) });
-  //page.drawText(`Hora: ${datos.hora||""}`, { x: mx + usableW - 140, y: y - 34, size: 10.2, font: helvB, color: rgb(0.13,0.22,0.38) });
+    const logoH = 46;
+    page.drawImage(logoImg, { x: mx, y: y - logoH + 10, width: logoH, height: logoH });
 
-  y -= (logoH + 18);
+    const leftX = mx + logoH + 14;
+    page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y + 2, size: 17, font: helvB, color: rgb(0.10,0.20,0.40) });
+    page.drawText("REPORTE DE SERVICIO", { x: leftX, y: y - 16, size: 12, font: helvB, color: rgb(0.98,0.54,0.10) });
 
-  // Línea divisoria
-  page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 2, color: rgb(...EMS_COLOR) });
-  y -= 18;
+    page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 32, size: 10.5, font: helv, color: rgb(0.16,0.18,0.22) });
+    page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 180, y: y + 2, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
+    page.drawText(`Fecha: ${datos.fecha||""} ${datos.hora?("• "+datos.hora):""}`, { x: mx + usableW - 180, y: y - 15, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
+  } catch (e) { /* sin logo */ }
 
-  // Tabla de items
-  page.drawText("Actividades y Evidencias:", { x: mx, y, size: 11.5, font: helvB, color: rgb(0.12,0.20,0.40) });
-  y -= 14;
-  page.drawLine({ start: { x: mx, y }, end: { x: pageW-mx, y }, thickness: 1, color: rgb(0.76,0.80,0.94) });
-  y -= 8;
+  y -= (46 + 24);
 
-  // ---- PARA CADA ITEM ----
-  for (let idx = 0; idx < items.length; idx++) {
-    let it = items[idx];
-    let fotos = it.fotos || [];
-    let hasFotos = fotos.length > 0;
-    let maxImgsPerRow = 2;
-    let imgW = 170, imgH = 135; // Tamaño de las imágenes
-    let imgPad = 26;
+  // Lista de actividades
+  const bullet = "• ";
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
 
-    // Prepara la descripción
-    let desc = it.descripcion || "";
-    let maxTextW = usableW - 40;
-    let lines = breakTextLines(desc, helv, 11, maxTextW);
-    let descBlockHeight = lines.length * 14 + 12;
+    // Nueva página si se requiere
+    if (y < 120) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
 
-    // Prepara el espacio necesario para las fotos
-    let totalFotoRows = hasFotos ? Math.ceil(fotos.length / maxImgsPerRow) : 0;
-    let fotosBlockHeight = totalFotoRows * (imgH + 10);
-
-    // Suma todo lo que ocupa este item (fotos, descripción y margen)
-    let requiredHeight = fotosBlockHeight + descBlockHeight + 24;
-
-    // Si no cabe, haz salto de página ANTES de imprimir nada del item
-    if (y < requiredHeight + 80) {
-      page = pdfDoc.addPage([pageW, pageH]);
-      y = pageH - my - 70;
+    // Descripción con fondo alternado
+    if (i % 2 === 0) {
+      page.drawRectangle({ x: mx, y: y - 2, width: usableW, height: 18, color: rgb(0.98,0.91,0.75), opacity: 0.29 });
     }
+    const text = bullet + String(it.descripcion || "").trim();
+    const maxWidth = usableW - 12;
+    const lines = breakTextLines(text, helv, 11, maxWidth);
+    for (let li = 0; li < lines.length; li++) {
+      page.drawText(lines[li], { x: mx + 2, y, size: 11, font: helv, color: rgb(0.13,0.18,0.38) });
+      y -= 14;
+      if (y < 120 && li < lines.length - 1) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
+    }
+    y -= 4;
 
-    // FOTOS (máximo 2 por fila)
-    if (hasFotos) {
-      for (let i = 0; i < fotos.length; i += maxImgsPerRow) {
-        let rowCount = Math.min(maxImgsPerRow, fotos.length - i);
-        for (let j = 0; j < rowCount; j++) {
-          let imgUrl = fotos[i+j];
-          let imgBytes = await fetch(imgUrl).then(r=>r.arrayBuffer()).catch(()=>null);
-          if (!imgBytes) continue;
-          let img, ext = imgUrl.split('.').pop().toLowerCase();
-          try {
-            if (ext === "png" || ext.startsWith("png")) img = await pdfDoc.embedPng(imgBytes);
-            else img = await pdfDoc.embedJpg(imgBytes);
-          } catch {
-            // Si PNG falla, intenta como JPG
-            try { img = await pdfDoc.embedJpg(imgBytes); } catch { continue; }
-          }
-          // Centra las imágenes de la fila
-          let totalImgsW = rowCount * imgW + (rowCount-1)*imgPad;
-          let startX = mx + (usableW - totalImgsW) / 2;
-          let x = startX + j * (imgW + imgPad);
-          page.drawImage(img, {
-            x: x,
-            y: y - imgH,
-            width: imgW,
-            height: imgH
-          });
+    // Fotos del ítem (máx 2 por fila)
+    const fotos = Array.isArray(it.fotos) ? it.fotos : [];
+    const pad = 16, maxPorFila = 2, maxAncho = Math.floor((usableW - pad) / 2), maxAlto = 180;
+
+    let idx = 0;
+    while (idx < fotos.length) {
+      if (y - maxAlto - 24 < my) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
+
+      const fila = fotos.slice(idx, idx + maxPorFila);
+      const escalas = [];
+      let totalW = 0;
+
+      for (let j = 0; j < fila.length; j++) {
+        const url = fila[j];
+        let bytes, img;
+        try {
+          bytes = await fetch(url).then(r => r.arrayBuffer());
+        } catch { bytes = null; }
+        if (!bytes) { continue; }
+
+        try {
+          img = await pdfDoc.embedPng(bytes);
+        } catch {
+          try { img = await pdfDoc.embedJpg(bytes); }
+          catch { continue; }
         }
-        y -= (imgH + 10);
+
+        let w = img.width, h = img.height;
+        const scale = Math.min(maxAncho / w, maxAlto / h);
+        w *= scale; h *= scale;
+        escalas.push({ img, w, h });
+        totalW += w;
       }
-      // DESCRIPCIÓN DEL ITEM, centrada abajo del bloque de imágenes
-      for (let li = 0; li < lines.length; li++) {
-        let textWidth = helv.widthOfTextAtSize(lines[li], 11);
-        let textX = mx + usableW/2 - textWidth/2;
-        page.drawText(lines[li], { x: textX, y: y - 2 - li*14, size: 11, font: helv, color: rgb(0.15,0.18,0.22) });
+
+      const gaps = (escalas.length > 1) ? pad : 0;
+      const startX = mx + (usableW - (totalW + gaps)) / 2;
+
+      let x = startX;
+      for (const { img, w, h } of escalas) {
+        page.drawImage(img, { x, y: y - h, width: w, height: h });
+        x += w + pad;
       }
-      y -= (lines.length*14 + 12);
-    } else {
-      // Si no hay fotos, solo descripción centrada
-      for (let li = 0; li < lines.length; li++) {
-        let textWidth = helv.widthOfTextAtSize(lines[li], 11);
-        let textX = mx + usableW/2 - textWidth/2;
-        page.drawText(lines[li], { x: textX, y: y - 2 - li*14, size: 11, font: helv, color: rgb(0.15,0.18,0.22) });
-      }
-      y -= (lines.length*14 + 12);
+
+      y -= (Math.max(0, ...escalas.map(e => e.h)) + 16);
+      idx += maxPorFila;
     }
-    // Línea divisoria fina entre items
-    page.drawLine({ start: { x: mx+10, y: y+4 }, end: { x: pageW-mx-10, y: y+4 }, thickness: 0.6, color: rgb(0.85,0.87,0.92) });
-    y -= 8;
+
+    y -= 6;
+    page.drawLine({ start: { x: mx, y }, end: { x: pageW - mx, y }, thickness: 0.4, color: rgb(0.98,0.85,0.48) });
+    y -= 10;
   }
 
   // Notas / observaciones
-  if (datos.notas?.trim()) {
-    if (y < 80) {
-      page = pdfDoc.addPage([pageW, pageH]);
-      y = pageH - my - 70;
-    }
+  if ((datos.notas || "").trim()) {
+    if (y < 100) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
     page.drawText("Observaciones:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
     y -= 13;
-    let obs = datos.notas.trim();
-    let obsLines = breakTextLines(obs, helv, 10, usableW-20);
-    for (let ol = 0; ol < obsLines.length; ol++) {
-      page.drawText(obsLines[ol], { x: mx+12, y, size: 10, font: helv, color: rgb(0.18,0.23,0.32) });
-      y -= 12;
-    }
+    page.drawText(String(datos.notas).trim(), { x: mx+12, y, size: 10, font: helv, color: rgb(0.18,0.23,0.32), maxWidth: usableW-20 });
+    y -= 10;
   }
 
-  // Pie de página limpio y NUNCA cortado
-  let pie1 = `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`;
-  let pie2 = "Este reporte da fe de los trabajos realizados según solicitud del cliente.";
-  let pie3 = `Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`;
-  page.drawRectangle({
-    x: mx, y: 26, width: usableW, height: 44, color: rgb(0.11, 0.24, 0.44)
-  });
-  page.drawText(pie1, {
-    x: mx+14, y: 61, size: 9, font: helv, color: rgb(1,1,1),
-    maxWidth: usableW-20
-  });
-  page.drawText(pie2, {
-    x: mx+14, y: 48, size: 9.7, font: helv, color: rgb(1,1,1),
-    maxWidth: usableW-20
-  });
-  page.drawText(pie3, {
-    x: mx+14, y: 35, size: 9, font: helv, color: rgb(1,1,1),
-    maxWidth: usableW-20
-  });
+  // Pie
+  const pieArr = [
+    `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`,
+    `Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`
+  ];
+  let pieY = 56;
+  for (let linea of pieArr) {
+    page.drawText(linea, { x: mx+8, y: pieY, size: 9.2, font: helv, color: rgb(0.10,0.20,0.56), maxWidth: usableW-16 });
+    pieY -= 13;
+  }
 
-  // Salida PDF
+  // Salvar y compartir/descargar
   const pdfBytes = await pdfDoc.save();
-  showProgress(false);
-  const blob = new Blob([pdfBytes], { type: "application/pdf" });
-  const file = new File([blob], `Reporte_${datos.numero||"reporte"}.pdf`, { type: "application/pdf" });
+  showProgress(false, 100, "PDF listo");
 
-  if (share && navigator.share && navigator.canShare({ files: [file] })) {
-    await navigator.share({
-      files: [file],
-      title: "Reporte de Servicio",
-      text: `Reporte ${datos.numero||""} de Electromotores Santana`
-    });
-  } else {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = file.name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const fileName = `Reporte_${datos.numero || "reporte"}.pdf`;
+
+  // Share-first con fallback
+  if (share && navigator.share && navigator.canShare) {
+    try {
+      const file = new File([blob], fileName, { type: "application/pdf" });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` });
+        return;
+      }
+    } catch { /* seguimos al fallback */ }
+  }
+
+  // Descarga compatible (iOS/PWA incl.)
+  const url = URL.createObjectURL(blob);
+  try {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isIOS) {
+      window.open(url, '_blank', 'noopener');
+    } else {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
   }
 }
 
 
-
-
+// ====== Eliminar docs ======
 async function eliminarCotizacionCompleta(numero) {
-  // Si no se pasa argumento, trata de tomar el valor del formulario abierto
   if (!numero) {
     const form = document.getElementById('cotForm');
-    if (form && form.numero && form.numero.value) {
-      numero = form.numero.value;
-    }
+    if (form && form.numero && form.numero.value) numero = form.numero.value;
   }
   if (!numero) return alert("No se encontró el número de cotización.");
   if (!confirm("¿Estás seguro que deseas eliminar esta cotización? Esta acción no se puede deshacer.")) return;
   try {
     await db.collection("cotizaciones").doc(numero).delete();
     showSaved("Cotización eliminada");
-    localStorage.removeItem('EMS_COT_BORRADOR'); // o 'EMS_REP_BORRADOR' según el caso
-
+    localStorage.removeItem('EMS_COT_BORRADOR');
     renderInicio();
   } catch (e) {
     alert("Error eliminando cotización: " + (e.message || e));
   }
 }
 async function eliminarReporteCompleto(numero) {
-  // Si no se pasa argumento, trata de tomar el valor del formulario abierto
   if (!numero) {
     const form = document.getElementById('repForm');
-    if (form && form.numero && form.numero.value) {
-      numero = form.numero.value;
-    }
+    if (form && form.numero && form.numero.value) numero = form.numero.value;
   }
   if (!numero) return alert("No se encontró el número de reporte.");
   if (!confirm("¿Estás seguro que deseas eliminar este reporte? Esta acción no se puede deshacer.")) return;
   try {
     await db.collection("reportes").doc(numero).delete();
     showSaved("Reporte eliminado");
-    localStorage.removeItem('EMS_COT_BORRADOR'); // o 'EMS_REP_BORRADOR' según el caso
+    localStorage.removeItem('EMS_REP_BORRADOR');
     renderInicio();
   } catch (e) {
     alert("Error eliminando reporte: " + (e.message || e));
   }
 }
 
-
-
-// ======= Dictado por voz para campos con .mic-btn =======
+// ======= Dictado por voz =======
 function agregarDictadoMicros() {
   document.querySelectorAll(".mic-btn:not(.ems-mic-init)").forEach(btn => {
     btn.classList.add("ems-mic-init");
     btn.onclick = function() {
-      if (!('webkitSpeechRecognition' in window)) {
-        alert("Tu navegador no soporta dictado por voz.");
-        return;
-      }
-      const recog = new webkitSpeechRecognition();
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition;
+      if (!SpeechRecognition) { alert("Tu navegador no soporta dictado por voz."); return; }
+      const recog = new SpeechRecognition();
       recog.lang = "es-MX";
+      recog.interimResults = false;
+      recog.maxAlternatives = 1;
       recog.onresult = (evt) => {
         const val = evt.results[0][0].transcript;
         const input = btn.parentElement.querySelector("input, textarea");
-        if (input) input.value = val;
+        if (input) {
+          if (input.value) input.value += " " + val;
+          else input.value = val;
+          input.dispatchEvent(new Event("input"));
+        }
       };
+      recog.onerror = () => alert("No se pudo reconocer audio.");
       recog.start();
     };
   });
 }
-
-// ========== Fin del archivo ==========
