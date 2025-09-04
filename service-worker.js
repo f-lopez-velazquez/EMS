@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ems-cache-v2';
+const CACHE_NAME = 'ems-cache-v9';
 const toCache = [
   './',
   './index.html',
@@ -7,11 +7,10 @@ const toCache = [
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css',
-  'https://unpkg.com/pdf-lib/dist/pdf-lib.min.js',
-  'https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js',
-  'https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js',
-  'https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js'
+  'https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js',
+  'https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js',
+  'https://www.gstatic.com/firebasejs/8.10.1/firebase-app-check.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js'
 ];
 
 self.addEventListener('install', event => {
