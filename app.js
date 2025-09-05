@@ -19,7 +19,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// === Cloudinary usado en reportes (lo reutilizamos en cotización) ===
+// === Cloudinary usado en reportes/cotización ===
 const CLOUDINARY_CLOUD = "ds9b1mczi";
 const CLOUDINARY_PRESET = "ml_default";
 
@@ -38,7 +38,6 @@ function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
 function mostrarPrecio(val) {
   if (val === undefined || val === null) return "";
   if (typeof val === "string" && (val.trim() === "." || val.trim() === "-")) return "";
-  if (Number(val) === 0 && (val === "." || val === "-")) return "";
   if (isNaN(Number(val)) || val === "") return "";
   return "$" + Number(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -113,29 +112,81 @@ function showSaved(msg = "Guardado") {
   el._timer = setTimeout(() => { el.style.display = "none"; }, 1800);
 }
 
-// Helper PDF: cortar texto por ancho
-function breakTextLines(text = "", font, fontSize, maxWidth) {
-  let lines = [];
-  let currentLine = "";
-  for (let char of text) {
-    let nextLine = currentLine + char;
-    let width = font.widthOfTextAtSize(nextLine, fontSize);
-    if (width > maxWidth && currentLine.length > 0) {
-      lines.push(currentLine);
-      currentLine = char;
+// --- Envoltura de texto por palabras (más estética que por caracteres)
+function wrapTextLines(text = "", font, fontSize, maxWidth) {
+  const words = String(text || "").replace(/\s+/g, " ").trim().split(" ");
+  const lines = [];
+  let line = "";
+  for (let i = 0; i < words.length; i++) {
+    const test = (line ? line + " " : "") + words[i];
+    if (font.widthOfTextAtSize(test, fontSize) <= maxWidth) {
+      line = test;
     } else {
-      currentLine = nextLine;
+      if (line) lines.push(line);
+      line = words[i];
     }
   }
-  if (currentLine) lines.push(currentLine);
+  if (line) lines.push(line);
   return lines;
+}
+
+// ====== Compresión de imágenes para PDFs ======
+const __IMG_CACHE = new Map();
+const PDF_IMG_DEFAULTS = { maxW: 1280, maxH: 1280, quality: 0.72 };
+
+/**
+ * Comprime/redimensiona una imagen remota o dataURL a JPEG.
+ * Devuelve: ArrayBuffer con JPEG ya comprimido.
+ */
+async function compressImageToJpegArrayBuffer(src, { maxW, maxH, quality } = PDF_IMG_DEFAULTS) {
+  const key = `${src}|${maxW}x${maxH}|q${quality}`;
+  if (__IMG_CACHE.has(key)) return __IMG_CACHE.get(key);
+
+  let blob;
+  if (src.startsWith('data:')) {
+    const res = await fetch(src);
+    blob = await res.blob();
+  } else {
+    const res = await fetch(src, { mode: 'cors' });
+    if (!res.ok) throw new Error('No se pudo cargar imagen: ' + src);
+    blob = await res.blob();
+  }
+
+  const bitmap = await createImageBitmap(blob);
+  const { width, height } = bitmap;
+  const scale = Math.min(maxW / width, maxH / height, 1); // nunca agrandar
+  const w = Math.max(1, Math.round(width * scale));
+  const h = Math.max(1, Math.round(height * scale));
+
+  let outBlob;
+  if (typeof OffscreenCanvas !== 'undefined') {
+    const canvas = new OffscreenCanvas(w, h);
+    const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    outBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality });
+  } else {
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    outBlob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+  }
+
+  const arrBuf = await outBlob.arrayBuffer();
+  __IMG_CACHE.set(key, arrBuf);
+  return arrBuf;
+}
+
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
 }
 
 // ====== Predictivos Firestore ======
 async function savePredictEMSCloud(tipo, valor, user = "general") {
   if (!valor || valor.length < 2) return;
   const docRef = db.collection("predictEMS").doc(user);
-  let data = (await docRef.get()).data() || {};
+  const snap = await docRef.get();
+  let data = snap.data() || {};
   if (!data[tipo]) data[tipo] = [];
   if (!data[tipo].includes(valor)) data[tipo].unshift(valor);
   if (data[tipo].length > 30) data[tipo] = data[tipo].slice(0, 30);
@@ -220,6 +271,8 @@ window.onload = () => {
   renderInicio();
   if (!navigator.onLine) showOffline?.(true);
 };
+
+aSYNC_ERR_GUARD = false; // marcador ad-hoc para depurar si algo cae en un catch silencioso
 
 async function cargarHistorialEMS(filtro = "") {
   const cont = document.getElementById("historialEMS");
@@ -465,7 +518,6 @@ function nuevaCotizacion() {
     </form>
   `;
 
-  // <<< CORRECCIÓN: definir 'form' y quitar el $1 que rompía >>>
   const form = document.getElementById('cotForm');
 
   // Inicializa fotos de cotización
@@ -817,9 +869,156 @@ async function guardarCotizacionDraft() {
   showSaved("Cotización guardada");
 }
 
+// ====== Helpers PDF estéticos ======
+function emsRgb(arr = EMS_COLOR) {
+  const { rgb } = PDFLib;
+  return rgb(arr[0], arr[1], arr[2]);
+}
+function gray(v) {
+  const { rgb } = PDFLib;
+  return rgb(v, v, v);
+}
+function drawTextRight(page, text, xRight, y, opts) {
+  const width = opts.font.widthOfTextAtSize(text, opts.size);
+  page.drawText(text, { x: xRight - width, y, ...opts });
+}
+function rule(page, x1, y, x2, color = gray(0.85), thickness = 0.6) {
+  page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, thickness, color });
+}
+function drawSectionTitle(page, x, y, text, fonts) {
+  // barra fina + título en mayúsculas
+  page.drawRectangle({ x, y: y - 10, width: 4, height: 14, color: emsRgb(), opacity: 0.9 });
+  page.drawText(String(text || "").toUpperCase(), { x: x + 10, y: y - 6, size: 11.5, font: fonts.bold, color: gray(0.18) });
+  return y - 20;
+}
+function addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, isFirst = false) {
+  const { rgb } = PDFLib;
+  const { pageW, mx } = dims;
+  let yTop = dims.pageH - dims.my;
+  // marca de agua solo primera
+  if (isFirst) {
+    try {
+      // LOGO watermark
+      // (si falla, seguimos sin cortar el PDF)
+      // eslint-disable-next-line no-unused-vars
+      // (pdf-lib permite opacity)
+      // Carga logo
+    } catch {}
+  }
+  // Logo + datos
+  try {
+    // caché simple de logo en window
+    if (!window.__EMS_LOGO_BYTES) window.__EMS_LOGO_BYTES = null;
+    if (!window.__EMS_LOGO_BYTES) {
+      // not awaited outside: hacemos síncrono en este flujo
+    }
+  } catch {}
+  // Dibujar logo en cabecera
+  // (reembebemos en cada doc; ya está manejado en las funciones principales)
+  page.drawText(EMS_CONTACT.empresa, { x: mx + 64, y: yTop - 4, size: 16.5, font: fonts.bold, color: gray(0.18) });
+  page.drawText(typeLabel, { x: mx + 64, y: yTop - 22, size: 12, font: fonts.bold, color: emsRgb() });
+
+  page.drawText(`Cliente: ${datos.cliente || ""}`, { x: mx + 64, y: yTop - 38, size: 10.5, font: fonts.reg, color: gray(0.25) });
+  drawTextRight(page, `No: ${datos.numero || ""}`, pageW - mx, yTop - 4, { size: 10.5, font: fonts.bold, color: gray(0.25) });
+  drawTextRight(page, `Fecha: ${datos.fecha || ""}${datos.hora ? " • " + datos.hora : ""}`, pageW - mx, yTop - 22, { size: 10.5, font: fonts.bold, color: gray(0.25) });
+
+  rule(page, mx, yTop - 48, pageW - mx, gray(0.85), 0.8);
+  return yTop - 58; // y de inicio de contenido
+}
+function applyFooters(pdfDoc, pages, fonts, dims) {
+  const total = pages.length;
+  for (let i = 0; i < total; i++) {
+    const page = pages[i];
+    const y = 56;
+    rule(page, dims.mx, y + 14, dims.pageW - dims.mx, gray(0.85), 0.8);
+    page.drawText(`${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`, { x: dims.mx + 8, y: y + 2, size: 9.2, font: fonts.reg, color: gray(0.25) });
+    page.drawText(`Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`, { x: dims.mx + 8, y: y - 11, size: 9.2, font: fonts.reg, color: gray(0.25) });
+    drawTextRight(page, `Página ${i + 1} de ${total}`, dims.pageW - dims.mx, y - 11, { size: 9.2, font: fonts.bold, color: gray(0.45) });
+  }
+}
+async function embedSmart(pdfDoc, url) {
+  // Embebe como JPG (comprimido) con fallback a PNG
+  try {
+    const jpegBytes = await compressImageToJpegArrayBuffer(url, PDF_IMG_DEFAULTS);
+    return await pdfDoc.embedJpg(jpegBytes);
+  } catch {
+    try {
+      const orig = await fetch(url).then(r => r.arrayBuffer());
+      try { return await pdfDoc.embedJpg(orig); } catch { return await pdfDoc.embedPng(orig); }
+    } catch {
+      return null;
+    }
+  }
+}
+function ensureSpace(pdfDoc, ctx, needed) {
+  const { dims, fonts, datos, typeLabel } = ctx;
+  if (ctx.y - needed < dims.my + 86) {
+    const page = pdfDoc.addPage([dims.pageW, dims.pageH]);
+    ctx.pages.push(page);
+    ctx.y = addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, false);
+  }
+}
+async function drawImageGrid(pdfDoc, ctx, images, captionPrefix) {
+  const { pageW, pageH, mx, my, usableW } = ctx.dims;
+  const page = () => ctx.pages[ctx.pages.length - 1];
+
+  const cols = 2;
+  const gutter = 16;
+  const cellW = Math.floor((usableW - gutter) / cols);
+  const cellH = 190; // alto de celda (incluye imagen + caption)
+  const imgPad = 8;
+  const capH = 16; // alto para leyenda
+  const bodyH = cellH - capH;
+
+  // título del bloque de fotos (grupo)
+  ensureSpace(pdfDoc, ctx, 28);
+  ctx.y = drawSectionTitle(page(), mx, ctx.y, "Evidencia fotográfica", ctx.fonts);
+
+  for (let i = 0; i < images.length; i += cols) {
+    ensureSpace(pdfDoc, ctx, cellH + 14);
+    const row = images.slice(i, i + cols);
+
+    // marco de fila para simetría
+    // posicionamiento base
+    const totalW = row.length === 2 ? (cellW * 2 + gutter) : cellW;
+    let startX = mx + (usableW - totalW) / 2;
+    let x = startX;
+    const topY = ctx.y;
+
+    for (let c = 0; c < row.length; c++) {
+      // celda
+      page().drawRectangle({ x, y: ctx.y - cellH, width: cellW, height: cellH, color: gray(0.98), opacity: 0.5, borderColor: gray(0.90), borderWidth: 0.6 });
+
+      const imgObj = await embedSmart(pdfDoc, row[c]);
+      if (imgObj) {
+        const maxW = cellW - imgPad * 2;
+        const maxH = bodyH - imgPad * 2;
+        let w = imgObj.width, h = imgObj.height;
+        const scale = Math.min(maxW / w, maxH / h);
+        w = w * scale; h = h * scale;
+        const ix = x + (cellW - w) / 2;
+        const iy = (ctx.y - imgPad) - h - (capH); // deja espacio para caption
+        page().drawImage(imgObj, { x: ix, y: iy, width: w, height: h });
+      }
+
+      // leyenda centrada bajo imagen
+      const figNum = `${captionPrefix}.${i + c + 1}`;
+      const cap = `Figura ${figNum}`;
+      const capWidth = ctx.fonts.reg.widthOfTextAtSize(cap, 9.2);
+      const capX = x + (cellW - capWidth) / 2;
+      page().drawText(cap, { x: capX, y: ctx.y - cellH + 4, size: 9.2, font: ctx.fonts.reg, color: gray(0.45) });
+
+      x += cellW + gutter;
+    }
+    ctx.y = topY - (cellH + 14);
+  }
+}
+
+// ====== COTIZACIÓN: PDF con estética pro ======
 async function generarPDFCotizacion(share = false) {
   showSaved("Generando PDF...");
   await guardarCotizacionDraft();
+
   const form = document.getElementById('cotForm');
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
@@ -856,182 +1055,135 @@ async function generarPDFCotizacion(share = false) {
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // Medidas A4
-  const pageW = 595.28, pageH = 841.89;
-  const mx = 32, my = 38;
-  const usableW = pageW - mx*2;
-  let y = pageH - my;
+  // Dimensiones A4
+  const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
+  dims.usableW = dims.pageW - dims.mx * 2;
 
-  let page = pdfDoc.addPage([pageW, pageH]);
+  const fonts = { reg: helv, bold: helvB };
 
-  // Marca de agua
+  // contexto de render
+  const ctx = {
+    pages: [],
+    y: 0,
+    dims,
+    fonts,
+    datos,
+    typeLabel: "COTIZACIÓN"
+  };
+
+  // Página inicial
+  const first = pdfDoc.addPage([dims.pageW, dims.pageH]);
+  ctx.pages.push(first);
+  // Logo de marca de agua (solo en primera)
   try {
     const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
     const logoImg   = await pdfDoc.embedPng(logoBytes);
-    page.drawImage(logoImg, { x: (pageW-220)/2, y: (pageH-240)/2, width: 220, height: 220, opacity: 0.06 });
-
-    const logoH = 46;
-    page.drawImage(logoImg, { x: mx, y: y - logoH + 10, width: logoH, height: logoH });
-
-    const leftX = mx + logoH + 14;
-    page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y + 2, size: 17, font: helvB, color: rgb(0.10,0.20,0.40) });
-    page.drawText("COTIZACIÓN", { x: leftX, y: y - 16, size: 12, font: helvB, color: rgb(0.98,0.54,0.10) });
-    page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 32, size: 10.5, font: helv, color: rgb(0.16,0.18,0.22) });
-    page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 180, y: y + 2, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
-    page.drawText(`Fecha: ${datos.fecha||""}`, { x: mx + usableW - 180, y: y - 15, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
-  } catch { /* sin logo, continúa */ }
-
-  y -= (46 + 24);
+    first.drawImage(logoImg, { x: (dims.pageW - 220) / 2, y: (dims.pageH - 240) / 2, width: 220, height: 220, opacity: 0.06 });
+    first.drawImage(logoImg, { x: dims.mx, y: dims.pageH - dims.my - 36, width: 46, height: 46 });
+  } catch {}
+  ctx.y = addHeader(pdfDoc, first, ctx.typeLabel, datos, fonts, dims, true);
 
   // TÍTULO (opcional)
-  if (datos.titulo && datos.titulo.trim()) {
+  if ((datos.titulo || "").trim()) {
     const titulo = datos.titulo.trim();
-    const fontSizeTitulo = 15;
-    const rectHeight = 33;
-    page.drawRectangle({
-      x: mx, y: y - rectHeight + 9, width: usableW, height: rectHeight,
-      color: rgb(0.97, 0.54, 0.11), opacity: 0.17, borderColor: rgb(0.97, 0.54, 0.11), borderWidth: 1.2
+    const rectH = 34;
+    first.drawRectangle({
+      x: dims.mx, y: ctx.y - rectH + 10, width: dims.usableW, height: rectH,
+      color: emsRgb(), opacity: 0.08, borderColor: emsRgb(), borderWidth: 1
     });
-    const textWidth = helvB.widthOfTextAtSize(titulo, fontSizeTitulo);
-    const textX = mx + (usableW - textWidth) / 2;
-    const textY = y - rectHeight/2 + 10;
-    page.drawText(titulo, { x: textX, y: textY, size: fontSizeTitulo, font: helvB, color: rgb(0.97, 0.54, 0.11) });
-    y -= rectHeight + 13;
+    const w = helvB.widthOfTextAtSize(titulo, 15);
+    first.drawText(titulo, { x: dims.mx + (dims.usableW - w) / 2, y: ctx.y - rectH / 2 + 12, size: 15, font: helvB, color: emsRgb() });
+    ctx.y -= rectH + 16;
   } else {
-    y -= 10;
+    ctx.y -= 6;
   }
 
-  // Tabla cabecera
-  page.drawRectangle({ x: mx, y: y + 2, width: usableW, height: 20, color: rgb(0.98,0.54,0.11), opacity: 0.97 });
-  page.drawText("Concepto", { x: mx + 2, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
-  page.drawText("Unidad",   { x: mx+176, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
-  page.drawText("Cantidad", { x: mx+265, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
-  page.drawText("Precio",   { x: mx+350, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
-  page.drawText("Importe",  { x: mx+440, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
+  // Tabla de conceptos
+  ensureSpace(pdfDoc, ctx, 22);
+  const thY = ctx.y;
+  first.drawRectangle({ x: dims.mx, y: thY - 18, width: dims.usableW, height: 20, color: emsRgb(), opacity: 0.98 });
+  first.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+  first.drawText("Unidad",   { x: dims.mx + 185, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+  first.drawText("Cantidad", { x: dims.mx + 274, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+  first.drawText("Precio",   { x: dims.mx + 356, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+  first.drawText("Importe",  { x: dims.mx + 446, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+  ctx.y = thY - 24;
 
-  // Líneas y filas
-  let rowY = y - 16;
-  let colXs = [mx, mx+176, mx+265, mx+350, mx+440, pageW-mx];
-  page.drawLine({ start: { x: mx, y: rowY }, end: { x: pageW-mx, y: rowY }, thickness: 1.1, color: rgb(0.96,0.78,0.30) });
-  y = rowY - 18;
+  let currentPage = () => ctx.pages[ctx.pages.length - 1];
 
   for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-    const cantidadVal = String(it.cantidad).trim();
-    const precioVal = String(it.precio).trim();
-    if (y < 110) {
-      page = pdfDoc.addPage([pageW, pageH]);
-      y = pageH - my - 70;
-    }
+    ensureSpace(pdfDoc, ctx, 20);
+    const p = currentPage();
     if (i % 2 === 0) {
-      page.drawRectangle({ x: mx, y: y - 2, width: usableW, height: 18, color: rgb(0.98,0.91,0.75), opacity: 0.29 });
+      p.drawRectangle({ x: dims.mx, y: ctx.y - 2, width: dims.usableW, height: 18, color: rgb(0.98,0.91,0.75), opacity: 0.29 });
     }
-    page.drawText(String(it.concepto || ""), { x: mx+2, y, size: 10, font: helv, color: rgb(0.13,0.18,0.38) });
-    page.drawText(String(it.unidad || ""),   { x: mx+176+2, y, size: 10, font: helv, color: rgb(0.13,0.18,0.38) });
-    page.drawText(String(it.cantidad || ""), { x: mx+265+2, y, size: 10, font: helv, color: rgb(0.13,0.18,0.38) });
-    page.drawText(mostrarPrecioLimpio(it.precio),  { x: mx+350+2, y, size: 10, font: helv, color: rgb(0.10,0.35,0.16) });
+    const it = items[i];
+    const cX = dims.mx + 6, uX = dims.mx + 185, qX = dims.mx + 274, prRight = dims.mx + 432, impRight = dims.mx + dims.usableW - 6;
+    p.drawText(String(it.concepto || ""), { x: cX, y: ctx.y, size: 10, font: helv, color: gray(0.2) });
+    p.drawText(String(it.unidad || ""),   { x: uX, y: ctx.y, size: 10, font: helv, color: gray(0.2) });
+    p.drawText(String(it.cantidad || ""), { x: qX, y: ctx.y, size: 10, font: helv, color: gray(0.2) });
+
+    const precioTxt = mostrarPrecioLimpio(it.precio);
+    drawTextRight(p, precioTxt, prRight, ctx.y, { size: 10, font: helv, color: gray(0.2) });
 
     let importe = "";
-    if (cantidadVal !== "" && cantidadVal !== "." && cantidadVal !== "-" &&
-        precioVal   !== "" && precioVal   !== "." && precioVal   !== "-" &&
+    const cv = String(it.cantidad).trim(), pv = String(it.precio).trim();
+    if (cv !== "" && cv !== "." && cv !== "-" && pv !== "" && pv !== "." && pv !== "-" &&
         !isNaN(Number(it.cantidad)) && !isNaN(Number(it.precio))) {
       importe = mostrarPrecioLimpio(Number(it.cantidad) * Number(it.precio));
     }
-    page.drawText(importe, { x: mx+440+2, y, size: 10, font: helv, color: rgb(0.10,0.35,0.16) });
-    page.drawLine({ start: { x: mx, y: y-3 }, end: { x: pageW-mx, y: y-3 }, thickness: 0.47, color: rgb(0.98,0.85,0.48) });
-    y -= 18;
+    drawTextRight(p, importe, impRight, ctx.y, { size: 10, font: helv, color: gray(0.2) });
+    rule(p, dims.mx, ctx.y - 3, dims.pageW - dims.mx, gray(0.93), 0.5);
+    ctx.y -= 18;
   }
 
   // Totales
-  y -= 8;
-  page.drawLine({ start: { x: mx+340, y }, end: { x: pageW-mx, y }, thickness: 1.1, color: rgb(0.97, 0.54, 0.11) });
-  y -= 13;
-  page.drawText("Subtotal:", { x: mx+340, y, size: 10.5, font: helvB, color: rgb(0.12,0.20,0.40) });
-  page.drawText(mostrarPrecioLimpio(subtotal), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.12,0.20,0.40) });
-  y -= 13;
+  ctx.y -= 6;
+  rule(currentPage(), dims.mx + 336, ctx.y, dims.pageW - dims.mx, emsRgb(), 1);
+  ctx.y -= 12;
+
+  const pTot = currentPage();
+  pTot.drawText("Subtotal:", { x: dims.mx + 336, y: ctx.y, size: 10.5, font: helvB, color: gray(0.25) });
+  drawTextRight(pTot, mostrarPrecioLimpio(subtotal), dims.pageW - dims.mx, ctx.y, { size: 10.5, font: helvB, color: gray(0.25) });
+  ctx.y -= 13;
+
   if (iva > 0) {
-    page.drawText("IVA (16%):", { x: mx+340, y, size: 10.5, font: helvB, color: rgb(0.12,0.20,0.40) });
-    page.drawText(mostrarPrecioLimpio(iva), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-    y -= 13;
+    pTot.drawText("IVA (16%):", { x: dims.mx + 336, y: ctx.y, size: 10.5, font: helvB, color: gray(0.25) });
+    drawTextRight(pTot, mostrarPrecioLimpio(iva), dims.pageW - dims.mx, ctx.y, { size: 10.5, font: helvB, color: emsRgb() });
+    ctx.y -= 13;
   }
-  page.drawText("Total:", { x: mx+340, y, size: 11.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-  page.drawText(mostrarPrecioLimpio(total), { x: mx+440, y, size: 11.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-  y -= 17;
+  pTot.drawText("Total:", { x: dims.mx + 336, y: ctx.y, size: 11.5, font: helvB, color: emsRgb() });
+  drawTextRight(pTot, mostrarPrecioLimpio(total), dims.pageW - dims.mx, ctx.y, { size: 11.5, font: helvB, color: emsRgb() });
+  ctx.y -= 16;
+
   if (anticipo > 0) {
-    page.drawText(`Anticipo (${anticipoPorc}%):`, { x: mx+340, y, size: 10.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-    page.drawText(mostrarPrecioLimpio(anticipo), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-    y -= 13;
+    pTot.drawText(`Anticipo (${anticipoPorc}%):`, { x: dims.mx + 336, y: ctx.y, size: 10.5, font: helvB, color: emsRgb() });
+    drawTextRight(pTot, mostrarPrecioLimpio(anticipo), dims.pageW - dims.mx, ctx.y, { size: 10.5, font: helvB, color: emsRgb() });
+    ctx.y -= 13;
   }
 
-  // IMÁGENES DE COTIZACIÓN (si existen) — SIEMPRE fuera de "notas"
+  // IMÁGENES DE COTIZACIÓN (si existen): cuadrícula simétrica + leyendas
   if (Array.isArray(fotosCotizacion) && fotosCotizacion.length) {
-    const pad = 16;
-    const maxPorFila = 2;
-    const maxAncho = Math.floor((usableW - pad) / 2);
-    const maxAlto = 180;
-
-    if (y < 80) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
-    page.drawText("Imágenes:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
-    y -= 14;
-
-    let idx = 0;
-    while (idx < fotosCotizacion.length) {
-      const fila = fotosCotizacion.slice(idx, idx + maxPorFila);
-      if (y - maxAlto - 24 < my) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
-
-      const escalas = [];
-      let totalW = 0;
-      for (let j = 0; j < fila.length; j++) {
-        const url = fila[j];
-        let bytes, img;
-        try {
-          bytes = await fetch(url).then(r => r.arrayBuffer());
-          try { img = await pdfDoc.embedPng(bytes); } catch { img = await pdfDoc.embedJpg(bytes); }
-        } catch { continue; }
-        let w = img.width, h = img.height;
-        let scale = Math.min(maxAncho / w, maxAlto / h);
-        w = w * scale; h = h * scale;
-        escalas.push({ img, w, h });
-        totalW += w;
-      }
-
-      const gaps = (escalas.length > 1) ? pad : 0;
-      let startX = mx + (usableW - (totalW + gaps)) / 2;
-
-      let x = startX;
-      for (let j = 0; j < escalas.length; j++) {
-        const { img, w, h } = escalas[j];
-        page.drawImage(img, { x, y: y - h, width: w, height: h });
-        x += w + pad;
-      }
-
-      y -= (Math.max(...escalas.map(e => e.h)) + 16);
-      idx += maxPorFila;
-    }
+    ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y - 2, "Anexos fotográficos", fonts);
+    await drawImageGrid(pdfDoc, ctx, fotosCotizacion.slice(0, 10), "C");
   }
 
-  // Notas / observaciones
-  if (datos.notas?.trim()) {
-    if (y < 80) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
-    page.drawText("Observaciones:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
-    y -= 13;
-    page.drawText(datos.notas.trim(), { x: mx+12, y, size: 10, font: helv, color: rgb(0.18,0.23,0.32), maxWidth: usableW-20 });
-    y -= 10;
+  // Observaciones
+  if ((datos.notas || "").trim()) {
+    ensureSpace(pdfDoc, ctx, 60);
+    ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, "Observaciones", fonts);
+    const lines = wrapTextLines(String(datos.notas).trim(), helv, 10, dims.usableW - 16);
+    lines.forEach(ln => {
+      ensureSpace(pdfDoc, ctx, 14);
+      currentPage().drawText(ln, { x: dims.mx + 8, y: ctx.y, size: 10, font: helv, color: gray(0.28) });
+      ctx.y -= 14;
+    });
   }
 
-  // Pie
-  const pieArr = [
-    `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`,
-    `Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`,
-    "Vigencia de la cotización: 15 días naturales a partir de la fecha de emisión."
-  ];
-  let pieY = 56;
-  for (let linea of pieArr) {
-    page.drawText(linea, { x: mx+8, y: pieY, size: 9.2, font: helv, color: rgb(0.10,0.20,0.56), maxWidth: usableW-16 });
-    pieY -= 13;
-  }
+  // Pies con paginación
+  applyFooters(pdfDoc, ctx.pages, fonts, dims);
 
-  const pdfBytes = await pdfDoc.save();
+  const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
   showSaved("PDF Listo");
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const file = new File([blob], `Cotizacion_${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
@@ -1040,8 +1192,14 @@ async function generarPDFCotizacion(share = false) {
     await navigator.share({ files: [file], title: "Cotización", text: `Cotización ${datos.numero||""} de Electromotores Santana` });
   } else {
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = file.name; a.click();
+    if (isIOS()) {
+      window.open(url, '_blank', 'noopener');
+    } else {
+      const a = document.createElement("a");
+      a.href = url; a.download = file.name; a.rel = 'noopener';
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { document.body.removeChild(a); }, 0);
+    }
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
@@ -1179,7 +1337,6 @@ async function guardarReporteDraft() {
 }
 
 async function generarPDFReporte(share = false) {
-  // Progreso
   showProgress(true, 10, "Generando PDF...");
   await guardarReporteDraft();
 
@@ -1201,136 +1358,86 @@ async function generarPDFReporte(share = false) {
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // Medidas A4
-  const pageW = 595.28, pageH = 841.89;
-  const mx = 32, my = 38;
-  const usableW = pageW - mx*2;
-  let y = pageH - my;
+  // Dimensiones A4
+  const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
+  dims.usableW = dims.pageW - dims.mx*2;
+  const fonts = { reg: helv, bold: helvB };
 
-  let page = pdfDoc.addPage([pageW, pageH]);
+  const ctx = {
+    pages: [],
+    y: 0,
+    dims,
+    fonts,
+    datos,
+    typeLabel: "REPORTE DE SERVICIO"
+  };
 
-  // Marca de agua + cabecera
+  // Primera página con marca de agua + logo
+  let page = pdfDoc.addPage([dims.pageW, dims.pageH]);
+  ctx.pages.push(page);
   try {
     const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
     const logoImg   = await pdfDoc.embedPng(logoBytes);
-    page.drawImage(logoImg, { x: (pageW-220)/2, y: (pageH-240)/2, width: 220, height: 220, opacity: 0.06 });
+    page.drawImage(logoImg, { x: (dims.pageW-220)/2, y: (dims.pageH-240)/2, width: 220, height: 220, opacity: 0.06 });
+    page.drawImage(logoImg, { x: dims.mx, y: dims.pageH - dims.my - 36, width: 46, height: 46 });
+  } catch {}
+  ctx.y = addHeader(pdfDoc, page, ctx.typeLabel, datos, fonts, dims, true);
 
-    const logoH = 46;
-    page.drawImage(logoImg, { x: mx, y: y - logoH + 10, width: logoH, height: logoH });
-
-    const leftX = mx + logoH + 14;
-    page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y + 2, size: 17, font: helvB, color: rgb(0.10,0.20,0.40) });
-    page.drawText("REPORTE DE SERVICIO", { x: leftX, y: y - 16, size: 12, font: helvB, color: rgb(0.98,0.54,0.10) });
-
-    page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 32, size: 10.5, font: helv, color: rgb(0.16,0.18,0.22) });
-    page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 180, y: y + 2, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
-    page.drawText(`Fecha: ${datos.fecha||""} ${datos.hora?("• "+datos.hora):""}`, { x: mx + usableW - 180, y: y - 15, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
-  } catch (e) { /* sin logo */ }
-
-  y -= (46 + 24);
-
-  // Lista de actividades
-  const bullet = "• ";
+  // Lista de actividades (bloques con leyenda y cuadrículas)
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
 
-    // Nueva página si se requiere
-    if (y < 120) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
+    // Tarjeta de actividad
+    ensureSpace(pdfDoc, ctx, 56);
+    // Chip de actividad
+    page = ctx.pages[ctx.pages.length - 1];
+    page.drawRectangle({ x: dims.mx, y: ctx.y - 18, width: 96, height: 18, color: emsRgb(), opacity: 0.15, borderColor: emsRgb(), borderWidth: 0.8 });
+    page.drawText(`Actividad ${i + 1}`, { x: dims.mx + 8, y: ctx.y - 14, size: 10.5, font: helvB, color: emsRgb() });
 
-    // Descripción con fondo alternado
-    if (i % 2 === 0) {
-      page.drawRectangle({ x: mx, y: y - 2, width: usableW, height: 18, color: rgb(0.98,0.91,0.75), opacity: 0.29 });
-    }
-    const text = bullet + String(it.descripcion || "").trim();
-    const maxWidth = usableW - 12;
-    const lines = breakTextLines(text, helv, 11, maxWidth);
-    for (let li = 0; li < lines.length; li++) {
-      page.drawText(lines[li], { x: mx + 2, y, size: 11, font: helv, color: rgb(0.13,0.18,0.38) });
-      y -= 14;
-      if (y < 120 && li < lines.length - 1) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
-    }
-    y -= 4;
+    ctx.y -= 10;
+    const descTitleY = drawSectionTitle(page, dims.mx, ctx.y, "Descripción", fonts);
+    ctx.y = descTitleY;
 
-    // Fotos del ítem (máx 2 por fila)
+    const lines = wrapTextLines(`• ${String(it.descripcion || "").trim()}`, helv, 11, dims.usableW - 12);
+    lines.forEach(ln => {
+      ensureSpace(pdfDoc, ctx, 14);
+      ctx.pages[ctx.pages.length - 1].drawText(ln, { x: dims.mx + 4, y: ctx.y, size: 11, font: helv, color: gray(0.20) });
+      ctx.y -= 14;
+    });
+
+    // Fotos del ítem – cuadrícula simétrica con leyendas “Figura 1.1, 1.2…”
     const fotos = Array.isArray(it.fotos) ? it.fotos : [];
-    const pad = 16, maxPorFila = 2, maxAncho = Math.floor((usableW - pad) / 2), maxAlto = 180;
-
-    let idx = 0;
-    while (idx < fotos.length) {
-      if (y - maxAlto - 24 < my) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
-
-      const fila = fotos.slice(idx, idx + maxPorFila);
-      const escalas = [];
-      let totalW = 0;
-
-      for (let j = 0; j < fila.length; j++) {
-        const url = fila[j];
-        let bytes, img;
-        try {
-          bytes = await fetch(url).then(r => r.arrayBuffer());
-        } catch { bytes = null; }
-        if (!bytes) { continue; }
-
-        try {
-          img = await pdfDoc.embedPng(bytes);
-        } catch {
-          try { img = await pdfDoc.embedJpg(bytes); }
-          catch { continue; }
-        }
-
-        let w = img.width, h = img.height;
-        const scale = Math.min(maxAncho / w, maxAlto / h);
-        w *= scale; h *= scale;
-        escalas.push({ img, w, h });
-        totalW += w;
-      }
-
-      const gaps = (escalas.length > 1) ? pad : 0;
-      const startX = mx + (usableW - (totalW + gaps)) / 2;
-
-      let x = startX;
-      for (const { img, w, h } of escalas) {
-        page.drawImage(img, { x, y: y - h, width: w, height: h });
-        x += w + pad;
-      }
-
-      y -= (Math.max(0, ...escalas.map(e => e.h)) + 16);
-      idx += maxPorFila;
+    if (fotos.length) {
+      await drawImageGrid(pdfDoc, ctx, fotos, String(i + 1));
     }
 
-    y -= 6;
-    page.drawLine({ start: { x: mx, y }, end: { x: pageW - mx, y }, thickness: 0.4, color: rgb(0.98,0.85,0.48) });
-    y -= 10;
+    ctx.y -= 8;
+    rule(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, dims.pageW - dims.mx, gray(0.9), 0.6);
+    ctx.y -= 10;
   }
 
   // Notas / observaciones
   if ((datos.notas || "").trim()) {
-    if (y < 100) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
-    page.drawText("Observaciones:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
-    y -= 13;
-    page.drawText(String(datos.notas).trim(), { x: mx+12, y, size: 10, font: helv, color: rgb(0.18,0.23,0.32), maxWidth: usableW-20 });
-    y -= 10;
+    ensureSpace(pdfDoc, ctx, 60);
+    ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, "Observaciones", fonts);
+    const lines = wrapTextLines(String(datos.notas).trim(), helv, 10, dims.usableW - 16);
+    lines.forEach(ln => {
+      ensureSpace(pdfDoc, ctx, 14);
+      ctx.pages[ctx.pages.length - 1].drawText(ln, { x: dims.mx + 8, y: ctx.y, size: 10, font: helv, color: gray(0.28) });
+      ctx.y -= 14;
+    });
   }
 
-  // Pie
-  const pieArr = [
-    `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`,
-    `Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`
-  ];
-  let pieY = 56;
-  for (let linea of pieArr) {
-    page.drawText(linea, { x: mx+8, y: pieY, size: 9.2, font: helv, color: rgb(0.10,0.20,0.56), maxWidth: usableW-16 });
-    pieY -= 13;
-  }
+  // Pie con paginación
+  applyFooters(pdfDoc, ctx.pages, fonts, dims);
 
   // Salvar y compartir/descargar
-  const pdfBytes = await pdfDoc.save();
+  const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
   showProgress(false, 100, "PDF listo");
 
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const fileName = `Reporte_${datos.numero || "reporte"}.pdf`;
 
-  // Share-first con fallback
   if (share && navigator.share && navigator.canShare) {
     try {
       const file = new File([blob], fileName, { type: "application/pdf" });
@@ -1338,14 +1445,12 @@ async function generarPDFReporte(share = false) {
         await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` });
         return;
       }
-    } catch { /* seguimos al fallback */ }
+    } catch { /* fallback */ }
   }
 
-  // Descarga compatible (iOS/PWA incl.)
   const url = URL.createObjectURL(blob);
   try {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (isIOS) {
+    if (isIOS()) {
       window.open(url, '_blank', 'noopener');
     } else {
       const a = document.createElement("a");
@@ -1359,6 +1464,7 @@ async function generarPDFReporte(share = false) {
   } finally {
     setTimeout(() => URL.revokeObjectURL(url), 3000);
   }
+  showProgress(false);
 }
 
 
