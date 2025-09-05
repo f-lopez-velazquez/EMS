@@ -990,7 +990,31 @@ function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10 }) 
 }
 
 // --- Galería inteligente sin título (orientación-aware, sin recortes)
-async function drawSmartGallery(pdfDoc, ctx, images, { title = null, captions = false } = {}) {
+// --- Galería justificada (proporcional, simétrica y sin recortes)
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+/**
+ * Dibuja una galería tipo "justified" (filas de altura uniforme).
+ * - title:     título opcional de la sección (null para sin título)
+ * - captions:  si deseas mostrar "Figura N" (aquí lo dejamos en false por estética)
+ * - targetRowH/minRowH/maxRowH: control fino de la altura de fila
+ * - gutter:    separación horizontal entre imágenes
+ * - rowPad:    padding interno del bloque de fila
+ */
+async function drawSmartGallery(
+  pdfDoc,
+  ctx,
+  images,
+  {
+    title = null,
+    captions = false,
+    targetRowH = 210,
+    minRowH = 180,
+    maxRowH = 230,
+    gutter = 12,
+    rowPad = 8,
+  } = {}
+) {
   const { dims, fonts } = ctx;
   const page = () => ctx.pages[ctx.pages.length - 1];
 
@@ -1000,67 +1024,98 @@ async function drawSmartGallery(pdfDoc, ctx, images, { title = null, captions = 
     ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts);
   }
 
-  // Pre-embed para conocer tamaños
-  const embedded = [];
+  // 1) Pre-embed para conocer las proporciones (ancho/alto)
+  const emb = [];
   for (const url of images) {
     const img = await embedSmart(pdfDoc, url);
     if (!img) continue;
-    embedded.push({ img, w: img.width, h: img.height, ratio: img.width / img.height });
+    emb.push({ img, w: img.width, h: img.height, r: img.width / img.height });
   }
-  const gutter = 16;
+  if (emb.length === 0) return;
 
+  // 2) Armar filas "justificadas"
   let i = 0;
-  while (i < embedded.length) {
-    const { img, w, h, ratio } = embedded[i];
-    const isWide = ratio >= 1.33; // apaisada
-    if (isWide) {
-      // Fila 1-col a todo ancho
-      const maxW = dims.usableW, maxH = 300;
-      const sc = Math.min(maxW / w, maxH / h);
-      const iw = Math.round(w * sc), ih = Math.round(h * sc);
-      ensureSpace(pdfDoc, ctx, ih + 22);
-      page().drawRectangle({ x: dims.mx, y: ctx.y - ih - 12, width: dims.usableW, height: ih + 12, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
-      const ix = dims.mx + Math.floor((dims.usableW - iw) / 2);
-      const iy = ctx.y - ih - 6;
-      page().drawImage(img, { x: ix, y: iy, width: iw, height: ih });
-      if (captions) {
-        const cap = `Figura ${i + 1}`;
-        page().drawText(cap, { x: dims.mx + 6, y: iy - 10, size: 9.2, font: fonts.reg, color: gray(0.45) });
-      }
-      ctx.y = (iy - 14);
+  let figCounter = 1;
+
+  while (i < emb.length) {
+    let row = [];
+    let sumRatios = 0;
+    const rowTargetWidth = dims.usableW;
+
+    // Acumular imágenes hasta llenar (o pasar) el ancho con la altura objetivo
+    while (i < emb.length) {
+      row.push(emb[i]);
+      sumRatios += emb[i].r;
+      const wAtTarget = (sumRatios * targetRowH) + gutter * (row.length - 1);
       i++;
-    } else {
-      // Fila 2-col
-      const cellW = Math.floor((dims.usableW - gutter) / 2);
-      const maxH = 240;
-      // procesar dos imágenes
-      const imgs = [embedded[i]];
-      if (i + 1 < embedded.length && embedded[i + 1].ratio < 1.33) imgs.push(embedded[i + 1]);
-
-      // calcular alturas escaladas y altura de la fila
-      const dimsScaled = imgs.map(o => {
-        const sc = Math.min(cellW / o.w, maxH / o.h);
-        return { iw: Math.round(o.w * sc), ih: Math.round(o.h * sc), img: o.img };
-      });
-      const rowH = Math.max(...dimsScaled.map(d => d.ih)) + 12;
-
-      ensureSpace(pdfDoc, ctx, rowH + 10);
-      // fondo de fila
-      page().drawRectangle({ x: dims.mx, y: ctx.y - rowH, width: dims.usableW, height: rowH, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
-
-      let x = dims.mx;
-      for (let c = 0; c < dimsScaled.length; c++) {
-        const d = dimsScaled[c];
-        const ix = x + Math.floor((cellW - d.iw) / 2);
-        const iy = ctx.y - Math.floor((rowH - d.ih) / 2) - d.ih;
-        page().drawImage(d.img, { x: ix, y: iy, width: d.iw, height: d.ih });
-        x += cellW + gutter;
-      }
-      ctx.y -= (rowH + 10);
-      i += dimsScaled.length;
+      if (wAtTarget >= rowTargetWidth) break; // suficiente para "justificar"
     }
+
+    // 3) Calcular altura real de la fila
+    //    H = (W_total - gaps) / sum(ratios)  (clamp para evitar filas muy altas/bajas)
+    let rowH = (rowTargetWidth - gutter * (row.length - 1)) / sumRatios;
+
+    // Si es la última fila y quedó muy "floja", no estirar: usa targetRowH (centrada)
+    const isLastRow = (i >= emb.length);
+    if (isLastRow && row.length < 3) {
+      rowH = Math.min(targetRowH, rowH);
+    }
+    rowH = clamp(rowH, minRowH, maxRowH);
+
+    // 4) Calcular anchos finales de cada imagen en la fila
+    const widths = row.map(o => Math.round(o.r * rowH));
+    const totalRowWidth = widths.reduce((a, b) => a + b, 0) + gutter * (row.length - 1);
+
+    // 5) Espacio vertical necesario (con padding y borde sutil)
+    const needed = rowPad * 2 + rowH + (captions ? 16 : 0) + 10;
+    ensureSpace(pdfDoc, ctx, needed);
+
+    // Fondo de fila (ligerísimo para separar)
+    const p = page();
+    const topY = ctx.y;
+    const boxH = rowPad * 2 + rowH + (captions ? 16 : 0);
+    p.drawRectangle({
+      x: dims.mx,
+      y: topY - boxH,
+      width: dims.usableW,
+      height: boxH,
+      color: gray(0.99),
+      borderColor: gray(0.90),
+      borderWidth: 0.6
+    });
+
+    // 6) Comenzar X. Si es última fila y sobró espacio, centramos; si no, justificamos
+    let startX = dims.mx;
+    if (isLastRow) {
+      const slack = dims.usableW - totalRowWidth;
+      if (slack > 0) startX += Math.round(slack / 2);
+    }
+
+    // 7) Pintar imágenes
+    let x = startX;
+    const iy = topY - rowPad - rowH; // base para dibujar la imagen
+    for (let k = 0; k < row.length; k++) {
+      const w = widths[k];
+      p.drawImage(row[k].img, { x, y: iy, width: w, height: rowH });
+      if (captions) {
+        p.drawText(`Figura ${figCounter++}`, {
+          x,
+          y: iy - 12,
+          size: 9.2,
+          font: fonts.reg,
+          color: gray(0.45)
+        });
+      } else {
+        figCounter++;
+      }
+      x += w + gutter;
+    }
+
+    // 8) Avanzar Y
+    ctx.y = (topY - boxH) - 10; // gap entre filas
   }
 }
+
 
 // ====== COTIZACIÓN: PDF con estética pro ======
 async function generarPDFCotizacion(share = false) {
