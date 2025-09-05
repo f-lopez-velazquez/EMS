@@ -583,7 +583,7 @@ function nuevaCotizacion() {
 // ========== Reporte (con imágenes Cloudinary) ==========
 function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
   if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
-  // Agrupa fotos de 2 en 2
+  // Agrupa fotos de 2 en 2 (solo para vista previa en la app)
   let fotosHtml = '';
   const fotos = fotosItemsReporte[idx] || [];
   for (let i = 0; i < fotos.length; i += 2) {
@@ -719,6 +719,12 @@ function nuevoReporte() {
           <label>Hora</label>
           <input type="time" name="hora" value="${ahora()}">
         </div>
+      </div>
+      <!-- NUEVA SECCIÓN: CONCEPTO -->
+      <div class="ems-form-group">
+        <label>Concepto (ej. MOTOR 4HP)</label>
+        <input type="text" name="concepto" list="conceptosEMS" placeholder="Equipo/Trabajo principal" autocomplete="off">
+        <datalist id="conceptosEMS"></datalist>
       </div>
       <div>
         <table class="ems-items-table" id="repItemsTable">
@@ -886,35 +892,31 @@ function rule(page, x1, y, x2, color = gray(0.85), thickness = 0.6) {
   page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, thickness, color });
 }
 function drawSectionTitle(page, x, y, text, fonts) {
-  // barra fina + título en mayúsculas
   page.drawRectangle({ x, y: y - 10, width: 4, height: 14, color: emsRgb(), opacity: 0.9 });
   page.drawText(String(text || "").toUpperCase(), { x: x + 10, y: y - 6, size: 11.5, font: fonts.bold, color: gray(0.18) });
   return y - 20;
 }
-function addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, isFirst = false) {
-  const { rgb } = PDFLib;
+
+// --- Logo embebido (caché por documento)
+async function getLogoImage(pdfDoc) {
+  if (!pdfDoc.__EMS_LOGO_IMG) {
+    const bytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
+    try { pdfDoc.__EMS_LOGO_IMG = await pdfDoc.embedPng(bytes); }
+    catch { pdfDoc.__EMS_LOGO_IMG = await pdfDoc.embedJpg(bytes); }
+  }
+  return pdfDoc.__EMS_LOGO_IMG;
+}
+
+// Header con logo en TODAS las páginas (marca de agua solo en la primera desde el caller)
+function addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, isFirst = false, logoImg = null) {
   const { pageW, mx } = dims;
   let yTop = dims.pageH - dims.my;
-  // marca de agua solo primera
-  if (isFirst) {
-    try {
-      // LOGO watermark
-      // (si falla, seguimos sin cortar el PDF)
-      // eslint-disable-next-line no-unused-vars
-      // (pdf-lib permite opacity)
-      // Carga logo
-    } catch {}
+
+  // Logo pequeño SIEMPRE en el encabezado
+  if (logoImg) {
+    page.drawImage(logoImg, { x: mx, y: yTop - 46, width: 46, height: 46 });
   }
-  // Logo + datos
-  try {
-    // caché simple de logo en window
-    if (!window.__EMS_LOGO_BYTES) window.__EMS_LOGO_BYTES = null;
-    if (!window.__EMS_LOGO_BYTES) {
-      // not awaited outside: hacemos síncrono en este flujo
-    }
-  } catch {}
-  // Dibujar logo en cabecera
-  // (reembebemos en cada doc; ya está manejado en las funciones principales)
+
   page.drawText(EMS_CONTACT.empresa, { x: mx + 64, y: yTop - 4, size: 16.5, font: fonts.bold, color: gray(0.18) });
   page.drawText(typeLabel, { x: mx + 64, y: yTop - 22, size: 12, font: fonts.bold, color: emsRgb() });
 
@@ -923,7 +925,7 @@ function addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, isFirst = false)
   drawTextRight(page, `Fecha: ${datos.fecha || ""}${datos.hora ? " • " + datos.hora : ""}`, pageW - mx, yTop - 22, { size: 10.5, font: fonts.bold, color: gray(0.25) });
 
   rule(page, mx, yTop - 48, pageW - mx, gray(0.85), 0.8);
-  return yTop - 58; // y de inicio de contenido
+  return yTop - 58;
 }
 function applyFooters(pdfDoc, pages, fonts, dims) {
   const total = pages.length;
@@ -937,7 +939,6 @@ function applyFooters(pdfDoc, pages, fonts, dims) {
   }
 }
 async function embedSmart(pdfDoc, url) {
-  // Embebe como JPG (comprimido) con fallback a PNG
   try {
     const jpegBytes = await compressImageToJpegArrayBuffer(url, PDF_IMG_DEFAULTS);
     return await pdfDoc.embedJpg(jpegBytes);
@@ -951,66 +952,113 @@ async function embedSmart(pdfDoc, url) {
   }
 }
 function ensureSpace(pdfDoc, ctx, needed) {
-  const { dims, fonts, datos, typeLabel } = ctx;
+  const { dims, fonts, datos, typeLabel, logoImg } = ctx;
   if (ctx.y - needed < dims.my + 86) {
     const page = pdfDoc.addPage([dims.pageW, dims.pageH]);
     ctx.pages.push(page);
-    ctx.y = addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, false);
+    ctx.y = addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, false, logoImg);
   }
 }
-async function drawImageGrid(pdfDoc, ctx, images, captionPrefix) {
-  const { pageW, pageH, mx, my, usableW } = ctx.dims;
+
+// --- Card de texto con etiqueta tipo “píldora” (para DESCRIPCIÓN/CONCEPTO)
+function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10 }) {
+  const { dims, fonts } = ctx;
+  const page = ctx.pages[ctx.pages.length - 1];
+  const labelTxt = String(label || "").toUpperCase();
+  const bodyTxt  = String(text || "").trim();
+  const lines = wrapTextLines(bodyTxt, fonts.reg, fontSize, dims.usableW - 2*pad);
+  const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2*pad);
+  const needed = 22 /*píldora*/ + 6 /*gap*/ + bodyH + 10 /*gap fin*/;
+
+  ensureSpace(pdfDoc, ctx, needed);
+
+  // Píldora
+  const pillW = Math.min(dims.usableW, fonts.bold.widthOfTextAtSize(labelTxt, 10.5) + 14);
+  page.drawRectangle({ x: dims.mx, y: ctx.y - 18, width: pillW, height: 18, color: emsRgb(), opacity: 0.95 });
+  page.drawText(labelTxt, { x: dims.mx + 7, y: ctx.y - 14, size: 10.5, font: fonts.bold, color: PDFLib.rgb(1,1,1) });
+
+  // Cuerpo
+  const topBodyY = ctx.y - 18 - 6;
+  page.drawRectangle({ x: dims.mx, y: topBodyY - bodyH, width: dims.usableW, height: bodyH, color: gray(0.985), borderColor: gray(0.90), borderWidth: 0.8, opacity: 1 });
+  let y = topBodyY - pad - fontSize;
+  lines.forEach(ln => {
+    page.drawText(ln, { x: dims.mx + pad, y, size: fontSize, font: fonts.reg, color: gray(0.18) });
+    y -= (fontSize + 3);
+  });
+
+  ctx.y = topBodyY - bodyH - 10;
+}
+
+// --- Galería inteligente sin título (orientación-aware, sin recortes)
+async function drawSmartGallery(pdfDoc, ctx, images, { title = null, captions = false } = {}) {
+  const { dims, fonts } = ctx;
   const page = () => ctx.pages[ctx.pages.length - 1];
 
-  const cols = 2;
+  // Título opcional
+  if (title) {
+    ensureSpace(pdfDoc, ctx, 28);
+    ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts);
+  }
+
+  // Pre-embed para conocer tamaños
+  const embedded = [];
+  for (const url of images) {
+    const img = await embedSmart(pdfDoc, url);
+    if (!img) continue;
+    embedded.push({ img, w: img.width, h: img.height, ratio: img.width / img.height });
+  }
   const gutter = 16;
-  const cellW = Math.floor((usableW - gutter) / cols);
-  const cellH = 190; // alto de celda (incluye imagen + caption)
-  const imgPad = 8;
-  const capH = 16; // alto para leyenda
-  const bodyH = cellH - capH;
 
-  // título del bloque de fotos (grupo)
-  ensureSpace(pdfDoc, ctx, 28);
-  ctx.y = drawSectionTitle(page(), mx, ctx.y, "Evidencia fotográfica", ctx.fonts);
-
-  for (let i = 0; i < images.length; i += cols) {
-    ensureSpace(pdfDoc, ctx, cellH + 14);
-    const row = images.slice(i, i + cols);
-
-    // marco de fila para simetría
-    // posicionamiento base
-    const totalW = row.length === 2 ? (cellW * 2 + gutter) : cellW;
-    let startX = mx + (usableW - totalW) / 2;
-    let x = startX;
-    const topY = ctx.y;
-
-    for (let c = 0; c < row.length; c++) {
-      // celda
-      page().drawRectangle({ x, y: ctx.y - cellH, width: cellW, height: cellH, color: gray(0.98), opacity: 0.5, borderColor: gray(0.90), borderWidth: 0.6 });
-
-      const imgObj = await embedSmart(pdfDoc, row[c]);
-      if (imgObj) {
-        const maxW = cellW - imgPad * 2;
-        const maxH = bodyH - imgPad * 2;
-        let w = imgObj.width, h = imgObj.height;
-        const scale = Math.min(maxW / w, maxH / h);
-        w = w * scale; h = h * scale;
-        const ix = x + (cellW - w) / 2;
-        const iy = (ctx.y - imgPad) - h - (capH); // deja espacio para caption
-        page().drawImage(imgObj, { x: ix, y: iy, width: w, height: h });
+  let i = 0;
+  while (i < embedded.length) {
+    const { img, w, h, ratio } = embedded[i];
+    const isWide = ratio >= 1.33; // apaisada
+    if (isWide) {
+      // Fila 1-col a todo ancho
+      const maxW = dims.usableW, maxH = 300;
+      const sc = Math.min(maxW / w, maxH / h);
+      const iw = Math.round(w * sc), ih = Math.round(h * sc);
+      ensureSpace(pdfDoc, ctx, ih + 22);
+      page().drawRectangle({ x: dims.mx, y: ctx.y - ih - 12, width: dims.usableW, height: ih + 12, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
+      const ix = dims.mx + Math.floor((dims.usableW - iw) / 2);
+      const iy = ctx.y - ih - 6;
+      page().drawImage(img, { x: ix, y: iy, width: iw, height: ih });
+      if (captions) {
+        const cap = `Figura ${i + 1}`;
+        page().drawText(cap, { x: dims.mx + 6, y: iy - 10, size: 9.2, font: fonts.reg, color: gray(0.45) });
       }
+      ctx.y = (iy - 14);
+      i++;
+    } else {
+      // Fila 2-col
+      const cellW = Math.floor((dims.usableW - gutter) / 2);
+      const maxH = 240;
+      // procesar dos imágenes
+      const imgs = [embedded[i]];
+      if (i + 1 < embedded.length && embedded[i + 1].ratio < 1.33) imgs.push(embedded[i + 1]);
 
-      // leyenda centrada bajo imagen
-      const figNum = `${captionPrefix}.${i + c + 1}`;
-      const cap = `Figura ${figNum}`;
-      const capWidth = ctx.fonts.reg.widthOfTextAtSize(cap, 9.2);
-      const capX = x + (cellW - capWidth) / 2;
-      page().drawText(cap, { x: capX, y: ctx.y - cellH + 4, size: 9.2, font: ctx.fonts.reg, color: gray(0.45) });
+      // calcular alturas escaladas y altura de la fila
+      const dimsScaled = imgs.map(o => {
+        const sc = Math.min(cellW / o.w, maxH / o.h);
+        return { iw: Math.round(o.w * sc), ih: Math.round(o.h * sc), img: o.img };
+      });
+      const rowH = Math.max(...dimsScaled.map(d => d.ih)) + 12;
 
-      x += cellW + gutter;
+      ensureSpace(pdfDoc, ctx, rowH + 10);
+      // fondo de fila
+      page().drawRectangle({ x: dims.mx, y: ctx.y - rowH, width: dims.usableW, height: rowH, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
+
+      let x = dims.mx;
+      for (let c = 0; c < dimsScaled.length; c++) {
+        const d = dimsScaled[c];
+        const ix = x + Math.floor((cellW - d.iw) / 2);
+        const iy = ctx.y - Math.floor((rowH - d.ih) / 2) - d.ih;
+        page().drawImage(d.img, { x: ix, y: iy, width: d.iw, height: d.ih });
+        x += cellW + gutter;
+      }
+      ctx.y -= (rowH + 10);
+      i += dimsScaled.length;
     }
-    ctx.y = topY - (cellH + 14);
   }
 }
 
@@ -1060,6 +1108,7 @@ async function generarPDFCotizacion(share = false) {
   dims.usableW = dims.pageW - dims.mx * 2;
 
   const fonts = { reg: helv, bold: helvB };
+  const logoImg = await getLogoImage(pdfDoc);
 
   // contexto de render
   const ctx = {
@@ -1068,20 +1117,18 @@ async function generarPDFCotizacion(share = false) {
     dims,
     fonts,
     datos,
-    typeLabel: "COTIZACIÓN"
+    typeLabel: "COTIZACIÓN",
+    logoImg
   };
 
   // Página inicial
   const first = pdfDoc.addPage([dims.pageW, dims.pageH]);
   ctx.pages.push(first);
-  // Logo de marca de agua (solo en primera)
+  // Marca de agua solo primera
   try {
-    const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
-    const logoImg   = await pdfDoc.embedPng(logoBytes);
     first.drawImage(logoImg, { x: (dims.pageW - 220) / 2, y: (dims.pageH - 240) / 2, width: 220, height: 220, opacity: 0.06 });
-    first.drawImage(logoImg, { x: dims.mx, y: dims.pageH - dims.my - 36, width: 46, height: 46 });
   } catch {}
-  ctx.y = addHeader(pdfDoc, first, ctx.typeLabel, datos, fonts, dims, true);
+  ctx.y = addHeader(pdfDoc, first, ctx.typeLabel, datos, fonts, dims, true, logoImg);
 
   // TÍTULO (opcional)
   if ((datos.titulo || "").trim()) {
@@ -1101,12 +1148,13 @@ async function generarPDFCotizacion(share = false) {
   // Tabla de conceptos
   ensureSpace(pdfDoc, ctx, 22);
   const thY = ctx.y;
-  first.drawRectangle({ x: dims.mx, y: thY - 18, width: dims.usableW, height: 20, color: emsRgb(), opacity: 0.98 });
-  first.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-  first.drawText("Unidad",   { x: dims.mx + 185, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-  first.drawText("Cantidad", { x: dims.mx + 274, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-  first.drawText("Precio",   { x: dims.mx + 356, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-  first.drawText("Importe",  { x: dims.mx + 446, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+  const p0 = ctx.pages[ctx.pages.length - 1];
+  p0.drawRectangle({ x: dims.mx, y: thY - 18, width: dims.usableW, height: 20, color: emsRgb(), opacity: 0.98 });
+  p0.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+  p0.drawText("Unidad",   { x: dims.mx + 185, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+  p0.drawText("Cantidad", { x: dims.mx + 274, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+  p0.drawText("Precio",   { x: dims.mx + 356, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+  p0.drawText("Importe",  { x: dims.mx + 446, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
   ctx.y = thY - 24;
 
   let currentPage = () => ctx.pages[ctx.pages.length - 1];
@@ -1162,10 +1210,9 @@ async function generarPDFCotizacion(share = false) {
     ctx.y -= 13;
   }
 
-  // IMÁGENES DE COTIZACIÓN (si existen): cuadrícula simétrica + leyendas
+  // Anexos fotográficos (opcional) – usando galería inteligente
   if (Array.isArray(fotosCotizacion) && fotosCotizacion.length) {
-    ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y - 2, "Anexos fotográficos", fonts);
-    await drawImageGrid(pdfDoc, ctx, fotosCotizacion.slice(0, 10), "C");
+    await drawSmartGallery(pdfDoc, ctx, fotosCotizacion.slice(0, 10), { title: "Anexos fotográficos", captions: false });
   }
 
   // Observaciones
@@ -1246,6 +1293,7 @@ async function abrirReporte(numero) {
   form.fecha.value = datos.fecha;
   form.cliente.value = datos.cliente;
   form.hora.value = datos.hora;
+  form.concepto.value = datos.concepto || "";
   const tbody = form.querySelector("#repItemsTable tbody");
   tbody.innerHTML = "";
   fotosItemsReporte = [];
@@ -1292,6 +1340,7 @@ async function enviarReporte(e) {
     return;
   }
   savePredictEMSCloud("cliente", datos.cliente);
+  if (datos.concepto) savePredictEMSCloud("concepto", datos.concepto);
   items.forEach(it => savePredictEMSCloud("descripcion", it.descripcion));
   const reporte = {
     ...datos,
@@ -1362,6 +1411,7 @@ async function generarPDFReporte(share = false) {
   const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
   dims.usableW = dims.pageW - dims.mx*2;
   const fonts = { reg: helv, bold: helvB };
+  const logoImg = await getLogoImage(pdfDoc);
 
   const ctx = {
     pages: [],
@@ -1369,46 +1419,42 @@ async function generarPDFReporte(share = false) {
     dims,
     fonts,
     datos,
-    typeLabel: "REPORTE DE SERVICIO"
+    typeLabel: "REPORTE DE SERVICIO",
+    logoImg
   };
 
-  // Primera página con marca de agua + logo
+  // Primera página con marca de agua + logo en header (logo header lo hace addHeader)
   let page = pdfDoc.addPage([dims.pageW, dims.pageH]);
   ctx.pages.push(page);
   try {
-    const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
-    const logoImg   = await pdfDoc.embedPng(logoBytes);
     page.drawImage(logoImg, { x: (dims.pageW-220)/2, y: (dims.pageH-240)/2, width: 220, height: 220, opacity: 0.06 });
-    page.drawImage(logoImg, { x: dims.mx, y: dims.pageH - dims.my - 36, width: 46, height: 46 });
   } catch {}
-  ctx.y = addHeader(pdfDoc, page, ctx.typeLabel, datos, fonts, dims, true);
+  ctx.y = addHeader(pdfDoc, page, ctx.typeLabel, datos, fonts, dims, true, logoImg);
 
-  // Lista de actividades (bloques con leyenda y cuadrículas)
+  // CONCEPTO destacadísimo (si existe)
+  if ((datos.concepto || "").trim()) {
+    drawLabeledCard(pdfDoc, ctx, { label: "Concepto", text: datos.concepto.trim(), fontSize: 12 });
+  }
+
+  // Lista de actividades
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
 
-    // Tarjeta de actividad
-    ensureSpace(pdfDoc, ctx, 56);
-    // Chip de actividad
+    // Chip “Actividad X”
+    ensureSpace(pdfDoc, ctx, 30);
     page = ctx.pages[ctx.pages.length - 1];
-    page.drawRectangle({ x: dims.mx, y: ctx.y - 18, width: 96, height: 18, color: emsRgb(), opacity: 0.15, borderColor: emsRgb(), borderWidth: 0.8 });
-    page.drawText(`Actividad ${i + 1}`, { x: dims.mx + 8, y: ctx.y - 14, size: 10.5, font: helvB, color: emsRgb() });
+    page.drawRectangle({ x: dims.mx, y: ctx.y - 22, width: 110, height: 20, color: emsRgb(), opacity: 0.15, borderColor: emsRgb(), borderWidth: 0.8 });
+    page.drawText(`Actividad ${i + 1}`, { x: dims.mx + 10, y: ctx.y - 17, size: 11, font: helvB, color: emsRgb() });
+    ctx.y -= 30; // espacio adicional para evitar cualquier traslape
 
-    ctx.y -= 10;
-    const descTitleY = drawSectionTitle(page, dims.mx, ctx.y, "Descripción", fonts);
-    ctx.y = descTitleY;
+    // DESCRIPCIÓN (card nueva, notoria y sin sobreponer)
+    const descText = `• ${String(it.descripcion || "").trim()}`;
+    drawLabeledCard(pdfDoc, ctx, { label: "Descripción", text: descText, fontSize: 11 });
 
-    const lines = wrapTextLines(`• ${String(it.descripcion || "").trim()}`, helv, 11, dims.usableW - 12);
-    lines.forEach(ln => {
-      ensureSpace(pdfDoc, ctx, 14);
-      ctx.pages[ctx.pages.length - 1].drawText(ln, { x: dims.mx + 4, y: ctx.y, size: 11, font: helv, color: gray(0.20) });
-      ctx.y -= 14;
-    });
-
-    // Fotos del ítem – cuadrícula simétrica con leyendas “Figura 1.1, 1.2…”
+    // Fotos del ítem – galería inteligente SIN título ni palabra “Evidencia”
     const fotos = Array.isArray(it.fotos) ? it.fotos : [];
     if (fotos.length) {
-      await drawImageGrid(pdfDoc, ctx, fotos, String(i + 1));
+      await drawSmartGallery(pdfDoc, ctx, fotos, { title: null, captions: false });
     }
 
     ctx.y -= 8;
