@@ -269,12 +269,12 @@ function renderInicio() {
 
 window.onload = () => {
   renderInicio();
-  // Llamado opcional si existe en el entorno
   try { typeof showOffline === "function" && showOffline(true); } catch {}
 };
 
-let ASYNC_ERR_GUARD = false; // marcador ad-hoc para depurar si algo cae en un catch silencioso
+let ASYNC_ERR_GUARD = false;
 
+// ==== Historial ====
 async function cargarHistorialEMS(filtro = "") {
   const cont = document.getElementById("historialEMS");
   if (!cont) return;
@@ -514,14 +514,12 @@ function nuevaCotizacion() {
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
         <button type="button" class="btn-secondary" onclick="guardarCotizacionDraft(); generarPDFCotizacion()"><i class="fa fa-file-pdf"></i> PDF</button>
         <button type="button" class="btn-success" onclick="guardarCotizacionDraft(); generarPDFCotizacion(true)"><i class="fa fa-share-alt"></i> Compartir</button>
-        <!-- El botón de eliminar se insertará dinámicamente -->
       </div>
     </form>
   `;
 
   const form = document.getElementById('cotForm');
 
-  // Inicializa fotos de cotización
   fotosCotizacion = [];
 
   // Draft
@@ -531,7 +529,6 @@ function nuevaCotizacion() {
     Object.keys(draft).forEach(k => {
       if (k !== "items" && k !== "fotos" && form[k] !== undefined) form[k].value = draft[k];
     });
-    // Items tabla
     const tbody = form.querySelector("#itemsTable tbody");
     tbody.innerHTML = "";
     (draft.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
@@ -540,7 +537,6 @@ function nuevaCotizacion() {
       form.anticipoPorc.parentElement.style.display = '';
       form.anticipoPorc.value = draft.anticipoPorc || "";
     }
-    // Fotos desde draft
     if (Array.isArray(draft.fotos)) fotosCotizacion = [...draft.fotos];
   } else {
     agregarCotItemRow();
@@ -560,13 +556,12 @@ function nuevaCotizacion() {
     localStorage.removeItem('EMS_COT_BORRADOR');
   };
 
-  // AUTOGUARDADO cada 15 s
   if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
   window.autoSaveTimer = setInterval(() => {
     if (document.getElementById('cotForm')) guardarCotizacionDraft();
   }, 15000);
 
-  // BOTÓN ELIMINAR SOLO EN EDICIÓN
+  // eliminar si ya existe
   setTimeout(() => {
     if(form && form.numero && form.numero.value && !document.getElementById('btnEliminarCot')){
       let btn = document.createElement("button");
@@ -870,7 +865,6 @@ async function guardarCotizacionDraft() {
     hora: datos.hora || ahora(),
     creada: new Date().toISOString()
   };
-  // Guarda remoto (como antes) y también local para recuperación offline
   await db.collection("cotizaciones").doc(datos.numero || "BORRADOR").set(cotizacion);
   localStorage.setItem('EMS_COT_BORRADOR', JSON.stringify(cotizacion));
   showSaved("Cotización guardada");
@@ -913,7 +907,6 @@ function addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, isFirst = false,
   const { pageW, mx } = dims;
   let yTop = dims.pageH - dims.my;
 
-  // Logo pequeño SIEMPRE en el encabezado
   if (logoImg) {
     page.drawImage(logoImg, { x: mx, y: yTop - 46, width: 46, height: 46 });
   }
@@ -952,16 +945,21 @@ async function embedSmart(pdfDoc, url) {
     }
   }
 }
+
+// === Control de salto de página + flag "inicio de página"
 function ensureSpace(pdfDoc, ctx, needed) {
   const { dims, fonts, datos, typeLabel, logoImg } = ctx;
-  if (ctx.y - needed < dims.my + 86) {
+  // margen inferior (footer + respiro)
+  const bottomSafe = dims.my + 86;
+  if (ctx.y - needed < bottomSafe) {
     const page = pdfDoc.addPage([dims.pageW, dims.pageH]);
     ctx.pages.push(page);
     ctx.y = addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, false, logoImg);
+    ctx._atPageStart = true; // IMPORTANTE para el grid 2x2
   }
 }
 
-// --- Card de texto con etiqueta tipo “píldora” (para DESCRIPCIÓN/CONCEPTO)
+// --- Card de texto con etiqueta tipo “píldora”
 function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10 }) {
   const { dims, fonts } = ctx;
   const page = ctx.pages[ctx.pages.length - 1];
@@ -969,32 +967,29 @@ function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10 }) 
   const bodyTxt  = String(text || "").trim();
   const lines = wrapTextLines(bodyTxt, fonts.reg, fontSize, dims.usableW - 2*pad);
   const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2*pad);
-  const needed = 22 /*píldora*/ + 6 /*gap*/ + bodyH + 10 /*gap fin*/;
-
+  const needed = 22 + 6 + bodyH + 8;
   ensureSpace(pdfDoc, ctx, needed);
 
-  // Píldora
   const pillW = Math.min(dims.usableW, fonts.bold.widthOfTextAtSize(labelTxt, 10.5) + 14);
   page.drawRectangle({ x: dims.mx, y: ctx.y - 18, width: pillW, height: 18, color: emsRgb(), opacity: 0.95 });
   page.drawText(labelTxt, { x: dims.mx + 7, y: ctx.y - 14, size: 10.5, font: fonts.bold, color: PDFLib.rgb(1,1,1) });
 
-  // Cuerpo
-  const topBodyY = ctx.y - 18 - 6;
-  page.drawRectangle({ x: dims.mx, y: topBodyY - bodyH, width: dims.usableW, height: bodyH, color: gray(0.985), borderColor: gray(0.90), borderWidth: 0.8, opacity: 1 });
+  const topBodyY = ctx.y - 18 - 5;
+  page.drawRectangle({ x: dims.mx, y: topBodyY - bodyH, width: dims.usableW, height: bodyH, color: gray(0.985), borderColor: gray(0.90), borderWidth: 0.8 });
   let y = topBodyY - pad - fontSize;
   lines.forEach(ln => {
     page.drawText(ln, { x: dims.mx + pad, y, size: fontSize, font: fonts.reg, color: gray(0.18) });
     y -= (fontSize + 3);
   });
 
-  ctx.y = topBodyY - bodyH - 10;
+  ctx.y = topBodyY - bodyH - 8;
+  ctx._atPageStart = false;
 }
 
-// ====== OBSERVACIONES EN LISTA (bullets profesionales) ======
+// ====== OBSERVACIONES EN LISTA ======
 function parseObservaciones(raw) {
   let t = String(raw || "").trim();
   if (!t) return [];
-  // normaliza separadores: saltos de línea, ;, •, -, *
   t = t.replace(/\r\n/g, "\n")
        .replace(/[;•]/g, "\n")
        .replace(/\n{2,}/g, "\n")
@@ -1002,7 +997,6 @@ function parseObservaciones(raw) {
   const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
   const items = [];
   for (let ln of lines) {
-    // elimina bullets o numeraciones al inicio
     ln = ln.replace(/^\s*[-*•]\s+/, "")
            .replace(/^\s*\d+[\.\)]\s+/, "");
     if (ln) items.push(ln);
@@ -1020,7 +1014,6 @@ function drawBulletList(pdfDoc, ctx, items, { bullet = "•", fontSize = 10, lin
     const needed = (lines.length * (fontSize + lineGap)) + 2;
     ensureSpace(pdfDoc, ctx, needed + 6);
 
-    // Bullet (centrado verticalmente respecto a primera línea)
     ctx.pages[ctx.pages.length - 1].drawText(bullet, {
       x: xBullet,
       y: ctx.y - fontSize,
@@ -1037,15 +1030,19 @@ function drawBulletList(pdfDoc, ctx, items, { bullet = "•", fontSize = 10, lin
 
     ctx.y -= (lines.length * (fontSize + lineGap)) + 2;
   }
-  ctx.y -= 4; // pequeño respiro al final de la lista
+  ctx.y -= 4;
+  ctx._atPageStart = false;
 }
 
-// --- Utilidades de layout ---
+// --- Utilidades de galería ---
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-function availableHeight(ctx) { return ctx.y - (ctx.dims.my + 86); }
+function availablePageHeight(ctx) {
+  // altura real libre hasta el footer seguro
+  return ctx.y - (ctx.dims.my + 86);
+}
 
-// Dibuja una sola imagen (centrada, tamaño óptimo sin recortes)
-async function drawSingleImageBlock(pdfDoc, ctx, url, { maxWFactor = 0.98, maxH = 360, pad = 10 } = {}) {
+// Dibuja una sola imagen (centrada)
+async function drawSingleImageBlock(pdfDoc, ctx, url, { maxWFactor = 0.9, maxH = 300, pad = 8 } = {}) {
   const { dims } = ctx;
   const img = await embedSmart(pdfDoc, url);
   if (!img) return;
@@ -1058,14 +1055,81 @@ async function drawSingleImageBlock(pdfDoc, ctx, url, { maxWFactor = 0.98, maxH 
   ensureSpace(pdfDoc, ctx, needed);
 
   const p = ctx.pages[ctx.pages.length - 1];
+  p.drawRectangle({ x: dims.mx, y: ctx.y - (h + pad * 2), width: dims.usableW, height: h + pad * 2, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
   const x = dims.mx + (dims.usableW - w) / 2;
   const y = ctx.y - pad - h;
   p.drawImage(img, { x, y, width: w, height: h });
-  ctx.y -= (h + pad * 2 + 10);
+  ctx.y -= (h + pad * 2 + 8);
+  ctx._atPageStart = false;
 }
 
-// Dibuja dos imágenes lado a lado con simetría
-async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 12, rowPad = 6, targetH = 260, maxH = 320 } = {}) {
+// == NUEVO: Grid 2x2 inteligente para garantizar 4 por página ==
+async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 10, pad = 8, vGap = 10 } = {}) {
+  const { dims } = ctx;
+
+  // embed + ratios
+  const emb1 = [], emb2 = [];
+  for (const u of row1Imgs) { const e = await embedSmart(pdfDoc, u); if (e) emb1.push({img:e, r:e.width/e.height}); }
+  for (const u of row2Imgs) { const e = await embedSmart(pdfDoc, u); if (e) emb2.push({img:e, r:e.width/e.height}); }
+  if (emb1.length + emb2.length === 0) return;
+
+  const sumR1 = emb1.reduce((a,b)=>a+b.r,0) || 1;
+  const sumR2 = emb2.reduce((a,b)=>a+b.r,0) || 1;
+
+  // alturas de fila para llenar el ancho
+  let h1 = Math.floor((dims.usableW - gutter*(emb1.length-1)) / sumR1);
+  let h2 = Math.floor((dims.usableW - gutter*(emb2.length-1)) / sumR2);
+
+  // escalar para que quepa en el alto disponible
+  const boxH = pad*2 + h1 + vGap + h2 + pad*2;
+  let avail = availablePageHeight(ctx) - 12;
+  if (boxH > avail) {
+    const s = (avail) / boxH;
+    h1 = Math.floor(h1 * s);
+    h2 = Math.floor(h2 * s);
+  }
+
+  const needed = pad*2 + h1 + vGap + h2 + pad*2;
+  ensureSpace(pdfDoc, ctx, needed);
+
+  const p = ctx.pages[ctx.pages.length - 1];
+  const topY = ctx.y;
+
+  // fila 1
+  let x = dims.mx + Math.round((dims.usableW - (emb1.reduce((a,b)=>a+Math.round(b.r*h1),0) + gutter*(emb1.length-1)))/2);
+  let y = topY - pad - h1;
+  for (let i=0;i<emb1.length;i++) {
+    const w = Math.round(emb1[i].r*h1);
+    p.drawImage(emb1[i].img, { x, y, width: w, height: h1 });
+    x += w + gutter;
+  }
+
+  // fila 2
+  x = dims.mx + Math.round((dims.usableW - (emb2.reduce((a,b)=>a+Math.round(b.r*h2),0) + gutter*(emb2.length-1)))/2);
+  y = topY - pad - h1 - vGap - h2;
+  for (let i=0;i<emb2.length;i++) {
+    const w = Math.round(emb2[i].r*h2);
+    p.drawImage(emb2[i].img, { x, y, width: w, height: h2 });
+    x += w + gutter;
+  }
+
+  // marco sutil de bloque
+  p.drawRectangle({
+    x: dims.mx,
+    y: topY - (pad*2 + h1 + vGap + h2),
+    width: dims.usableW,
+    height: pad*2 + h1 + vGap + h2,
+    color: gray(0.99),
+    borderColor: gray(0.90),
+    borderWidth: 0.6
+  });
+
+  ctx.y = topY - (pad*2 + h1 + vGap + h2) - 8;
+  ctx._atPageStart = false;
+}
+
+// Dibuja dos imágenes lado a lado
+async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 10, rowPad = 6, targetH = 210, maxH = 230 } = {}) {
   const { dims } = ctx;
   const imgs = [];
   for (const u of urls) {
@@ -1075,16 +1139,16 @@ async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 12, rowPad = 6, tar
   if (imgs.length === 0) return;
   if (imgs.length === 1) return drawSingleImageBlock(pdfDoc, ctx, urls[0], { maxH });
 
-  // Calcula altura común
   let rowH = clamp(targetH, 160, maxH);
   const sumR = imgs[0].r + imgs[1].r;
-  rowH = Math.floor((dims.usableW - gutter) / sumR);
+  rowH = Math.min(rowH, Math.floor((dims.usableW - gutter) / sumR));
 
-  const needed = rowH + rowPad * 2 + 8;
+  const needed = rowPad * 2 + rowH + 8;
   ensureSpace(pdfDoc, ctx, needed);
 
   const p = ctx.pages[ctx.pages.length - 1];
   const topY = ctx.y;
+  p.drawRectangle({ x: dims.mx, y: topY - (rowPad * 2 + rowH), width: dims.usableW, height: rowPad * 2 + rowH, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
 
   const w1 = Math.round(imgs[0].r * rowH);
   const w2 = Math.round(imgs[1].r * rowH);
@@ -1094,135 +1158,143 @@ async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 12, rowPad = 6, tar
   p.drawImage(imgs[1].img, { x: startX + w1 + gutter, y, width: w2, height: rowH });
 
   ctx.y = topY - (rowPad * 2 + rowH) - 8;
+  ctx._atPageStart = false;
 }
 
 /**
- * NUEVO LAYOUT COMPACTO: garantiza **al menos 4 imágenes por hoja** cuando hay suficientes.
- * - Usa cuadrícula 2x2 por página (slots iguales). Cada imagen se ajusta dentro de su slot respetando proporción.
- * - Para 3 restantes: 2 arriba + 1 abajo a lo ancho (span), sin dejar huecos.
- * - Para 2: fila de 2 a lo ancho.
- * - Para 1: bloque único centrado grande.
- * - Calcula tamaño según el ALTO DISPONIBLE real en la página para eliminar espacios en blanco.
+ * Galería "packed" profesional:
+ * - En inicio de página usa grid 2×2 para asegurar 4 fotos por hoja.
+ * - Evita filas de 1 imagen (funde con la siguiente).
+ * - Ajusta dinámicamente la altura objetivo a lo disponible.
+ * - Última fila centrada sin estirar de más.
  */
-async function drawTightGallery(
+async function drawSmartGallery(
   pdfDoc,
   ctx,
   images,
   {
     title = null,
-    gridPad = 8,
-    gutterX = 12,
-    gutterY = 12,
-    minSlotH = 160,
-    maxSlotH = 360
+    captions = false,
+    baseTargetRowH = 200,
+    minRowH = 160,
+    maxRowH = 235,
+    minImgW = 150,
+    gutter = 10,
+    rowPad = 6,
   } = {}
 ) {
   const { dims, fonts } = ctx;
   const page = () => ctx.pages[ctx.pages.length - 1];
+
   if (!Array.isArray(images) || images.length === 0) return;
 
   // Título opcional
   if (title) {
-    ensureSpace(pdfDoc, ctx, 28);
+    ensureSpace(pdfDoc, ctx, 26);
     ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts);
   }
 
-  // Pre-embed para conocer proporciones
+  // Pre-embed ratios
   const emb = [];
   for (const url of images) {
     const img = await embedSmart(pdfDoc, url);
     if (!img) continue;
-    emb.push({ url, img, w: img.width, h: img.height, r: img.width / img.height });
+    emb.push({ img, r: img.width / img.height });
   }
   if (emb.length === 0) return;
 
   let i = 0;
+  let figCounter = 1;
+
   while (i < emb.length) {
-    const remaining = emb.length - i;
-
-    // Caso 1: una sola imagen restante -> ocupamos gran parte del alto disponible
-    if (remaining === 1) {
-      const availH = availableHeight(ctx);
-      const maxH = clamp(availH - 12, minSlotH, maxSlotH);
-      await drawSingleImageBlock(pdfDoc, ctx, emb[i].url, { maxWFactor: 0.98, maxH });
-      i += 1;
+    // Si estamos al inicio de página y hay >= 4 imágenes, aplicar grid 2x2
+    if (ctx._atPageStart && (emb.length - i) >= 4) {
+      await drawFourUpGrid(pdfDoc, ctx,
+        [images[i], images[i+1]],
+        [images[i+2], images[i+3]],
+        { gutter: 10, pad: 8, vGap: 10 }
+      );
+      i += 4;
       continue;
     }
 
-    // Caso 2: dos imágenes -> fila doble que usa todo el ancho
-    if (remaining === 2) {
-      const availH = availableHeight(ctx);
-      const rowH = clamp(availH - 16, minSlotH, Math.min(maxSlotH, 320));
-      await drawTwoImageRow(pdfDoc, ctx, [emb[i].url, emb[i+1].url], { gutter: gutterX, rowPad: gridPad, targetH: rowH, maxH: rowH });
-      i += 2;
-      continue;
+    // Altura objetivo dinámica para llenado eficiente
+    const dynamicTarget = clamp(Math.floor(availablePageHeight(ctx) / 2) - 12, minRowH, maxRowH);
+    const targetRowH = clamp(dynamicTarget || baseTargetRowH, minRowH, maxRowH);
+
+    // Construcción de fila evitando 1 sola imagen
+    let row = [];
+    let sumRatios = 0;
+
+    while (i < emb.length) {
+      row.push(emb[i]);
+      sumRatios += emb[i].r;
+      const widthAtTarget = Math.round(sumRatios * targetRowH) + gutter * (row.length - 1);
+
+      const minWidthAtTarget = Math.min(...row.map(o => o.r * targetRowH));
+      if (minWidthAtTarget < minImgW && row.length > 1) {
+        row.pop(); sumRatios -= emb[i].r; break;
+      }
+      if (widthAtTarget >= dims.usableW) break;
+      i++;
+    }
+    if (row.length > 0 && emb[i] === row[row.length - 1]) i++;
+
+    // Si quedó una sola imagen y aún hay más disponibles, forzar pareja
+    if (row.length === 1 && i < emb.length) {
+      row.push(emb[i]); sumRatios += emb[i].r; i++;
     }
 
-    // Para 3 o más -> intentar usar cuadrícula 2x2. Garantiza 4 por hoja si hay suficientes.
-    const needRows = (remaining >= 4) ? 2 : 2; // siempre reservamos dos filas para evitar saltos raros
-    const minNeeded = (minSlotH * needRows) + gutterY + (gridPad * 2) + 10;
+    // altura final de fila
+    let rowH = (dims.usableW - gutter * (row.length - 1)) / sumRatios;
+    const isLastRow = (i >= emb.length);
+    rowH = clamp(rowH, minRowH, maxRowH);
 
-    // Si no hay suficiente alto para dos filas, nueva página antes de maquetar
-    ensureSpace(pdfDoc, ctx, minNeeded);
-
-    // Recalcular ALTO disponible y derivar slotH exacto para aprovechar al máximo
-    const availH = availableHeight(ctx);
-    // Dos filas y un gutter vertical:
-    let slotH = Math.floor((availH - gutterY - gridPad * 2) / 2);
-    slotH = clamp(slotH, minSlotH, maxSlotH);
-
-    const slotW = Math.floor((dims.usableW - gutterX) / 2);
-    const contH = (slotH * 2) + gutterY + (gridPad * 2);
-    const topY = ctx.y;
+    // Asegurar que cabe en la página
+    const boxH = rowPad * 2 + rowH + (captions ? 16 : 0);
+    ensureSpace(pdfDoc, ctx, boxH + 6);
 
     const p = page();
+    const topY = ctx.y;
 
-    // --- Dibujo de 2x2 / 2+1 span ---
-    const drawFit = (imgObj, slotX, slotY, sW, sH) => {
-      if (!imgObj) return;
-      const scale = Math.min(sW / imgObj.w, sH / imgObj.h);
-      const w = Math.round(imgObj.w * scale);
-      const h = Math.round(imgObj.h * scale);
-      const x = slotX + Math.round((sW - w) / 2);
-      const y = slotY + Math.round((sH - h) / 2);
-      p.drawImage(imgObj.img, { x, y, width: w, height: h });
-    };
+    p.drawRectangle({
+      x: dims.mx,
+      y: topY - (rowPad * 2 + rowH + (captions ? 16 : 0)),
+      width: dims.usableW,
+      height: rowPad * 2 + rowH + (captions ? 16 : 0),
+      color: gray(0.99),
+      borderColor: gray(0.90),
+      borderWidth: 0.6
+    });
 
-    // Coordenadas de slots
-    const x1 = dims.mx;
-    const x2 = dims.mx + slotW + gutterX;
-    const yRow1 = topY - gridPad - slotH;               // fila superior (y es base inferior de imagen)
-    const yRow2 = topY - gridPad - slotH - gutterY - slotH; // fila inferior
+    let widths = row.map(o => Math.round(o.r * rowH));
+    let totalRowWidth = widths.reduce((a, b) => a + b, 0) + gutter * (row.length - 1);
 
-    // Si hay 4 o más -> 2x2 lleno
-    if (remaining >= 4) {
-      // Garantizamos 4 imágenes por hoja
-      drawFit(emb[i],     x1, yRow1, slotW, slotH);
-      drawFit(emb[i + 1], x2, yRow1, slotW, slotH);
-      drawFit(emb[i + 2], x1, yRow2, slotW, slotH);
-      drawFit(emb[i + 3], x2, yRow2, slotW, slotH);
-      i += 4;
-      ctx.y = topY - contH - 10;
-      continue;
+    // reajuste fino
+    while (totalRowWidth > dims.usableW && rowH > minRowH) {
+      rowH -= 1;
+      widths = row.map(o => Math.round(o.r * rowH));
+      totalRowWidth = widths.reduce((a, b) => a + b, 0) + gutter * (row.length - 1);
     }
 
-    // Si quedan exactamente 3 -> 2 arriba + 1 abajo a LO ANCHO (span de dos columnas)
-    if (remaining === 3) {
-      drawFit(emb[i],     x1, yRow1, slotW, slotH);
-      drawFit(emb[i + 1], x2, yRow1, slotW, slotH);
-
-      const spanW = (slotW * 2) + gutterX; // ancho de dos columnas
-      const spanX = dims.mx;
-      drawFit(emb[i + 2], spanX, yRow2, spanW, slotH);
-
-      i += 3;
-      ctx.y = topY - contH - 10;
-      continue;
+    let startX = dims.mx + Math.round((dims.usableW - totalRowWidth) / 2);
+    let x = startX;
+    const iy = topY - rowPad - rowH;
+    for (let k = 0; k < row.length; k++) {
+      p.drawImage(row[k].img, { x, y: iy, width: widths[k], height: rowH });
+      if (captions) {
+        p.drawText(`Figura ${figCounter}`, { x, y: iy - 12, size: 9.2, font: fonts.reg, color: gray(0.45) });
+      }
+      figCounter++;
+      x += widths[k] + gutter;
     }
+
+    ctx.y = topY - (rowPad * 2 + rowH + (captions ? 16 : 0)) - 6;
+    ctx._atPageStart = false;
   }
 }
 
-// ====== COTIZACIÓN: PDF con estética pro ======
+// ====== COTIZACIÓN: PDF ======
 async function generarPDFCotizacion(share = false) {
   showSaved("Generando PDF...");
   await guardarCotizacionDraft();
@@ -1235,18 +1307,14 @@ async function generarPDFCotizacion(share = false) {
       concepto: tr.querySelector('input[name="concepto"]').value,
       unidad: tr.querySelector('input[name="unidad"]').value,
       cantidad: tr.querySelector('input[name="cantidad"]').value,
-      precio: tr.querySelector('input[name="precio"]').value // string para validaciones
+      precio: tr.querySelector('input[name="precio"]').value
     });
   });
 
-  // Totales con chequeo de ".", "-"
   let subtotal = items.reduce((acc, x) => {
     const cantidadVal = String(x.cantidad).trim();
     const precioVal = String(x.precio).trim();
-    if (
-      cantidadVal === "" || cantidadVal === "." || cantidadVal === "-" ||
-      precioVal === "" || precioVal === "." || precioVal === "-"
-    ) return acc;
+    if (cantidadVal === "" || cantidadVal === "." || cantidadVal === "-" || precioVal === "" || precioVal === "." || precioVal === "-") return acc;
     let cantidad = Number(x.cantidad);
     let precio = Number(x.precio);
     if (isNaN(cantidad) || isNaN(precio)) return acc;
@@ -1263,47 +1331,32 @@ async function generarPDFCotizacion(share = false) {
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // Dimensiones A4
   const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
   dims.usableW = dims.pageW - dims.mx * 2;
 
   const fonts = { reg: helv, bold: helvB };
   const logoImg = await getLogoImage(pdfDoc);
 
-  // contexto de render
-  const ctx = {
-    pages: [],
-    y: 0,
-    dims,
-    fonts,
-    datos,
-    typeLabel: "COTIZACIÓN",
-    logoImg
-  };
+  const ctx = { pages: [], y: 0, dims, fonts, datos, typeLabel: "COTIZACIÓN", logoImg, _atPageStart: true };
 
-  // Página inicial
   const first = pdfDoc.addPage([dims.pageW, dims.pageH]);
   ctx.pages.push(first);
-  // Marca de agua solo primera
-  try {
-    first.drawImage(logoImg, { x: (dims.pageW - 220) / 2, y: (dims.pageH - 240) / 2, width: 220, height: 220, opacity: 0.06 });
-  } catch {}
+  try { first.drawImage(logoImg, { x: (dims.pageW - 220) / 2, y: (dims.pageH - 240) / 2, width: 220, height: 220, opacity: 0.06 }); } catch {}
   ctx.y = addHeader(pdfDoc, first, ctx.typeLabel, datos, fonts, dims, true, logoImg);
+  ctx._atPageStart = true;
 
   // TÍTULO (opcional)
   if ((datos.titulo || "").trim()) {
     const titulo = datos.titulo.trim();
     const rectH = 34;
-    first.drawRectangle({
-      x: dims.mx, y: ctx.y - rectH + 10, width: dims.usableW, height: rectH,
-      color: emsRgb(), opacity: 0.08, borderColor: emsRgb(), borderWidth: 1
-    });
+    first.drawRectangle({ x: dims.mx, y: ctx.y - rectH + 10, width: dims.usableW, height: rectH, color: emsRgb(), opacity: 0.08, borderColor: emsRgb(), borderWidth: 1 });
     const w = helvB.widthOfTextAtSize(titulo, 15);
     first.drawText(titulo, { x: dims.mx + (dims.usableW - w) / 2, y: ctx.y - rectH / 2 + 12, size: 15, font: helvB, color: emsRgb() });
-    ctx.y -= rectH + 16;
+    ctx.y -= rectH + 14;
   } else {
-    ctx.y -= 6;
+    ctx.y -= 4;
   }
+  ctx._atPageStart = false;
 
   // Tabla de conceptos
   ensureSpace(pdfDoc, ctx, 22);
@@ -1364,25 +1417,21 @@ async function generarPDFCotizacion(share = false) {
   drawTextRight(pTot, mostrarPrecioLimpio(total), dims.pageW - dims.mx, ctx.y, { size: 11.5, font: helvB, color: emsRgb() });
   ctx.y -= 16;
 
-  if (anticipo > 0) {
-    pTot.drawText(`Anticipo (${anticipoPorc}%):`, { x: dims.mx + 336, y: ctx.y, size: 10.5, font: helvB, color: emsRgb() });
-    drawTextRight(pTot, mostrarPrecioLimpio(anticipo), dims.pageW - dims.mx, ctx.y, { size: 10.5, font: helvB, color: emsRgb() });
-    ctx.y -= 13;
-  }
-
-  // Anexos fotográficos – NUEVO MOSAICO COMPACTO (mínimo 4 por hoja cuando existan)
+  // Anexos fotográficos – galería packed
   if (Array.isArray(fotosCotizacion) && fotosCotizacion.length) {
-    await drawTightGallery(pdfDoc, ctx, fotosCotizacion.slice(0, 10), {
+    await drawSmartGallery(pdfDoc, ctx, fotosCotizacion.slice(0, 10), {
       title: "Anexos fotográficos",
-      gridPad: 8,
-      gutterX: 12,
-      gutterY: 12,
-      minSlotH: 160,
-      maxSlotH: 340
+      captions: false,
+      baseTargetRowH: 200,
+      minRowH: 160,
+      maxRowH: 235,
+      minImgW: 150,
+      gutter: 10,
+      rowPad: 6
     });
   }
 
-  // Observaciones (como lista)
+  // Observaciones
   if ((datos.notas || "").trim()) {
     ensureSpace(pdfDoc, ctx, 60);
     ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, "Observaciones", fonts);
@@ -1392,7 +1441,6 @@ async function generarPDFCotizacion(share = false) {
     }
   }
 
-  // Pies con paginación
   applyFooters(pdfDoc, ctx.pages, fonts, dims);
 
   const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
@@ -1436,7 +1484,6 @@ function editarCotizacion(datos) {
   (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
   form.notas.value = datos.notas || "";
 
-  // Fotos cotización
   fotosCotizacion = Array.isArray(datos.fotos) ? [...datos.fotos] : [];
   renderCotFotosPreview();
 
@@ -1572,66 +1619,55 @@ async function generarPDFReporte(share = false) {
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // Dimensiones A4
   const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
   dims.usableW = dims.pageW - dims.mx*2;
   const fonts = { reg: helv, bold: helvB };
   const logoImg = await getLogoImage(pdfDoc);
 
-  const ctx = {
-    pages: [],
-    y: 0,
-    dims,
-    fonts,
-    datos,
-    typeLabel: "REPORTE DE SERVICIO",
-    logoImg
-  };
+  const ctx = { pages: [], y: 0, dims, fonts, datos, typeLabel: "REPORTE DE SERVICIO", logoImg, _atPageStart: true };
 
-  // Primera página con marca de agua + logo en header
+  // Primera página
   let page = pdfDoc.addPage([dims.pageW, dims.pageH]);
   ctx.pages.push(page);
-  try {
-    page.drawImage(logoImg, { x: (dims.pageW-220)/2, y: (dims.pageH-240)/2, width: 220, height: 220, opacity: 0.06 });
-  } catch {}
+  try { page.drawImage(logoImg, { x: (dims.pageW-220)/2, y: (dims.pageH-240)/2, width: 220, height: 220, opacity: 0.06 }); } catch {}
   ctx.y = addHeader(pdfDoc, page, ctx.typeLabel, datos, fonts, dims, true, logoImg);
+  ctx._atPageStart = true;
 
   // CONCEPTO (si existe)
   if ((datos.concepto || "").trim()) {
     drawLabeledCard(pdfDoc, ctx, { label: "Concepto", text: datos.concepto.trim(), fontSize: 12 });
   }
 
-  // Lista de actividades con MOSAICO COMPACTO para fotos
+  // Lista de items
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
 
-    // Chip “Actividad X”
-    ensureSpace(pdfDoc, ctx, 30);
-    page = ctx.pages[ctx.pages.length - 1];
-    page.drawRectangle({ x: dims.mx, y: ctx.y - 22, width: 110, height: 20, color: emsRgb(), opacity: 0.15, borderColor: emsRgb(), borderWidth: 0.8 });
-    page.drawText(`Actividad ${i + 1}`, { x: dims.mx + 10, y: ctx.y - 17, size: 11, font: helvB, color: emsRgb() });
-    ctx.y -= 30;
-
-    // DESCRIPCIÓN (card)
+    // **Quitar “Actividad X”** (eliminado)
+    // DESCRIPCIÓN
     const descText = `• ${String(it.descripcion || "").trim()}`;
     drawLabeledCard(pdfDoc, ctx, { label: "Descripción", text: descText, fontSize: 11 });
 
-    // Fotos del ítem – MOSAICO COMPACTO (mínimo 4 por hoja si aplica)
+    // Fotos del ítem – galería packed
     const fotos = Array.isArray(it.fotos) ? it.fotos : [];
     if (fotos.length) {
-      await drawTightGallery(pdfDoc, ctx, fotos, {
+      await drawSmartGallery(pdfDoc, ctx, fotos, {
         title: null,
-        gridPad: 8,
-        gutterX: 12,
-        gutterY: 12,
-        minSlotH: 160,
-        maxSlotH: 360
+        captions: false,
+        baseTargetRowH: 200,
+        minRowH: 160,
+        maxRowH: 235,
+        minImgW: 150,
+        gutter: 10,
+        rowPad: 6
       });
     }
 
-    ctx.y -= 6;
-    rule(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, dims.pageW - dims.mx, gray(0.9), 0.6);
-    ctx.y -= 10;
+    // Separador suave entre items (sin desperdiciar espacio)
+    if (i < items.length - 1) {
+      ctx.y -= 4;
+      rule(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, dims.pageW - dims.mx, gray(0.9), 0.5);
+      ctx.y -= 8;
+    }
   }
 
   // Observaciones como lista
@@ -1644,10 +1680,9 @@ async function generarPDFReporte(share = false) {
     }
   }
 
-  // Pie con paginación
+  // Pie
   applyFooters(pdfDoc, ctx.pages, fonts, dims);
 
-  // Salvar y compartir/descargar
   const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
   showProgress(false, 100, "PDF listo");
 
@@ -1682,7 +1717,6 @@ async function generarPDFReporte(share = false) {
   }
   showProgress(false);
 }
-
 
 // ====== Eliminar docs ======
 async function eliminarCotizacionCompleta(numero) {
