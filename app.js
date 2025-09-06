@@ -244,7 +244,7 @@ function activarPredictivosInstantaneos() {
 // --------- Renderización de interfaz ---------
 function renderInicio() {
   if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
-  fotosItemsReporteMap = [];
+  fotosItemsReporteMap = {};
   fotosCotizacion = [];
   document.getElementById("root").innerHTML = `
     <div class="ems-header">
@@ -936,10 +936,19 @@ function drawSectionBand(pdfDoc, ctx, label, { continuation = false, preservePag
 
 // --- Logo embebido (caché por documento)
 async function getLogoImage(pdfDoc) {
-  if (!pdfDoc.__EMS_LOGO_IMG) {
-    const bytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
-    try { pdfDoc.__EMS_LOGO_IMG = await pdfDoc.embedPng(bytes); }
-    catch { pdfDoc.__EMS_LOGO_IMG = await pdfDoc.embedJpg(bytes); }
+  if (!pdfDoc.__EMS_LOGO_IMG_TRIED) {
+    pdfDoc.__EMS_LOGO_IMG_TRIED = true;
+    try {
+      const bytes = await fetch(LOGO_URL, { mode: 'cors' }).then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.arrayBuffer();
+      });
+      try { pdfDoc.__EMS_LOGO_IMG = await pdfDoc.embedPng(bytes); }
+      catch { pdfDoc.__EMS_LOGO_IMG = await pdfDoc.embedJpg(bytes); }
+    } catch (e) {
+      console.warn('No se pudo cargar el logo para watermark/header:', e);
+      pdfDoc.__EMS_LOGO_IMG = null; // seguimos sin logo
+    }
   }
   return pdfDoc.__EMS_LOGO_IMG;
 }
@@ -976,6 +985,26 @@ function applyFooters(pdfDoc, pages, fonts, dims) {
     page.drawText(`${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`, { x: dims.mx + 8, y: y + 2, size: 9.2, font: fonts.reg, color: gray(0.25) });
     page.drawText(`Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`, { x: dims.mx + 8, y: y - 11, size: 9.2, font: fonts.reg, color: gray(0.25) });
     drawTextRight(page, `Página ${i + 1} de ${total}`, dims.pageW - dims.mx, y - 11, { size: 9.2, font: fonts.bold, color: gray(0.45) });
+  }
+}
+
+async function embedSmart(pdfDoc, url) {
+  try {
+    // 1) Intento rápido: comprimir a JPEG y embeber
+    const jpegBytes = await compressImageToJpegArrayBuffer(url, PDF_IMG_DEFAULTS);
+    return await pdfDoc.embedJpg(jpegBytes);
+  } catch (err) {
+    // 2) Fallback: descargar tal cual y probar JPG/PNG
+    try {
+      const orig = await fetch(url, { mode: 'cors' }).then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.arrayBuffer();
+      });
+      try { return await pdfDoc.embedJpg(orig); } catch { return await pdfDoc.embedPng(orig); }
+    } catch {
+      // 3) Si todo falla (403/CORS), devolvemos null para que el flujo siga sin imagen
+      return null;
+    }
   }
 }
 
