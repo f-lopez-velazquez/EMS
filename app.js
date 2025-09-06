@@ -25,7 +25,7 @@ const CLOUDINARY_PRESET = "ml_default";
 
 const LOGO_URL = "https://i.imgur.com/CKDrg9w.png";
 
-// ⬇⬇ CAMBIO: usamos un MAP por ID estable para las fotos de cada ítem de REPORTE
+// ⬇⬇ IMPORTANTE: fotos por ÍTEM con ID estable (no por índice)
 let fotosItemsReporteMap = {}; // { [rowId]: string[] }
 let fotosCotizacion = []; // Hasta 5 fotos por cotización
 let autoSaveTimer = null;
@@ -121,8 +121,12 @@ function wrapTextLines(text = "", font, fontSize, maxWidth) {
   let line = "";
   for (let i = 0; i < words.length; i++) {
     const test = (line ? line + " " : "") + words[i];
-    if (font.widthOfTextAtSize(test, fontSize) <= maxWidth) line = test;
-    else { if (line) lines.push(line); line = words[i]; }
+    if (font.widthOfTextAtSize(test, fontSize) <= maxWidth) {
+      line = test;
+    } else {
+      if (line) lines.push(line);
+      line = words[i];
+    }
   }
   if (line) lines.push(line);
   return lines;
@@ -422,6 +426,7 @@ function eliminarFotoCot(index) {
 }
 
 function nuevaCotizacion() {
+  // Botón de volver al inicio arriba
   let volverBtn = `
     <button class="btn-secondary" onclick="renderInicio()" style="margin-bottom:14px;">
       <i class="fa fa-arrow-left"></i> Volver al inicio
@@ -472,6 +477,7 @@ function nuevaCotizacion() {
           <label><input type="checkbox" name="corrigeIA"> Mejorar redacción con IA</label>
         </div>
       </div>
+      <!-- CAMPO NUEVO DE TÍTULO -->
       <div class="ems-form-group">
         <label>Título del trabajo/equipo</label>
         <input type="text" name="titulo" placeholder="Ej: Motor de 5 HP, Rebobinado de alternador..." autocomplete="off">
@@ -498,6 +504,7 @@ function nuevaCotizacion() {
           <button type="button" class="mic-btn"><i class="fa fa-microphone"></i></button>
         </div>
       </div>
+      <!-- Imágenes para PDF (hasta 5) -->
       <div class="ems-form-group">
         <label>Imágenes para el PDF (hasta 5)</label>
         <div id="cotFotosPreview" class="ems-rep-fotos-row"></div>
@@ -556,6 +563,7 @@ function nuevaCotizacion() {
     if (document.getElementById('cotForm')) guardarCotizacionDraft();
   }, 15000);
 
+  // eliminar si ya existe
   setTimeout(() => {
     if(form && form.numero && form.numero.value && !document.getElementById('btnEliminarCot')){
       let btn = document.createElement("button");
@@ -571,7 +579,6 @@ function nuevaCotizacion() {
 }
 
 // ========== Reporte (con imágenes Cloudinary) ==========
-// ⬇⬇ CAMBIO: fila por ID estable
 function renderRepItemRow(item = {}, rowId, modoEdicion = true) {
   const id = rowId || item._id || newUID();
   if (!fotosItemsReporteMap[id]) fotosItemsReporteMap[id] = Array.isArray(item.fotos) ? [...item.fotos] : [];
@@ -715,6 +722,7 @@ function nuevoReporte() {
           <input type="time" name="hora" value="${ahora()}">
         </div>
       </div>
+      <!-- NUEVA SECCIÓN: CONCEPTO -->
       <div class="ems-form-group">
         <label>Concepto (ej. MOTOR 4HP)</label>
         <input type="text" name="concepto" list="conceptosEMS" placeholder="Equipo/Trabajo principal" autocomplete="off">
@@ -870,8 +878,14 @@ async function guardarCotizacionDraft() {
 }
 
 // ====== Helpers PDF estéticos ======
-function emsRgb(arr = EMS_COLOR) { const { rgb } = PDFLib; return rgb(arr[0], arr[1], arr[2]); }
-function gray(v) { const { rgb } = PDFLib; return rgb(v, v, v); }
+function emsRgb(arr = EMS_COLOR) {
+  const { rgb } = PDFLib;
+  return rgb(arr[0], arr[1], arr[2]);
+}
+function gray(v) {
+  const { rgb } = PDFLib;
+  return rgb(v, v, v);
+}
 function drawTextRight(page, text, xRight, y, opts) {
   const width = opts.font.widthOfTextAtSize(text, opts.size);
   page.drawText(text, { x: xRight - width, y, ...opts });
@@ -880,10 +894,40 @@ function rule(page, x1, y, x2, color = gray(0.85), thickness = 0.6) {
   page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, thickness, color });
 }
 function drawSectionTitle(page, x, y, text, fonts, opts = {}) {
-  const gap = opts.titleGap ?? 10;
+  const gap = opts.titleGap ?? 10; // gap extra bajo el título
   if (!opts.dryRun) page.drawRectangle({ x, y: y - 10, width: 4, height: 14, color: emsRgb(), opacity: 0.9 });
   if (!opts.dryRun) page.drawText(String(text || "").toUpperCase(), { x: x + 10, y: y - 6, size: 11.5, font: fonts.bold, color: gray(0.18) });
   return y - 20 - gap;
+}
+
+// --- Banda de sección (mejora de contraste y asociación) con reserva anti-solape
+function drawSectionBand(pdfDoc, ctx, label, { continuation = false, preservePageStart = false } = {}) {
+  const { fonts, dims } = ctx;
+  const bandH = 26;
+  // asegura espacio para la banda (evita solaparse con la tarjeta de Descripción)
+  ensureSpace(pdfDoc, ctx, bandH + 8);
+  const page = ctx.pages[ctx.pages.length - 1];
+  page.drawRectangle({
+    x: dims.mx,
+    y: ctx.y - bandH + 6,
+    width: dims.usableW,
+    height: bandH,
+    color: emsRgb(),
+    opacity: 0.10,
+    borderColor: emsRgb(),
+    borderWidth: 0.8
+  });
+  const txt = continuation ? `${label} — continuación` : label;
+  page.drawText(String(txt).toUpperCase(), {
+    x: dims.mx + 10,
+    y: ctx.y - bandH + 12,
+    size: 11.5,
+    font: fonts.bold,
+    color: emsRgb()
+  });
+  ctx.y -= bandH + 10; // gap adicional
+  if (!preservePageStart) ctx._atPageStart = false;
+  ctx.state.prevBlock = "section-band";
 }
 
 // --- Logo embebido (caché por documento)
@@ -896,7 +940,7 @@ async function getLogoImage(pdfDoc) {
   return pdfDoc.__EMS_LOGO_IMG;
 }
 
-// Header
+// Header con logo en TODAS las páginas (marca de agua solo en la primera desde el caller)
 function addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, isFirst = false, logoImg = null, opts = {}) {
   const { pageW, mx } = dims;
   let yTop = dims.pageH - dims.my;
@@ -936,64 +980,35 @@ async function embedSmart(pdfDoc, url) {
     try {
       const orig = await fetch(url).then(r => r.arrayBuffer());
       try { return await pdfDoc.embedJpg(orig); } catch { return await pdfDoc.embedPng(orig); }
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
 }
 
-// === Control de salto de página + flag "inicio de página"
+// === Control de salto de página + bandera para continuaciones
 function ensureSpace(pdfDoc, ctx, needed) {
   const { dims, fonts, datos, typeLabel, logoImg, opts } = ctx;
-  const bottomSafe = dims.my + 86;
+  const bottomSafe = dims.my + 86; // margen inferior (footer + respiro)
   if (ctx.y - needed < bottomSafe) {
     const page = pdfDoc.addPage([dims.pageW, dims.pageH]);
     ctx.pages.push(page);
     ctx.y = addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, false, logoImg, { dryRun: opts.dryRun });
     ctx._atPageStart = true;
     ctx.state.prevBlock = "header";
+    // Si venimos de una galería, marcar claramente la continuación de la sección
     if (ctx.state.inGallery && ctx.state.currentSection) {
       drawSectionBand(pdfDoc, ctx, ctx.state.currentSection, { continuation: true, preservePageStart: true });
-      ctx._atPageStart = true; // permitir grid 2x2
+      // Mantener _atPageStart para permitir grid 2x2 si aplica
+      ctx._atPageStart = true;
     }
   }
 }
 
-// --- Banda de sección (evita solapes con descripción)
-function drawSectionBand(pdfDoc, ctx, label, { continuation = false, preservePageStart = false } = {}) {
-  const { fonts, dims } = ctx;
-  const bandH = 26; // un poco más alto para evitar solape
-  ensureSpace(pdfDoc, ctx, bandH + 8);
-  const page = ctx.pages[ctx.pages.length - 1];
-
-  page.drawRectangle({
-    x: dims.mx,
-    y: ctx.y - bandH + 6,
-    width: dims.usableW,
-    height: bandH,
-    color: emsRgb(),
-    opacity: 0.10,
-    borderColor: emsRgb(),
-    borderWidth: 0.8
-  });
-  const txt = continuation ? `${label} — continuación` : label;
-  page.drawText(String(txt).toUpperCase(), {
-    x: dims.mx + 10,
-    y: ctx.y - bandH + 12,
-    size: 11.5,
-    font: fonts.bold,
-    color: emsRgb()
-  });
-
-  ctx.y -= bandH + 10; // gap extra
-  if (!preservePageStart) ctx._atPageStart = false;
-  ctx.state.prevBlock = "section-band";
-}
-
-// --- Card de texto (con reserva para primera fila de fotos)
+// --- Card de texto con etiqueta tipo “píldora” (con reserva para primera fila de fotos)
 function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10, reserveBelow = 0 }) {
   const { dims, fonts, opts } = ctx;
-
-  // Si venimos de una banda de sección, añade un respiro extra
-  if (ctx.state.prevBlock === "section-band") ctx.y -= 2;
+  if (ctx.state.prevBlock === "section-band") ctx.y -= 2; // respiro bajo la banda
 
   const page = ctx.pages[ctx.pages.length - 1];
   const labelTxt = String(label || "").toUpperCase();
@@ -1037,7 +1052,8 @@ function parseObservaciones(raw) {
   const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
   const items = [];
   for (let ln of lines) {
-    ln = ln.replace(/^\s*[-*•]\s+/, "").replace(/^\s*\d+[\.\)]\s+/, "");
+    ln = ln.replace(/^\s*[-*•]\s+/, "")
+           .replace(/^\s*\d+[\.\)]\s+/, "");
     if (ln) items.push(ln);
   }
   return items;
@@ -1054,7 +1070,14 @@ function drawBulletList(pdfDoc, ctx, items, { bullet = "•", fontSize = 10, lin
     ensureSpace(pdfDoc, ctx, needed);
 
     if (!opts.dryRun) {
-      ctx.pages[ctx.pages.length - 1].drawText(bullet, { x: xBullet, y: ctx.y - fontSize, size: fontSize, font: fonts.bold, color: gray(0.25) });
+      ctx.pages[ctx.pages.length - 1].drawText(bullet, {
+        x: xBullet,
+        y: ctx.y - fontSize,
+        size: fontSize,
+        font: fonts.bold,
+        color: gray(0.25)
+      });
+
       let y = ctx.y - fontSize;
       lines.forEach((ln) => {
         ctx.pages[ctx.pages.length - 1].drawText(ln, { x: xText, y, size: fontSize, font: fonts.reg, color: gray(0.28) });
@@ -1070,7 +1093,10 @@ function drawBulletList(pdfDoc, ctx, items, { bullet = "•", fontSize = 10, lin
 
 // --- Utilidades de galería ---
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-function availablePageHeight(ctx) { return ctx.y - (ctx.dims.my + 86); }
+function availablePageHeight(ctx) {
+  // altura real libre hasta el footer seguro
+  return ctx.y - (ctx.dims.my + 86);
+}
 
 // Dibuja una sola imagen (centrada)
 async function drawSingleImageBlock(pdfDoc, ctx, url, { maxWFactor = 0.9, maxH = 300, pad = 8 } = {}) {
@@ -1097,9 +1123,11 @@ async function drawSingleImageBlock(pdfDoc, ctx, url, { maxWFactor = 0.9, maxH =
   ctx.state.prevBlock = "image";
 }
 
-// == Grid 2x2 (inicio de página)
+// == Grid 2x2 inteligente (garantiza 4 por página al inicio) ==
 async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 10, pad = 8, vGap = 10 } = {}) {
   const { dims, opts } = ctx;
+
+  // embed + ratios
   const emb1 = [], emb2 = [];
   for (const u of row1Imgs) { const e = await embedSmart(pdfDoc, u); if (e) emb1.push({img:e, r:e.width/e.height}); }
   for (const u of row2Imgs) { const e = await embedSmart(pdfDoc, u); if (e) emb2.push({img:e, r:e.width/e.height}); }
@@ -1108,9 +1136,11 @@ async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 10, pa
   const sumR1 = emb1.reduce((a,b)=>a+b.r,0) || 1;
   const sumR2 = emb2.reduce((a,b)=>a+b.r,0) || 1;
 
+  // alturas de fila para llenar el ancho
   let h1 = Math.floor((dims.usableW - gutter*(emb1.length-1)) / sumR1);
   let h2 = Math.floor((dims.usableW - gutter*(emb2.length-1)) / sumR2);
 
+  // escalar para que quepa en el alto disponible
   const boxH = pad*2 + h1 + vGap + h2 + pad*2 + (opts.blockGap || 8);
   let avail = availablePageHeight(ctx) - 12;
   if (boxH > avail) {
@@ -1126,6 +1156,7 @@ async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 10, pa
     const p = ctx.pages[ctx.pages.length - 1];
     const topY = ctx.y;
 
+    // fila 1
     let x = dims.mx + Math.round((dims.usableW - (emb1.reduce((a,b)=>a+Math.round(b.r*h1),0) + gutter*(emb1.length-1)))/2);
     let y = topY - pad - h1;
     for (let i=0;i<emb1.length;i++) {
@@ -1134,6 +1165,7 @@ async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 10, pa
       x += w + gutter;
     }
 
+    // fila 2
     x = dims.mx + Math.round((dims.usableW - (emb2.reduce((a,b)=>a+Math.round(b.r*h2),0) + gutter*(emb2.length-1)))/2);
     y = topY - pad - h1 - vGap - h2;
     for (let i=0;i<emb2.length;i++) {
@@ -1142,6 +1174,7 @@ async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 10, pa
       x += w + gutter;
     }
 
+    // marco sutil de bloque
     p.drawRectangle({
       x: dims.mx,
       y: topY - (pad*2 + h1 + vGap + h2),
@@ -1158,18 +1191,72 @@ async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 10, pa
   ctx.state.prevBlock = "grid2x2";
 }
 
+// Dibuja dos imágenes lado a lado (no indispensable, pero útil si quisieras forzar pares)
+async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 10, rowPad = 6, targetH = 210, maxH = 230 } = {}) {
+  const { dims, opts } = ctx;
+  const imgs = [];
+  for (const u of urls) {
+    const img = await embedSmart(pdfDoc, u);
+    if (img) imgs.push({ img, r: img.width / img.height });
+  }
+  if (imgs.length === 0) return;
+  if (imgs.length === 1) return drawSingleImageBlock(pdfDoc, ctx, urls[0], { maxH });
+
+  let rowH = clamp(targetH, 160, maxH);
+  const sumR = imgs[0].r + imgs[1].r;
+  rowH = Math.min(rowH, Math.floor((dims.usableW - gutter) / sumR));
+
+  const needed = rowPad * 2 + rowH + (opts.blockGap || 8);
+  ensureSpace(pdfDoc, ctx, needed);
+
+  if (!opts.dryRun) {
+    const p = ctx.pages[ctx.pages.length - 1];
+    const topY = ctx.y;
+    p.drawRectangle({ x: dims.mx, y: topY - (rowPad * 2 + rowH), width: dims.usableW, height: rowPad * 2 + rowH, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
+
+    const w1 = Math.round(imgs[0].r * rowH);
+    const w2 = Math.round(imgs[1].r * rowH);
+    let startX = dims.mx + Math.round((dims.usableW - (w1 + w2 + gutter)) / 2);
+    const y = topY - rowPad - rowH;
+    p.drawImage(imgs[0].img, { x: startX, y, width: w1, height: rowH });
+    p.drawImage(imgs[1].img, { x: startX + w1 + gutter, y, width: w2, height: rowH });
+  }
+
+  ctx.y -= (rowPad * 2 + rowH + (opts.blockGap || 8));
+  ctx._atPageStart = false;
+  ctx.state.prevBlock = "row2";
+}
+
 /**
- * Galería "packed" profesional (por ítem, con continuidad de sección)
+ * Galería "packed" profesional:
+ * - En inicio de página usa grid 2×2 para asegurar 4 fotos por hoja.
+ * - Evita filas de 1 imagen (funde con la siguiente).
+ * - Ajusta dinámicamente la altura objetivo a lo disponible.
+ * - Última fila centrada sin estirar de más.
+ * - Respeta separaciones extras post-título para evitar solapes.
+ * - NUEVO: marca continuidad de sección al saltar de página.
  */
 async function drawSmartGallery(
-  pdfDoc, ctx, images,
-  { title = null, captions = false, baseTargetRowH = 200, minRowH = 160, maxRowH = 235, minImgW = 150, gutter = 10, rowPad = 6 } = {}
+  pdfDoc,
+  ctx,
+  images,
+  {
+    title = null,
+    captions = false,
+    baseTargetRowH = 200,
+    minRowH = 160,
+    maxRowH = 235,
+    minImgW = 150,
+    gutter = 10,
+    rowPad = 6,
+  } = {}
 ) {
   const { dims, fonts, opts } = ctx;
   const page = () => ctx.pages[ctx.pages.length - 1];
 
   if (!Array.isArray(images) || images.length === 0) return;
 
+  // Título opcional
   if (title) {
     ensureSpace(pdfDoc, ctx, 26 + (opts.titleGap ?? 10));
     ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts, { titleGap: opts.titleGap ?? 10, dryRun: opts.dryRun });
@@ -1177,6 +1264,7 @@ async function drawSmartGallery(
     ctx.state.prevBlock = "title";
   }
 
+  // Pre-embed ratios
   const emb = [];
   for (const url of images) {
     const img = await embedSmart(pdfDoc, url);
@@ -1190,31 +1278,49 @@ async function drawSmartGallery(
   ctx.state.inGallery = true;
 
   while (i < emb.length) {
+    // Si estamos al inicio de página y hay >= 4 imágenes, aplicar grid 2x2
     if (ctx._atPageStart && (emb.length - i) >= 4) {
-      await drawFourUpGrid(pdfDoc, ctx, [images[i], images[i+1]], [images[i+2], images[i+3]], { gutter: 10, pad: 8, vGap: 10 });
+      await drawFourUpGrid(pdfDoc, ctx,
+        [images[i], images[i+1]],
+        [images[i+2], images[i+3]],
+        { gutter: 10, pad: 8, vGap: 10 }
+      );
       i += 4;
       continue;
     }
 
+    // Altura objetivo dinámica para llenado eficiente
     const dynamicTarget = clamp(Math.floor(availablePageHeight(ctx) / 2) - 12, minRowH, maxRowH);
     const targetRowH = clamp(dynamicTarget || baseTargetRowH, minRowH, maxRowH);
 
+    // Construcción de fila evitando 1 sola imagen
     let row = [];
     let sumRatios = 0;
+
     while (i < emb.length) {
-      row.push(emb[i]); sumRatios += emb[i].r;
+      row.push(emb[i]);
+      sumRatios += emb[i].r;
       const widthAtTarget = Math.round(sumRatios * targetRowH) + gutter * (row.length - 1);
+
       const minWidthAtTarget = Math.min(...row.map(o => o.r * targetRowH));
-      if (minWidthAtTarget < minImgW && row.length > 1) { row.pop(); sumRatios -= emb[i].r; break; }
+      if (minWidthAtTarget < minImgW && row.length > 1) {
+        row.pop(); sumRatios -= emb[i].r; break;
+      }
       if (widthAtTarget >= dims.usableW) break;
       i++;
     }
     if (row.length > 0 && emb[i] === row[row.length - 1]) i++;
-    if (row.length === 1 && i < emb.length) { row.push(emb[i]); sumRatios += emb[i].r; i++; }
 
+    // Si quedó una sola imagen y aún hay más disponibles, forzar pareja
+    if (row.length === 1 && i < emb.length) {
+      row.push(emb[i]); sumRatios += emb[i].r; i++;
+    }
+
+    // altura final de fila
     let rowH = (dims.usableW - gutter * (row.length - 1)) / sumRatios;
     rowH = clamp(rowH, minRowH, maxRowH);
 
+    // Asegurar que cabe en la página
     const boxH = rowPad * 2 + rowH + (captions ? 16 : 0) + (opts.blockGap || 8);
     ensureSpace(pdfDoc, ctx, boxH);
 
@@ -1234,6 +1340,8 @@ async function drawSmartGallery(
 
       let widths = row.map(o => Math.round(o.r * rowH));
       let totalRowWidth = widths.reduce((a, b) => a + b, 0) + gutter * (row.length - 1);
+
+      // reajuste fino
       while (totalRowWidth > dims.usableW && rowH > minRowH) {
         rowH -= 1;
         widths = row.map(o => Math.round(o.r * rowH));
@@ -1245,7 +1353,9 @@ async function drawSmartGallery(
       const iy = topY - rowPad - rowH;
       for (let k = 0; k < row.length; k++) {
         p.drawImage(row[k].img, { x, y: iy, width: widths[k], height: rowH });
-        if (captions) p.drawText(`Figura ${figCounter}`, { x, y: iy - 12, size: 9.2, font: fonts.reg, color: gray(0.45) });
+        if (captions) {
+          p.drawText(`Figura ${figCounter}`, { x, y: iy - 12, size: 9.2, font: fonts.reg, color: gray(0.45) });
+        }
         figCounter++;
         x += widths[k] + gutter;
       }
@@ -1319,7 +1429,7 @@ async function generarPDFCotizacion(share = false) {
     first.drawRectangle({ x: dims.mx, y: ctx.y - rectH + 10, width: dims.usableW, height: rectH, color: emsRgb(), opacity: 0.08, borderColor: emsRgb(), borderWidth: 1 });
     const w = helvB.widthOfTextAtSize(titulo, 15);
     first.drawText(titulo, { x: dims.mx + (dims.usableW - w) / 2, y: ctx.y - rectH / 2 + 12, size: 15, font: helvB, color: emsRgb() });
-    ctx.y -= rectH + 16;
+    ctx.y -= rectH + 16; // +2px extra de seguridad
     ctx._atPageStart = false;
   } else {
     ctx.y -= 6;
@@ -1384,7 +1494,7 @@ async function generarPDFCotizacion(share = false) {
   drawTextRight(pTot, mostrarPrecioLimpio(total), dims.pageW - dims.mx, ctx.y, { size: 11.5, font: helvB, color: emsRgb() });
   ctx.y -= 16;
 
-  // Anexos fotográficos
+  // Anexos fotográficos – galería packed
   if (Array.isArray(fotosCotizacion) && fotosCotizacion.length) {
     await drawSmartGallery(pdfDoc, ctx, fotosCotizacion.slice(0, 10), {
       title: "Anexos fotográficos",
@@ -1403,7 +1513,9 @@ async function generarPDFCotizacion(share = false) {
     ensureSpace(pdfDoc, ctx, 60);
     ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, "Observaciones", fonts, { titleGap: 10, dryRun: false });
     const itemsObs = parseObservaciones(datos.notas);
-    if (itemsObs.length) drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "•", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+    if (itemsObs.length) {
+      drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "•", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+    }
   }
 
   applyFooters(pdfDoc, ctx.pages, fonts, dims);
@@ -1514,7 +1626,12 @@ async function composeReportePDF({ datos, items, params, dryRun = false }) {
   const ctx = { 
     pages: [], y: 0, dims, fonts, datos, 
     typeLabel: "REPORTE DE SERVICIO", logoImg, _atPageStart: true,
-    opts: { dryRun, titleGap: params.titleGap, cardGap: params.cardGap, blockGap: params.blockGap },
+    opts: { 
+      dryRun,
+      titleGap: params.titleGap,
+      cardGap: params.cardGap,
+      blockGap: params.blockGap
+    },
     state: { prevBlock: "start", inGallery: false, currentSection: null },
     audit: { pages: 0 }
   };
@@ -1538,19 +1655,22 @@ async function composeReportePDF({ datos, items, params, dryRun = false }) {
     const it = items[i];
     const fotos = Array.isArray(it.fotos) ? it.fotos : [];
 
-    // Banda de sección (reserva propia)
+    // Banda de sección clara
     ctx.state.currentSection = `Sección ${i + 1}`;
     drawSectionBand(pdfDoc, ctx, ctx.state.currentSection);
 
-    // Reservar espacio para que la descripción + primera fila no se separen
+    // Reservar espacio para que la descripción NO quede sola sin fotos en esta página
     let reserveFirstRow = 0;
-    if (fotos.length > 0) reserveFirstRow = Math.max(params.minRowH + 2*6 + (params.blockGap || 10), 180);
+    if (fotos.length > 0) {
+      // reserva aprox. para al menos una fila de galería
+      reserveFirstRow = Math.max(params.minRowH + 2*6 + (params.blockGap || 10), 180);
+    }
 
-    // DESCRIPCIÓN (con reserva si hay fotos)
+    // DESCRIPCIÓN (píldora) con reserva
     const descText = `• ${String(it.descripcion || "").trim()}`;
     drawLabeledCard(pdfDoc, ctx, { label: "Descripción", text: descText, fontSize: 11, reserveBelow: reserveFirstRow });
 
-    // Fotos del ítem – galería
+    // Fotos del ítem – galería packed
     if (fotos.length) {
       await drawSmartGallery(pdfDoc, ctx, fotos, {
         title: null,
@@ -1573,12 +1693,16 @@ async function composeReportePDF({ datos, items, params, dryRun = false }) {
     }
   }
 
-  // Observaciones
+  // Observaciones como lista
   if ((datos.notas || "").trim()) {
     ensureSpace(pdfDoc, ctx, 60);
-    ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, "Observaciones", fonts, { titleGap: params.titleGap, dryRun });
+    if (!dryRun) ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, "Observaciones", fonts, { titleGap: params.titleGap, dryRun });
+    else ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, "Observaciones", fonts, { titleGap: params.titleGap, dryRun: true });
+
     const itemsObs = parseObservaciones(datos.notas);
-    if (itemsObs.length) drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "•", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+    if (itemsObs.length) {
+      drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "•", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+    }
   }
 
   ctx.audit.pages = ctx.pages.length;
@@ -1672,6 +1796,7 @@ async function generarPDFReporte(share = false) {
     });
   });
 
+  // Parámetros iniciales (se ajustan si el pre-flight encuentra riesgos)
   let params = {
     baseRowH: 200,
     minRowH: 160,
@@ -1681,10 +1806,11 @@ async function generarPDFReporte(share = false) {
     blockGap: 10
   };
 
-  // Pre-flight compacto si es largo
+  // --- Pre-flight con hasta 2 ajustes automáticos ---
   for (let attempt = 0; attempt < 2; attempt++) {
     const { ctx } = await composeReportePDF({ datos, items, params, dryRun: true });
     if (ctx.audit.pages >= 6) {
+      // documento muy largo: compactar más
       params.baseRowH = Math.max(180, params.baseRowH - 10);
       params.minRowH  = Math.max(150, params.minRowH - 8);
       params.maxRowH  = Math.max(210, params.maxRowH - 12);
@@ -1698,8 +1824,10 @@ async function generarPDFReporte(share = false) {
 
   showProgress(true, 45, "Componiendo PDF...");
 
+  // --- Render final (no dry run) ---
   const { pdfDoc, ctx } = await composeReportePDF({ datos, items, params, dryRun: false });
 
+  // Pie de página en todas
   applyFooters(pdfDoc, ctx.pages, ctx.fonts, ctx.dims);
 
   const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
@@ -1716,7 +1844,7 @@ async function generarPDFReporte(share = false) {
         showProgress(false);
         return;
       }
-    } catch {}
+    } catch { /* fallback */ }
   }
 
   const url = URL.createObjectURL(blob);
