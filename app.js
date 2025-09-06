@@ -893,6 +893,33 @@ function drawSectionTitle(page, x, y, text, fonts, opts = {}) {
   return y - 20 - gap;
 }
 
+// --- Banda de sección (mejora de contraste y asociación)
+function drawSectionBand(ctx, label, { continuation = false, preservePageStart = false } = {}) {
+  const { fonts, dims } = ctx;
+  const page = ctx.pages[ctx.pages.length - 1];
+  const bandH = 22;
+  page.drawRectangle({
+    x: dims.mx,
+    y: ctx.y - bandH + 6,
+    width: dims.usableW,
+    height: bandH,
+    color: emsRgb(),
+    opacity: 0.10,
+    borderColor: emsRgb(),
+    borderWidth: 0.8
+  });
+  const txt = continuation ? `${label} — continuación` : label;
+  page.drawText(String(txt).toUpperCase(), {
+    x: dims.mx + 10,
+    y: ctx.y - bandH + 12,
+    size: 11.5,
+    font: fonts.bold,
+    color: emsRgb()
+  });
+  ctx.y -= bandH + 8;
+  if (!preservePageStart) ctx._atPageStart = false;
+}
+
 // --- Logo embebido (caché por documento)
 async function getLogoImage(pdfDoc) {
   if (!pdfDoc.__EMS_LOGO_IMG) {
@@ -949,7 +976,7 @@ async function embedSmart(pdfDoc, url) {
   }
 }
 
-// === Control de salto de página + flag "inicio de página"
+// === Control de salto de página + bandera para continuaciones
 function ensureSpace(pdfDoc, ctx, needed) {
   const { dims, fonts, datos, typeLabel, logoImg, opts } = ctx;
   const bottomSafe = dims.my + 86; // margen inferior (footer + respiro)
@@ -959,18 +986,27 @@ function ensureSpace(pdfDoc, ctx, needed) {
     ctx.y = addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, false, logoImg, { dryRun: opts.dryRun });
     ctx._atPageStart = true;
     ctx.state.prevBlock = "header";
+    // Si venimos de una galería, marcar claramente la continuación de la sección
+    if (ctx.state.inGallery && ctx.state.currentSection) {
+      drawSectionBand(ctx, ctx.state.currentSection, { continuation: true, preservePageStart: true });
+      // Mantener _atPageStart para permitir grid 2x2 si aplica
+      ctx._atPageStart = true;
+    }
   }
 }
 
 // --- Card de texto con etiqueta tipo “píldora”
-function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10 }) {
+//    NUEVO: reserveBelow asegura que haya espacio para lo que sigue (ej. primera fila de fotos)
+function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10, reserveBelow = 0 }) {
   const { dims, fonts, opts } = ctx;
   const page = ctx.pages[ctx.pages.length - 1];
   const labelTxt = String(label || "").toUpperCase();
   const bodyTxt  = String(text || "").trim();
   const lines = wrapTextLines(bodyTxt, fonts.reg, fontSize, dims.usableW - 2*pad);
   const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2*pad);
-  const needed = 22 + 6 + bodyH + (opts.cardGap || 10);
+  const cardSelfHeight = 22 + 6 + bodyH + (opts.cardGap || 10);
+  const needed = cardSelfHeight + (reserveBelow || 0);
+
   ensureSpace(pdfDoc, ctx, needed);
 
   const pillW = Math.min(dims.usableW, fonts.bold.widthOfTextAtSize(labelTxt, 10.5) + 14);
@@ -986,9 +1022,10 @@ function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10 }) 
       y -= (fontSize + 3);
     });
   }
+
   // Actualiza y cuidando el margen inferior del bloque
   const topBodyY = ctx.y - 18 - 5;
-  const endY = topBodyY - bodyH - (opts.cardGap || 10);
+  const endY = topBodyY - bodyH + (-(opts.cardGap || 10));
   ctx.y = endY;
   ctx._atPageStart = false;
   ctx.state.prevBlock = "card";
@@ -1187,6 +1224,7 @@ async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 10, rowPad = 6, tar
  * - Ajusta dinámicamente la altura objetivo a lo disponible.
  * - Última fila centrada sin estirar de más.
  * - Respeta separaciones extras post-título para evitar solapes.
+ * - NUEVO: marca continuidad de sección al saltar de página.
  */
 async function drawSmartGallery(
   pdfDoc,
@@ -1212,7 +1250,7 @@ async function drawSmartGallery(
   if (title) {
     ensureSpace(pdfDoc, ctx, 26 + (opts.titleGap ?? 10));
     ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts, { titleGap: opts.titleGap ?? 10, dryRun: opts.dryRun });
-    ctx._atPageStart = false; // evitar que la primera fila ignore el gap por grid 2x2
+    ctx._atPageStart = false;
     ctx.state.prevBlock = "title";
   }
 
@@ -1227,6 +1265,7 @@ async function drawSmartGallery(
 
   let i = 0;
   let figCounter = 1;
+  ctx.state.inGallery = true;
 
   while (i < emb.length) {
     // Si estamos al inicio de página y hay >= 4 imágenes, aplicar grid 2x2
@@ -1316,6 +1355,8 @@ async function drawSmartGallery(
     ctx._atPageStart = false;
     ctx.state.prevBlock = "galleryRow";
   }
+
+  ctx.state.inGallery = false;
 }
 
 // ====== COTIZACIÓN: PDF ======
@@ -1580,7 +1621,7 @@ async function composeReportePDF({ datos, items, params, dryRun = false }) {
       cardGap: params.cardGap,
       blockGap: params.blockGap
     },
-    state: { prevBlock: "start" },
+    state: { prevBlock: "start", inGallery: false, currentSection: null },
     audit: { pages: 0 }
   };
 
@@ -1601,13 +1642,24 @@ async function composeReportePDF({ datos, items, params, dryRun = false }) {
   // Lista de items
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
+    const fotos = Array.isArray(it.fotos) ? it.fotos : [];
 
-    // DESCRIPCIÓN (píldora)
+    // Banda de sección clara
+    ctx.state.currentSection = `Sección ${i + 1}`;
+    drawSectionBand(ctx, ctx.state.currentSection);
+
+    // Reservar espacio para que la descripción NO quede sola sin fotos en esta página
+    let reserveFirstRow = 0;
+    if (fotos.length > 0) {
+      // reserva aprox. para al menos una fila de galería
+      reserveFirstRow = Math.max(params.minRowH + 2*6 + (params.blockGap || 10), 180);
+    }
+
+    // DESCRIPCIÓN (píldora) con reserva
     const descText = `• ${String(it.descripcion || "").trim()}`;
-    drawLabeledCard(pdfDoc, ctx, { label: "Descripción", text: descText, fontSize: 11 });
+    drawLabeledCard(pdfDoc, ctx, { label: "Descripción", text: descText, fontSize: 11, reserveBelow: reserveFirstRow });
 
     // Fotos del ítem – galería packed
-    const fotos = Array.isArray(it.fotos) ? it.fotos : [];
     if (fotos.length) {
       await drawSmartGallery(pdfDoc, ctx, fotos, {
         title: null,
@@ -1741,10 +1793,6 @@ async function generarPDFReporte(share = false) {
   // --- Pre-flight con hasta 2 ajustes automáticos ---
   for (let attempt = 0; attempt < 2; attempt++) {
     const { ctx } = await composeReportePDF({ datos, items, params, dryRun: true });
-    // Heurística: si el documento usa más páginas de lo esperado por exceso de aire o si
-    // detecta que muchas filas se colocaron en nuevas páginas justo tras una píldora,
-    // compactamos un poco las filas (bajamos alturas/gaps).
-    // (ctx.state no guarda contadores por brevedad; afinamos por páginas)
     if (ctx.audit.pages >= 6) {
       // documento muy largo: compactar más
       params.baseRowH = Math.max(180, params.baseRowH - 10);
@@ -1753,9 +1801,8 @@ async function generarPDFReporte(share = false) {
       params.cardGap  = Math.max(8, params.cardGap - 2);
       params.blockGap = Math.max(8, params.blockGap - 2);
       params.titleGap = Math.max(10, params.titleGap - 2);
-      continue; // otra vuelta rápida
+      continue;
     }
-    // Si no es largo, salimos: distribución se considera estable
     break;
   }
 
