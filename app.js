@@ -1611,6 +1611,14 @@ async function abrirDetalleEMS(tipo, numero) {
   }
 }
 
+// ======= (NUEVO) Medidor de altura de tarjeta de descripción =======
+function measureCardHeight(ctx, text, fontSize = 11, pad = 10) {
+  const { fonts, dims, opts } = ctx;
+  const lines = wrapTextLines(String(text||"").trim(), fonts.reg, fontSize, dims.usableW - 2*pad);
+  const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2*pad);
+  return 22 + 6 + bodyH + (opts.cardGap || 10); // altura total de la tarjeta
+}
+
 // ======= Motor de composición con PRE-FLIGHT (Reportes) =======
 async function composeReportePDF({ datos, items, params, dryRun = false }) {
   const { PDFDocument, StandardFonts } = PDFLib;
@@ -1655,19 +1663,21 @@ async function composeReportePDF({ datos, items, params, dryRun = false }) {
     const it = items[i];
     const fotos = Array.isArray(it.fotos) ? it.fotos : [];
 
-    // Banda de sección clara
+    // Preparación: estimar altura de banda + tarjeta + primera fila de fotos
+    const descText = `• ${String(it.descripcion || "").trim()}`;
+    const cardH = measureCardHeight(ctx, descText, 11, 10);
+    const bandH = 26 + 10; // alto de la banda + respiro
+    // Reserva conservadora para la 1ª fila (para que nunca se vaya a la página siguiente)
+    const reserveFirstRow = fotos.length > 0 ? (params.maxRowH + 2*6 + (ctx.opts.blockGap || 8) + 24) : 0;
+
+    // Garantiza que todo el bloque inicial del ítem entre junto
+    ensureSpace(pdfDoc, ctx, bandH + cardH + reserveFirstRow);
+
+    // Banda de sección
     ctx.state.currentSection = `Sección ${i + 1}`;
     drawSectionBand(pdfDoc, ctx, ctx.state.currentSection);
 
-    // Reservar espacio para que la descripción NO quede sola sin fotos en esta página
-    let reserveFirstRow = 0;
-    if (fotos.length > 0) {
-      // reserva aprox. para al menos una fila de galería
-      reserveFirstRow = Math.max(params.minRowH + 2*6 + (params.blockGap || 10), 180);
-    }
-
-    // DESCRIPCIÓN (píldora) con reserva
-    const descText = `• ${String(it.descripcion || "").trim()}`;
+    // DESCRIPCIÓN (píldora) con reserva de la primera fila de fotos
     drawLabeledCard(pdfDoc, ctx, { label: "Descripción", text: descText, fontSize: 11, reserveBelow: reserveFirstRow });
 
     // Fotos del ítem – galería packed
