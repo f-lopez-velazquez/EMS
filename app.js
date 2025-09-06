@@ -1030,7 +1030,7 @@ function drawBulletList(pdfDoc, ctx, items, { bullet = "•", fontSize = 10, lin
     });
 
     let y = ctx.y - fontSize;
-    lines.forEach((ln, idx) => {
+    lines.forEach((ln) => {
       ctx.pages[ctx.pages.length - 1].drawText(ln, { x: xText, y, size: fontSize, font: fonts.reg, color: gray(0.28) });
       y -= (fontSize + lineGap);
     });
@@ -1040,11 +1040,12 @@ function drawBulletList(pdfDoc, ctx, items, { bullet = "•", fontSize = 10, lin
   ctx.y -= 4; // pequeño respiro al final de la lista
 }
 
-// --- Utilidades para galería ---
+// --- Utilidades de layout ---
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function availableHeight(ctx) { return ctx.y - (ctx.dims.my + 86); }
 
 // Dibuja una sola imagen (centrada, tamaño óptimo sin recortes)
-async function drawSingleImageBlock(pdfDoc, ctx, url, { maxWFactor = 0.9, maxH = 300, pad = 10 } = {}) {
+async function drawSingleImageBlock(pdfDoc, ctx, url, { maxWFactor = 0.98, maxH = 360, pad = 10 } = {}) {
   const { dims } = ctx;
   const img = await embedSmart(pdfDoc, url);
   if (!img) return;
@@ -1056,9 +1057,7 @@ async function drawSingleImageBlock(pdfDoc, ctx, url, { maxWFactor = 0.9, maxH =
   const needed = h + pad * 2;
   ensureSpace(pdfDoc, ctx, needed);
 
-  // contenedor sutil
   const p = ctx.pages[ctx.pages.length - 1];
-  p.drawRectangle({ x: dims.mx, y: ctx.y - (h + pad * 2), width: dims.usableW, height: h + pad * 2, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
   const x = dims.mx + (dims.usableW - w) / 2;
   const y = ctx.y - pad - h;
   p.drawImage(img, { x, y, width: w, height: h });
@@ -1066,7 +1065,7 @@ async function drawSingleImageBlock(pdfDoc, ctx, url, { maxWFactor = 0.9, maxH =
 }
 
 // Dibuja dos imágenes lado a lado con simetría
-async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 12, rowPad = 8, targetH = 220, maxH = 240 } = {}) {
+async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 12, rowPad = 6, targetH = 260, maxH = 320 } = {}) {
   const { dims } = ctx;
   const imgs = [];
   for (const u of urls) {
@@ -1077,76 +1076,50 @@ async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 12, rowPad = 8, tar
   if (imgs.length === 1) return drawSingleImageBlock(pdfDoc, ctx, urls[0], { maxH });
 
   // Calcula altura común
-  let rowH = clamp(targetH, 170, maxH);
-  const w1 = Math.round(imgs[0].r * rowH);
-  const w2 = Math.round(imgs[1].r * rowH);
-  const totalW = w1 + w2 + gutter;
-  const slack = dims.usableW - totalW;
-  if (slack < 0) {
-    // reducir altura para que quepa
-    const sumR = imgs[0].r + imgs[1].r;
-    rowH = Math.floor((dims.usableW - gutter) / sumR);
-  }
+  let rowH = clamp(targetH, 160, maxH);
+  const sumR = imgs[0].r + imgs[1].r;
+  rowH = Math.floor((dims.usableW - gutter) / sumR);
 
-  const needed = rowH + rowPad * 2 + 10;
+  const needed = rowH + rowPad * 2 + 8;
   ensureSpace(pdfDoc, ctx, needed);
 
   const p = ctx.pages[ctx.pages.length - 1];
   const topY = ctx.y;
-  p.drawRectangle({ x: dims.mx, y: topY - (rowPad * 2 + rowH), width: dims.usableW, height: rowPad * 2 + rowH, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
 
-  const w1f = Math.round(imgs[0].r * rowH);
-  const w2f = Math.round(imgs[1].r * rowH);
-  let startX = dims.mx + Math.round((dims.usableW - (w1f + w2f + gutter)) / 2);
+  const w1 = Math.round(imgs[0].r * rowH);
+  const w2 = Math.round(imgs[1].r * rowH);
+  let startX = dims.mx + Math.round((dims.usableW - (w1 + w2 + gutter)) / 2);
   const y = topY - rowPad - rowH;
-  p.drawImage(imgs[0].img, { x: startX, y, width: w1f, height: rowH });
-  p.drawImage(imgs[1].img, { x: startX + w1f + gutter, y, width: w2f, height: rowH });
+  p.drawImage(imgs[0].img, { x: startX, y, width: w1, height: rowH });
+  p.drawImage(imgs[1].img, { x: startX + w1 + gutter, y, width: w2, height: rowH });
 
-  ctx.y = topY - (rowPad * 2 + rowH) - 10;
+  ctx.y = topY - (rowPad * 2 + rowH) - 8;
 }
 
 /**
- * Galería tipo "justified" mejorada:
- * - Respeta orientación (ancho/alto) con filas de altura uniforme.
- * - Controla un ancho mínimo por imagen para que verticales no queden demasiado pequeñas.
- * - Evita desbordes de página calculando la altura necesaria antes de dibujar.
- * - Última fila centrada sin estirar en exceso.
+ * NUEVO LAYOUT COMPACTO: garantiza **al menos 4 imágenes por hoja** cuando hay suficientes.
+ * - Usa cuadrícula 2x2 por página (slots iguales). Cada imagen se ajusta dentro de su slot respetando proporción.
+ * - Para 3 restantes: 2 arriba + 1 abajo a lo ancho (span), sin dejar huecos.
+ * - Para 2: fila de 2 a lo ancho.
+ * - Para 1: bloque único centrado grande.
+ * - Calcula tamaño según el ALTO DISPONIBLE real en la página para eliminar espacios en blanco.
  */
-async function drawSmartGallery(
+async function drawTightGallery(
   pdfDoc,
   ctx,
   images,
   {
     title = null,
-    captions = false,
-    targetRowH = 200,
-    minRowH = 180,
-    maxRowH = 230,
-    minImgW = 160, // **clave** para que verticales no queden minúsculas
-    gutter = 12,
-    rowPad = 8,
+    gridPad = 8,
+    gutterX = 12,
+    gutterY = 12,
+    minSlotH = 160,
+    maxSlotH = 360
   } = {}
 ) {
   const { dims, fonts } = ctx;
   const page = () => ctx.pages[ctx.pages.length - 1];
-
   if (!Array.isArray(images) || images.length === 0) return;
-
-  // Casos especiales ultra limpios
-  if (images.length === 1) {
-    if (title) {
-      ensureSpace(pdfDoc, ctx, 28);
-      ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts);
-    }
-    return drawSingleImageBlock(pdfDoc, ctx, images[0], { maxH: 320 });
-  }
-  if (images.length === 2) {
-    if (title) {
-      ensureSpace(pdfDoc, ctx, 28);
-      ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts);
-    }
-    return drawTwoImageRow(pdfDoc, ctx, images, { targetH: 220, maxH: 240 });
-  }
 
   // Título opcional
   if (title) {
@@ -1154,106 +1127,98 @@ async function drawSmartGallery(
     ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts);
   }
 
-  // Pre-embed para conocer las proporciones
+  // Pre-embed para conocer proporciones
   const emb = [];
   for (const url of images) {
     const img = await embedSmart(pdfDoc, url);
     if (!img) continue;
-    emb.push({ img, w: img.width, h: img.height, r: img.width / img.height });
+    emb.push({ url, img, w: img.width, h: img.height, r: img.width / img.height });
   }
   if (emb.length === 0) return;
 
-  // Filas justificadas
   let i = 0;
-  let figCounter = 1;
-
   while (i < emb.length) {
-    let row = [];
-    let sumRatios = 0;
+    const remaining = emb.length - i;
 
-    // añade imágenes a la fila respetando un ancho mínimo por imagen
-    while (i < emb.length) {
-      row.push(emb[i]);
-      sumRatios += emb[i].r;
-      const widthAtTarget = Math.round(sumRatios * targetRowH) + gutter * (row.length - 1);
-
-      // si con la nueva imagen alguna quedaría por debajo del ancho mínimo, cortamos la fila antes
-      const minWidthAtTarget = Math.min(...row.map(o => o.r * targetRowH));
-      if (minWidthAtTarget < minImgW && row.length > 1) {
-        // retrocede una
-        row.pop();
-        sumRatios -= emb[i].r;
-        break;
-      }
-
-      if (widthAtTarget >= dims.usableW) {
-        break;
-      }
-      i++;
-    }
-    // si no avanzamos el índice por el break de minWidth, avanza uno
-    if (row.length > 0 && emb[i] === row[row.length - 1]) i++;
-
-    // altura de fila
-    let rowH = (dims.usableW - gutter * (row.length - 1)) / sumRatios;
-
-    const isLastRow = (i >= emb.length);
-    if (isLastRow) {
-      // no estirar en exceso; garantizar ancho mínimo
-      const rMin = Math.min(...row.map(o => o.r));
-      const needForMinW = minImgW / rMin;
-      rowH = Math.min(Math.max(targetRowH, needForMinW), maxRowH);
-    }
-    rowH = clamp(rowH, minRowH, maxRowH);
-
-    // anchos finales
-    let widths = row.map(o => Math.round(o.r * rowH));
-    let totalRowWidth = widths.reduce((a, b) => a + b, 0) + gutter * (row.length - 1);
-
-    // Si por redondeo nos pasamos, ajusta levemente
-    while (totalRowWidth > dims.usableW && rowH > minRowH) {
-      rowH -= 1;
-      widths = row.map(o => Math.round(o.r * rowH));
-      totalRowWidth = widths.reduce((a, b) => a + b, 0) + gutter * (row.length - 1);
+    // Caso 1: una sola imagen restante -> ocupamos gran parte del alto disponible
+    if (remaining === 1) {
+      const availH = availableHeight(ctx);
+      const maxH = clamp(availH - 12, minSlotH, maxSlotH);
+      await drawSingleImageBlock(pdfDoc, ctx, emb[i].url, { maxWFactor: 0.98, maxH });
+      i += 1;
+      continue;
     }
 
-    // Altura necesaria esta fila
-    const boxH = rowPad * 2 + rowH + (captions ? 16 : 0);
-    ensureSpace(pdfDoc, ctx, boxH + 10);
+    // Caso 2: dos imágenes -> fila doble que usa todo el ancho
+    if (remaining === 2) {
+      const availH = availableHeight(ctx);
+      const rowH = clamp(availH - 16, minSlotH, Math.min(maxSlotH, 320));
+      await drawTwoImageRow(pdfDoc, ctx, [emb[i].url, emb[i+1].url], { gutter: gutterX, rowPad: gridPad, targetH: rowH, maxH: rowH });
+      i += 2;
+      continue;
+    }
 
-    const p = page();
+    // Para 3 o más -> intentar usar cuadrícula 2x2. Garantiza 4 por hoja si hay suficientes.
+    const needRows = (remaining >= 4) ? 2 : 2; // siempre reservamos dos filas para evitar saltos raros
+    const minNeeded = (minSlotH * needRows) + gutterY + (gridPad * 2) + 10;
+
+    // Si no hay suficiente alto para dos filas, nueva página antes de maquetar
+    ensureSpace(pdfDoc, ctx, minNeeded);
+
+    // Recalcular ALTO disponible y derivar slotH exacto para aprovechar al máximo
+    const availH = availableHeight(ctx);
+    // Dos filas y un gutter vertical:
+    let slotH = Math.floor((availH - gutterY - gridPad * 2) / 2);
+    slotH = clamp(slotH, minSlotH, maxSlotH);
+
+    const slotW = Math.floor((dims.usableW - gutterX) / 2);
+    const contH = (slotH * 2) + gutterY + (gridPad * 2);
     const topY = ctx.y;
 
-    // Fondo de fila
-    p.drawRectangle({
-      x: dims.mx,
-      y: topY - boxH,
-      width: dims.usableW,
-      height: boxH,
-      color: gray(0.99),
-      borderColor: gray(0.90),
-      borderWidth: 0.6
-    });
+    const p = page();
 
-    // X inicial: última fila centrada si sobró espacio
-    let startX = dims.mx;
-    if (isLastRow) {
-      const slack = dims.usableW - totalRowWidth;
-      if (slack > 0) startX += Math.round(slack / 2);
+    // --- Dibujo de 2x2 / 2+1 span ---
+    const drawFit = (imgObj, slotX, slotY, sW, sH) => {
+      if (!imgObj) return;
+      const scale = Math.min(sW / imgObj.w, sH / imgObj.h);
+      const w = Math.round(imgObj.w * scale);
+      const h = Math.round(imgObj.h * scale);
+      const x = slotX + Math.round((sW - w) / 2);
+      const y = slotY + Math.round((sH - h) / 2);
+      p.drawImage(imgObj.img, { x, y, width: w, height: h });
+    };
+
+    // Coordenadas de slots
+    const x1 = dims.mx;
+    const x2 = dims.mx + slotW + gutterX;
+    const yRow1 = topY - gridPad - slotH;               // fila superior (y es base inferior de imagen)
+    const yRow2 = topY - gridPad - slotH - gutterY - slotH; // fila inferior
+
+    // Si hay 4 o más -> 2x2 lleno
+    if (remaining >= 4) {
+      // Garantizamos 4 imágenes por hoja
+      drawFit(emb[i],     x1, yRow1, slotW, slotH);
+      drawFit(emb[i + 1], x2, yRow1, slotW, slotH);
+      drawFit(emb[i + 2], x1, yRow2, slotW, slotH);
+      drawFit(emb[i + 3], x2, yRow2, slotW, slotH);
+      i += 4;
+      ctx.y = topY - contH - 10;
+      continue;
     }
 
-    let x = startX;
-    const iy = topY - rowPad - rowH;
-    for (let k = 0; k < row.length; k++) {
-      p.drawImage(row[k].img, { x, y: iy, width: widths[k], height: rowH });
-      if (captions) {
-        p.drawText(`Figura ${figCounter}`, { x, y: iy - 12, size: 9.2, font: fonts.reg, color: gray(0.45) });
-      }
-      figCounter++;
-      x += widths[k] + gutter;
-    }
+    // Si quedan exactamente 3 -> 2 arriba + 1 abajo a LO ANCHO (span de dos columnas)
+    if (remaining === 3) {
+      drawFit(emb[i],     x1, yRow1, slotW, slotH);
+      drawFit(emb[i + 1], x2, yRow1, slotW, slotH);
 
-    ctx.y = topY - boxH - 10;
+      const spanW = (slotW * 2) + gutterX; // ancho de dos columnas
+      const spanX = dims.mx;
+      drawFit(emb[i + 2], spanX, yRow2, spanW, slotH);
+
+      i += 3;
+      ctx.y = topY - contH - 10;
+      continue;
+    }
   }
 }
 
@@ -1405,17 +1370,15 @@ async function generarPDFCotizacion(share = false) {
     ctx.y -= 13;
   }
 
-  // Anexos fotográficos – galería justificada optimizada
+  // Anexos fotográficos – NUEVO MOSAICO COMPACTO (mínimo 4 por hoja cuando existan)
   if (Array.isArray(fotosCotizacion) && fotosCotizacion.length) {
-    await drawSmartGallery(pdfDoc, ctx, fotosCotizacion.slice(0, 10), {
+    await drawTightGallery(pdfDoc, ctx, fotosCotizacion.slice(0, 10), {
       title: "Anexos fotográficos",
-      captions: false,
-      targetRowH: 200,
-      minRowH: 180,
-      maxRowH: 230,
-      minImgW: 160,
-      gutter: 12,
-      rowPad: 8
+      gridPad: 8,
+      gutterX: 12,
+      gutterY: 12,
+      minSlotH: 160,
+      maxSlotH: 340
     });
   }
 
@@ -1638,7 +1601,7 @@ async function generarPDFReporte(share = false) {
     drawLabeledCard(pdfDoc, ctx, { label: "Concepto", text: datos.concepto.trim(), fontSize: 12 });
   }
 
-  // Lista de actividades
+  // Lista de actividades con MOSAICO COMPACTO para fotos
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
 
@@ -1653,22 +1616,20 @@ async function generarPDFReporte(share = false) {
     const descText = `• ${String(it.descripcion || "").trim()}`;
     drawLabeledCard(pdfDoc, ctx, { label: "Descripción", text: descText, fontSize: 11 });
 
-    // Fotos del ítem – galería justificada SIN título
+    // Fotos del ítem – MOSAICO COMPACTO (mínimo 4 por hoja si aplica)
     const fotos = Array.isArray(it.fotos) ? it.fotos : [];
     if (fotos.length) {
-      await drawSmartGallery(pdfDoc, ctx, fotos, {
+      await drawTightGallery(pdfDoc, ctx, fotos, {
         title: null,
-        captions: false,
-        targetRowH: 200,
-        minRowH: 180,
-        maxRowH: 230,
-        minImgW: 160,
-        gutter: 12,
-        rowPad: 8
+        gridPad: 8,
+        gutterX: 12,
+        gutterY: 12,
+        minSlotH: 160,
+        maxSlotH: 360
       });
     }
 
-    ctx.y -= 8;
+    ctx.y -= 6;
     rule(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, dims.pageW - dims.mx, gray(0.9), 0.6);
     ctx.y -= 10;
   }
