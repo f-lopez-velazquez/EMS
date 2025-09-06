@@ -886,10 +886,11 @@ function drawTextRight(page, text, xRight, y, opts) {
 function rule(page, x1, y, x2, color = gray(0.85), thickness = 0.6) {
   page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, thickness, color });
 }
-function drawSectionTitle(page, x, y, text, fonts) {
-  page.drawRectangle({ x, y: y - 10, width: 4, height: 14, color: emsRgb(), opacity: 0.9 });
-  page.drawText(String(text || "").toUpperCase(), { x: x + 10, y: y - 6, size: 11.5, font: fonts.bold, color: gray(0.18) });
-  return y - 20;
+function drawSectionTitle(page, x, y, text, fonts, opts = {}) {
+  const gap = opts.titleGap ?? 10; // gap extra bajo el título
+  if (!opts.dryRun) page.drawRectangle({ x, y: y - 10, width: 4, height: 14, color: emsRgb(), opacity: 0.9 });
+  if (!opts.dryRun) page.drawText(String(text || "").toUpperCase(), { x: x + 10, y: y - 6, size: 11.5, font: fonts.bold, color: gray(0.18) });
+  return y - 20 - gap;
 }
 
 // --- Logo embebido (caché por documento)
@@ -903,22 +904,24 @@ async function getLogoImage(pdfDoc) {
 }
 
 // Header con logo en TODAS las páginas (marca de agua solo en la primera desde el caller)
-function addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, isFirst = false, logoImg = null) {
+function addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, isFirst = false, logoImg = null, opts = {}) {
   const { pageW, mx } = dims;
   let yTop = dims.pageH - dims.my;
 
-  if (logoImg) {
+  if (!opts.dryRun && logoImg) {
     page.drawImage(logoImg, { x: mx, y: yTop - 46, width: 46, height: 46 });
   }
 
-  page.drawText(EMS_CONTACT.empresa, { x: mx + 64, y: yTop - 4, size: 16.5, font: fonts.bold, color: gray(0.18) });
-  page.drawText(typeLabel, { x: mx + 64, y: yTop - 22, size: 12, font: fonts.bold, color: emsRgb() });
+  if (!opts.dryRun) {
+    page.drawText(EMS_CONTACT.empresa, { x: mx + 64, y: yTop - 4, size: 16.5, font: fonts.bold, color: gray(0.18) });
+    page.drawText(typeLabel, { x: mx + 64, y: yTop - 22, size: 12, font: fonts.bold, color: emsRgb() });
 
-  page.drawText(`Cliente: ${datos.cliente || ""}`, { x: mx + 64, y: yTop - 38, size: 10.5, font: fonts.reg, color: gray(0.25) });
-  drawTextRight(page, `No: ${datos.numero || ""}`, pageW - mx, yTop - 4, { size: 10.5, font: fonts.bold, color: gray(0.25) });
-  drawTextRight(page, `Fecha: ${datos.fecha || ""}${datos.hora ? " • " + datos.hora : ""}`, pageW - mx, yTop - 22, { size: 10.5, font: fonts.bold, color: gray(0.25) });
+    page.drawText(`Cliente: ${datos.cliente || ""}`, { x: mx + 64, y: yTop - 38, size: 10.5, font: fonts.reg, color: gray(0.25) });
+    drawTextRight(page, `No: ${datos.numero || ""}`, pageW - mx, yTop - 4, { size: 10.5, font: fonts.bold, color: gray(0.25) });
+    drawTextRight(page, `Fecha: ${datos.fecha || ""}${datos.hora ? " • " + datos.hora : ""}`, pageW - mx, yTop - 22, { size: 10.5, font: fonts.bold, color: gray(0.25) });
 
-  rule(page, mx, yTop - 48, pageW - mx, gray(0.85), 0.8);
+    rule(page, mx, yTop - 48, pageW - mx, gray(0.85), 0.8);
+  }
   return yTop - 58;
 }
 function applyFooters(pdfDoc, pages, fonts, dims) {
@@ -948,42 +951,47 @@ async function embedSmart(pdfDoc, url) {
 
 // === Control de salto de página + flag "inicio de página"
 function ensureSpace(pdfDoc, ctx, needed) {
-  const { dims, fonts, datos, typeLabel, logoImg } = ctx;
-  // margen inferior (footer + respiro)
-  const bottomSafe = dims.my + 86;
+  const { dims, fonts, datos, typeLabel, logoImg, opts } = ctx;
+  const bottomSafe = dims.my + 86; // margen inferior (footer + respiro)
   if (ctx.y - needed < bottomSafe) {
     const page = pdfDoc.addPage([dims.pageW, dims.pageH]);
     ctx.pages.push(page);
-    ctx.y = addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, false, logoImg);
-    ctx._atPageStart = true; // IMPORTANTE para el grid 2x2
+    ctx.y = addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, false, logoImg, { dryRun: opts.dryRun });
+    ctx._atPageStart = true;
+    ctx.state.prevBlock = "header";
   }
 }
 
 // --- Card de texto con etiqueta tipo “píldora”
 function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10 }) {
-  const { dims, fonts } = ctx;
+  const { dims, fonts, opts } = ctx;
   const page = ctx.pages[ctx.pages.length - 1];
   const labelTxt = String(label || "").toUpperCase();
   const bodyTxt  = String(text || "").trim();
   const lines = wrapTextLines(bodyTxt, fonts.reg, fontSize, dims.usableW - 2*pad);
   const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2*pad);
-  const needed = 22 + 6 + bodyH + 8;
+  const needed = 22 + 6 + bodyH + (opts.cardGap || 10);
   ensureSpace(pdfDoc, ctx, needed);
 
   const pillW = Math.min(dims.usableW, fonts.bold.widthOfTextAtSize(labelTxt, 10.5) + 14);
-  page.drawRectangle({ x: dims.mx, y: ctx.y - 18, width: pillW, height: 18, color: emsRgb(), opacity: 0.95 });
-  page.drawText(labelTxt, { x: dims.mx + 7, y: ctx.y - 14, size: 10.5, font: fonts.bold, color: PDFLib.rgb(1,1,1) });
+  if (!opts.dryRun) {
+    page.drawRectangle({ x: dims.mx, y: ctx.y - 18, width: pillW, height: 18, color: emsRgb(), opacity: 0.95 });
+    page.drawText(labelTxt, { x: dims.mx + 7, y: ctx.y - 14, size: 10.5, font: fonts.bold, color: PDFLib.rgb(1,1,1) });
 
+    const topBodyY = ctx.y - 18 - 5;
+    page.drawRectangle({ x: dims.mx, y: topBodyY - bodyH, width: dims.usableW, height: bodyH, color: gray(0.985), borderColor: gray(0.90), borderWidth: 0.8 });
+    let y = topBodyY - pad - fontSize;
+    lines.forEach(ln => {
+      page.drawText(ln, { x: dims.mx + pad, y, size: fontSize, font: fonts.reg, color: gray(0.18) });
+      y -= (fontSize + 3);
+    });
+  }
+  // Actualiza y cuidando el margen inferior del bloque
   const topBodyY = ctx.y - 18 - 5;
-  page.drawRectangle({ x: dims.mx, y: topBodyY - bodyH, width: dims.usableW, height: bodyH, color: gray(0.985), borderColor: gray(0.90), borderWidth: 0.8 });
-  let y = topBodyY - pad - fontSize;
-  lines.forEach(ln => {
-    page.drawText(ln, { x: dims.mx + pad, y, size: fontSize, font: fonts.reg, color: gray(0.18) });
-    y -= (fontSize + 3);
-  });
-
-  ctx.y = topBodyY - bodyH - 8;
+  const endY = topBodyY - bodyH - (opts.cardGap || 10);
+  ctx.y = endY;
   ctx._atPageStart = false;
+  ctx.state.prevBlock = "card";
 }
 
 // ====== OBSERVACIONES EN LISTA ======
@@ -1004,34 +1012,36 @@ function parseObservaciones(raw) {
   return items;
 }
 function drawBulletList(pdfDoc, ctx, items, { bullet = "•", fontSize = 10, lineGap = 4, leftPad = 8, bulletGap = 6 } = {}) {
-  const { dims, fonts } = ctx;
+  const { dims, fonts, opts } = ctx;
   const xBullet = dims.mx + leftPad;
   const xText = xBullet + bulletGap + 6;
   const maxW = dims.usableW - (xText - dims.mx) - leftPad;
 
   for (const it of items) {
     const lines = wrapTextLines(it, fonts.reg, fontSize, maxW);
-    const needed = (lines.length * (fontSize + lineGap)) + 2;
-    ensureSpace(pdfDoc, ctx, needed + 6);
+    const needed = (lines.length * (fontSize + lineGap)) + 2 + (opts.blockGap || 8);
+    ensureSpace(pdfDoc, ctx, needed);
 
-    ctx.pages[ctx.pages.length - 1].drawText(bullet, {
-      x: xBullet,
-      y: ctx.y - fontSize,
-      size: fontSize,
-      font: fonts.bold,
-      color: gray(0.25)
-    });
+    if (!opts.dryRun) {
+      ctx.pages[ctx.pages.length - 1].drawText(bullet, {
+        x: xBullet,
+        y: ctx.y - fontSize,
+        size: fontSize,
+        font: fonts.bold,
+        color: gray(0.25)
+      });
 
-    let y = ctx.y - fontSize;
-    lines.forEach((ln) => {
-      ctx.pages[ctx.pages.length - 1].drawText(ln, { x: xText, y, size: fontSize, font: fonts.reg, color: gray(0.28) });
-      y -= (fontSize + lineGap);
-    });
+      let y = ctx.y - fontSize;
+      lines.forEach((ln) => {
+        ctx.pages[ctx.pages.length - 1].drawText(ln, { x: xText, y, size: fontSize, font: fonts.reg, color: gray(0.28) });
+        y -= (fontSize + lineGap);
+      });
+    }
 
-    ctx.y -= (lines.length * (fontSize + lineGap)) + 2;
+    ctx.y -= (lines.length * (fontSize + lineGap)) + (opts.blockGap || 8);
   }
-  ctx.y -= 4;
   ctx._atPageStart = false;
+  ctx.state.prevBlock = "list";
 }
 
 // --- Utilidades de galería ---
@@ -1043,7 +1053,7 @@ function availablePageHeight(ctx) {
 
 // Dibuja una sola imagen (centrada)
 async function drawSingleImageBlock(pdfDoc, ctx, url, { maxWFactor = 0.9, maxH = 300, pad = 8 } = {}) {
-  const { dims } = ctx;
+  const { dims, opts } = ctx;
   const img = await embedSmart(pdfDoc, url);
   if (!img) return;
   const maxW = Math.floor(dims.usableW * maxWFactor);
@@ -1051,21 +1061,24 @@ async function drawSingleImageBlock(pdfDoc, ctx, url, { maxWFactor = 0.9, maxH =
   const scale = Math.min(maxW / w, maxH / h, 1);
   w = Math.round(w * scale); h = Math.round(h * scale);
 
-  const needed = h + pad * 2;
+  const needed = h + pad * 2 + (opts.blockGap || 8);
   ensureSpace(pdfDoc, ctx, needed);
 
-  const p = ctx.pages[ctx.pages.length - 1];
-  p.drawRectangle({ x: dims.mx, y: ctx.y - (h + pad * 2), width: dims.usableW, height: h + pad * 2, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
-  const x = dims.mx + (dims.usableW - w) / 2;
-  const y = ctx.y - pad - h;
-  p.drawImage(img, { x, y, width: w, height: h });
-  ctx.y -= (h + pad * 2 + 8);
+  if (!opts.dryRun) {
+    const p = ctx.pages[ctx.pages.length - 1];
+    p.drawRectangle({ x: dims.mx, y: ctx.y - (h + pad * 2), width: dims.usableW, height: h + pad * 2, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
+    const x = dims.mx + (dims.usableW - w) / 2;
+    const y = ctx.y - pad - h;
+    p.drawImage(img, { x, y, width: w, height: h });
+  }
+  ctx.y -= (h + pad * 2 + (opts.blockGap || 8));
   ctx._atPageStart = false;
+  ctx.state.prevBlock = "image";
 }
 
-// == NUEVO: Grid 2x2 inteligente para garantizar 4 por página ==
+// == Grid 2x2 inteligente (garantiza 4 por página al inicio) ==
 async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 10, pad = 8, vGap = 10 } = {}) {
-  const { dims } = ctx;
+  const { dims, opts } = ctx;
 
   // embed + ratios
   const emb1 = [], emb2 = [];
@@ -1081,7 +1094,7 @@ async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 10, pa
   let h2 = Math.floor((dims.usableW - gutter*(emb2.length-1)) / sumR2);
 
   // escalar para que quepa en el alto disponible
-  const boxH = pad*2 + h1 + vGap + h2 + pad*2;
+  const boxH = pad*2 + h1 + vGap + h2 + pad*2 + (opts.blockGap || 8);
   let avail = availablePageHeight(ctx) - 12;
   if (boxH > avail) {
     const s = (avail) / boxH;
@@ -1089,48 +1102,51 @@ async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 10, pa
     h2 = Math.floor(h2 * s);
   }
 
-  const needed = pad*2 + h1 + vGap + h2 + pad*2;
+  const needed = pad*2 + h1 + vGap + h2 + pad*2 + (opts.blockGap || 8);
   ensureSpace(pdfDoc, ctx, needed);
 
-  const p = ctx.pages[ctx.pages.length - 1];
-  const topY = ctx.y;
+  if (!opts.dryRun) {
+    const p = ctx.pages[ctx.pages.length - 1];
+    const topY = ctx.y;
 
-  // fila 1
-  let x = dims.mx + Math.round((dims.usableW - (emb1.reduce((a,b)=>a+Math.round(b.r*h1),0) + gutter*(emb1.length-1)))/2);
-  let y = topY - pad - h1;
-  for (let i=0;i<emb1.length;i++) {
-    const w = Math.round(emb1[i].r*h1);
-    p.drawImage(emb1[i].img, { x, y, width: w, height: h1 });
-    x += w + gutter;
+    // fila 1
+    let x = dims.mx + Math.round((dims.usableW - (emb1.reduce((a,b)=>a+Math.round(b.r*h1),0) + gutter*(emb1.length-1)))/2);
+    let y = topY - pad - h1;
+    for (let i=0;i<emb1.length;i++) {
+      const w = Math.round(emb1[i].r*h1);
+      p.drawImage(emb1[i].img, { x, y, width: w, height: h1 });
+      x += w + gutter;
+    }
+
+    // fila 2
+    x = dims.mx + Math.round((dims.usableW - (emb2.reduce((a,b)=>a+Math.round(b.r*h2),0) + gutter*(emb2.length-1)))/2);
+    y = topY - pad - h1 - vGap - h2;
+    for (let i=0;i<emb2.length;i++) {
+      const w = Math.round(emb2[i].r*h2);
+      p.drawImage(emb2[i].img, { x, y, width: w, height: h2 });
+      x += w + gutter;
+    }
+
+    // marco sutil de bloque
+    p.drawRectangle({
+      x: dims.mx,
+      y: topY - (pad*2 + h1 + vGap + h2),
+      width: dims.usableW,
+      height: pad*2 + h1 + vGap + h2,
+      color: gray(0.99),
+      borderColor: gray(0.90),
+      borderWidth: 0.6
+    });
   }
 
-  // fila 2
-  x = dims.mx + Math.round((dims.usableW - (emb2.reduce((a,b)=>a+Math.round(b.r*h2),0) + gutter*(emb2.length-1)))/2);
-  y = topY - pad - h1 - vGap - h2;
-  for (let i=0;i<emb2.length;i++) {
-    const w = Math.round(emb2[i].r*h2);
-    p.drawImage(emb2[i].img, { x, y, width: w, height: h2 });
-    x += w + gutter;
-  }
-
-  // marco sutil de bloque
-  p.drawRectangle({
-    x: dims.mx,
-    y: topY - (pad*2 + h1 + vGap + h2),
-    width: dims.usableW,
-    height: pad*2 + h1 + vGap + h2,
-    color: gray(0.99),
-    borderColor: gray(0.90),
-    borderWidth: 0.6
-  });
-
-  ctx.y = topY - (pad*2 + h1 + vGap + h2) - 8;
+  ctx.y -= (pad*2 + h1 + vGap + h2 + (opts.blockGap || 8));
   ctx._atPageStart = false;
+  ctx.state.prevBlock = "grid2x2";
 }
 
 // Dibuja dos imágenes lado a lado
 async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 10, rowPad = 6, targetH = 210, maxH = 230 } = {}) {
-  const { dims } = ctx;
+  const { dims, opts } = ctx;
   const imgs = [];
   for (const u of urls) {
     const img = await embedSmart(pdfDoc, u);
@@ -1143,22 +1159,25 @@ async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 10, rowPad = 6, tar
   const sumR = imgs[0].r + imgs[1].r;
   rowH = Math.min(rowH, Math.floor((dims.usableW - gutter) / sumR));
 
-  const needed = rowPad * 2 + rowH + 8;
+  const needed = rowPad * 2 + rowH + (opts.blockGap || 8);
   ensureSpace(pdfDoc, ctx, needed);
 
-  const p = ctx.pages[ctx.pages.length - 1];
-  const topY = ctx.y;
-  p.drawRectangle({ x: dims.mx, y: topY - (rowPad * 2 + rowH), width: dims.usableW, height: rowPad * 2 + rowH, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
+  if (!opts.dryRun) {
+    const p = ctx.pages[ctx.pages.length - 1];
+    const topY = ctx.y;
+    p.drawRectangle({ x: dims.mx, y: topY - (rowPad * 2 + rowH), width: dims.usableW, height: rowPad * 2 + rowH, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
 
-  const w1 = Math.round(imgs[0].r * rowH);
-  const w2 = Math.round(imgs[1].r * rowH);
-  let startX = dims.mx + Math.round((dims.usableW - (w1 + w2 + gutter)) / 2);
-  const y = topY - rowPad - rowH;
-  p.drawImage(imgs[0].img, { x: startX, y, width: w1, height: rowH });
-  p.drawImage(imgs[1].img, { x: startX + w1 + gutter, y, width: w2, height: rowH });
+    const w1 = Math.round(imgs[0].r * rowH);
+    const w2 = Math.round(imgs[1].r * rowH);
+    let startX = dims.mx + Math.round((dims.usableW - (w1 + w2 + gutter)) / 2);
+    const y = topY - rowPad - rowH;
+    p.drawImage(imgs[0].img, { x: startX, y, width: w1, height: rowH });
+    p.drawImage(imgs[1].img, { x: startX + w1 + gutter, y, width: w2, height: rowH });
+  }
 
-  ctx.y = topY - (rowPad * 2 + rowH) - 8;
+  ctx.y -= (rowPad * 2 + rowH + (opts.blockGap || 8));
   ctx._atPageStart = false;
+  ctx.state.prevBlock = "row2";
 }
 
 /**
@@ -1167,6 +1186,7 @@ async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 10, rowPad = 6, tar
  * - Evita filas de 1 imagen (funde con la siguiente).
  * - Ajusta dinámicamente la altura objetivo a lo disponible.
  * - Última fila centrada sin estirar de más.
+ * - Respeta separaciones extras post-título para evitar solapes.
  */
 async function drawSmartGallery(
   pdfDoc,
@@ -1183,15 +1203,17 @@ async function drawSmartGallery(
     rowPad = 6,
   } = {}
 ) {
-  const { dims, fonts } = ctx;
+  const { dims, fonts, opts } = ctx;
   const page = () => ctx.pages[ctx.pages.length - 1];
 
   if (!Array.isArray(images) || images.length === 0) return;
 
   // Título opcional
   if (title) {
-    ensureSpace(pdfDoc, ctx, 26);
-    ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts);
+    ensureSpace(pdfDoc, ctx, 26 + (opts.titleGap ?? 10));
+    ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts, { titleGap: opts.titleGap ?? 10, dryRun: opts.dryRun });
+    ctx._atPageStart = false; // evitar que la primera fila ignore el gap por grid 2x2
+    ctx.state.prevBlock = "title";
   }
 
   // Pre-embed ratios
@@ -1247,50 +1269,52 @@ async function drawSmartGallery(
 
     // altura final de fila
     let rowH = (dims.usableW - gutter * (row.length - 1)) / sumRatios;
-    const isLastRow = (i >= emb.length);
     rowH = clamp(rowH, minRowH, maxRowH);
 
     // Asegurar que cabe en la página
-    const boxH = rowPad * 2 + rowH + (captions ? 16 : 0);
-    ensureSpace(pdfDoc, ctx, boxH + 6);
+    const boxH = rowPad * 2 + rowH + (captions ? 16 : 0) + (opts.blockGap || 8);
+    ensureSpace(pdfDoc, ctx, boxH);
 
-    const p = page();
-    const topY = ctx.y;
+    if (!opts.dryRun) {
+      const p = page();
+      const topY = ctx.y;
 
-    p.drawRectangle({
-      x: dims.mx,
-      y: topY - (rowPad * 2 + rowH + (captions ? 16 : 0)),
-      width: dims.usableW,
-      height: rowPad * 2 + rowH + (captions ? 16 : 0),
-      color: gray(0.99),
-      borderColor: gray(0.90),
-      borderWidth: 0.6
-    });
+      p.drawRectangle({
+        x: dims.mx,
+        y: topY - (rowPad * 2 + rowH + (captions ? 16 : 0)),
+        width: dims.usableW,
+        height: rowPad * 2 + rowH + (captions ? 16 : 0),
+        color: gray(0.99),
+        borderColor: gray(0.90),
+        borderWidth: 0.6
+      });
 
-    let widths = row.map(o => Math.round(o.r * rowH));
-    let totalRowWidth = widths.reduce((a, b) => a + b, 0) + gutter * (row.length - 1);
+      let widths = row.map(o => Math.round(o.r * rowH));
+      let totalRowWidth = widths.reduce((a, b) => a + b, 0) + gutter * (row.length - 1);
 
-    // reajuste fino
-    while (totalRowWidth > dims.usableW && rowH > minRowH) {
-      rowH -= 1;
-      widths = row.map(o => Math.round(o.r * rowH));
-      totalRowWidth = widths.reduce((a, b) => a + b, 0) + gutter * (row.length - 1);
-    }
-
-    let startX = dims.mx + Math.round((dims.usableW - totalRowWidth) / 2);
-    let x = startX;
-    const iy = topY - rowPad - rowH;
-    for (let k = 0; k < row.length; k++) {
-      p.drawImage(row[k].img, { x, y: iy, width: widths[k], height: rowH });
-      if (captions) {
-        p.drawText(`Figura ${figCounter}`, { x, y: iy - 12, size: 9.2, font: fonts.reg, color: gray(0.45) });
+      // reajuste fino
+      while (totalRowWidth > dims.usableW && rowH > minRowH) {
+        rowH -= 1;
+        widths = row.map(o => Math.round(o.r * rowH));
+        totalRowWidth = widths.reduce((a, b) => a + b, 0) + gutter * (row.length - 1);
       }
-      figCounter++;
-      x += widths[k] + gutter;
+
+      let startX = dims.mx + Math.round((dims.usableW - totalRowWidth) / 2);
+      let x = startX;
+      const iy = topY - rowPad - rowH;
+      for (let k = 0; k < row.length; k++) {
+        p.drawImage(row[k].img, { x, y: iy, width: widths[k], height: rowH });
+        if (captions) {
+          p.drawText(`Figura ${figCounter}`, { x, y: iy - 12, size: 9.2, font: fonts.reg, color: gray(0.45) });
+        }
+        figCounter++;
+        x += widths[k] + gutter;
+      }
     }
 
-    ctx.y = topY - (rowPad * 2 + rowH + (captions ? 16 : 0)) - 6;
+    ctx.y -= (rowPad * 2 + rowH + (captions ? 16 : 0) + (opts.blockGap || 8));
     ctx._atPageStart = false;
+    ctx.state.prevBlock = "galleryRow";
   }
 }
 
@@ -1323,8 +1347,6 @@ async function generarPDFCotizacion(share = false) {
   const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
   const iva = incluyeIVA ? subtotal * 0.16 : 0;
   const total = subtotal + iva;
-  const anticipoPorc = (form.anticipo && form.anticipo.checked && form.anticipoPorc.value) ? parseFloat(form.anticipoPorc.value) : 0;
-  const anticipo = anticipoPorc ? (total * (anticipoPorc/100)) : 0;
 
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
@@ -1337,7 +1359,11 @@ async function generarPDFCotizacion(share = false) {
   const fonts = { reg: helv, bold: helvB };
   const logoImg = await getLogoImage(pdfDoc);
 
-  const ctx = { pages: [], y: 0, dims, fonts, datos, typeLabel: "COTIZACIÓN", logoImg, _atPageStart: true };
+  const ctx = { 
+    pages: [], y: 0, dims, fonts, datos, 
+    typeLabel: "COTIZACIÓN", logoImg, _atPageStart: true,
+    opts: { dryRun: false, titleGap: 10, cardGap: 10, blockGap: 8 }
+  };
 
   const first = pdfDoc.addPage([dims.pageW, dims.pageH]);
   ctx.pages.push(first);
@@ -1352,11 +1378,11 @@ async function generarPDFCotizacion(share = false) {
     first.drawRectangle({ x: dims.mx, y: ctx.y - rectH + 10, width: dims.usableW, height: rectH, color: emsRgb(), opacity: 0.08, borderColor: emsRgb(), borderWidth: 1 });
     const w = helvB.widthOfTextAtSize(titulo, 15);
     first.drawText(titulo, { x: dims.mx + (dims.usableW - w) / 2, y: ctx.y - rectH / 2 + 12, size: 15, font: helvB, color: emsRgb() });
-    ctx.y -= rectH + 14;
+    ctx.y -= rectH + 16; // +2px extra de seguridad
+    ctx._atPageStart = false;
   } else {
-    ctx.y -= 4;
+    ctx.y -= 6;
   }
-  ctx._atPageStart = false;
 
   // Tabla de conceptos
   ensureSpace(pdfDoc, ctx, 22);
@@ -1434,7 +1460,7 @@ async function generarPDFCotizacion(share = false) {
   // Observaciones
   if ((datos.notas || "").trim()) {
     ensureSpace(pdfDoc, ctx, 60);
-    ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, "Observaciones", fonts);
+    ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, "Observaciones", fonts, { titleGap: 10, dryRun: false });
     const itemsObs = parseObservaciones(datos.notas);
     if (itemsObs.length) {
       drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "•", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
@@ -1533,6 +1559,93 @@ async function abrirDetalleEMS(tipo, numero) {
   }
 }
 
+// ======= Motor de composición con PRE-FLIGHT (Reportes) =======
+async function composeReportePDF({ datos, items, params, dryRun = false }) {
+  const { PDFDocument, StandardFonts } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
+  dims.usableW = dims.pageW - dims.mx*2;
+  const fonts = { reg: helv, bold: helvB };
+  const logoImg = await getLogoImage(pdfDoc);
+
+  const ctx = { 
+    pages: [], y: 0, dims, fonts, datos, 
+    typeLabel: "REPORTE DE SERVICIO", logoImg, _atPageStart: true,
+    opts: { 
+      dryRun,
+      titleGap: params.titleGap,
+      cardGap: params.cardGap,
+      blockGap: params.blockGap
+    },
+    state: { prevBlock: "start" },
+    audit: { pages: 0 }
+  };
+
+  // Primera página
+  let page = pdfDoc.addPage([dims.pageW, dims.pageH]);
+  ctx.pages.push(page);
+  if (!dryRun) {
+    try { page.drawImage(logoImg, { x: (dims.pageW-220)/2, y: (dims.pageH-240)/2, width: 220, height: 220, opacity: 0.06 }); } catch {}
+  }
+  ctx.y = addHeader(pdfDoc, page, ctx.typeLabel, datos, fonts, dims, true, logoImg, { dryRun });
+  ctx._atPageStart = true;
+
+  // CONCEPTO (si existe)
+  if ((datos.concepto || "").trim()) {
+    drawLabeledCard(pdfDoc, ctx, { label: "Concepto", text: datos.concepto.trim(), fontSize: 12 });
+  }
+
+  // Lista de items
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+
+    // DESCRIPCIÓN (píldora)
+    const descText = `• ${String(it.descripcion || "").trim()}`;
+    drawLabeledCard(pdfDoc, ctx, { label: "Descripción", text: descText, fontSize: 11 });
+
+    // Fotos del ítem – galería packed
+    const fotos = Array.isArray(it.fotos) ? it.fotos : [];
+    if (fotos.length) {
+      await drawSmartGallery(pdfDoc, ctx, fotos, {
+        title: null,
+        captions: false,
+        baseTargetRowH: params.baseRowH,
+        minRowH: params.minRowH,
+        maxRowH: params.maxRowH,
+        minImgW: 150,
+        gutter: 10,
+        rowPad: 6
+      });
+    }
+
+    // Separador suave entre items
+    if (i < items.length - 1) {
+      const needed = 12;
+      ensureSpace(pdfDoc, ctx, needed);
+      if (!dryRun) rule(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, dims.pageW - dims.mx, gray(0.9), 0.5);
+      ctx.y -= 8;
+    }
+  }
+
+  // Observaciones como lista
+  if ((datos.notas || "").trim()) {
+    ensureSpace(pdfDoc, ctx, 60);
+    if (!dryRun) ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, "Observaciones", fonts, { titleGap: params.titleGap, dryRun });
+    else ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, "Observaciones", fonts, { titleGap: params.titleGap, dryRun: true });
+
+    const itemsObs = parseObservaciones(datos.notas);
+    if (itemsObs.length) {
+      drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "•", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+    }
+  }
+
+  ctx.audit.pages = ctx.pages.length;
+  return { pdfDoc, ctx };
+}
+
 // ======= GUARDADO Y PDF DE REPORTES ==========
 async function enviarReporte(e) {
   e.preventDefault();
@@ -1597,8 +1710,9 @@ async function guardarReporteDraft() {
   showSaved("Reporte guardado");
 }
 
+// === Generador de Reporte con análisis PRE-FLIGHT y auto-ajuste ===
 async function generarPDFReporte(share = false) {
-  showProgress(true, 10, "Generando PDF...");
+  showProgress(true, 10, "Analizando diseño...");
   await guardarReporteDraft();
 
   const form = document.getElementById('repForm');
@@ -1614,77 +1728,47 @@ async function generarPDFReporte(share = false) {
     });
   });
 
-  const { PDFDocument, rgb, StandardFonts } = PDFLib;
-  const pdfDoc = await PDFDocument.create();
-  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  // Parámetros iniciales (se ajustan si el pre-flight encuentra riesgos)
+  let params = {
+    baseRowH: 200,
+    minRowH: 160,
+    maxRowH: 235,
+    titleGap: 12,
+    cardGap: 12,
+    blockGap: 10
+  };
 
-  const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
-  dims.usableW = dims.pageW - dims.mx*2;
-  const fonts = { reg: helv, bold: helvB };
-  const logoImg = await getLogoImage(pdfDoc);
-
-  const ctx = { pages: [], y: 0, dims, fonts, datos, typeLabel: "REPORTE DE SERVICIO", logoImg, _atPageStart: true };
-
-  // Primera página
-  let page = pdfDoc.addPage([dims.pageW, dims.pageH]);
-  ctx.pages.push(page);
-  try { page.drawImage(logoImg, { x: (dims.pageW-220)/2, y: (dims.pageH-240)/2, width: 220, height: 220, opacity: 0.06 }); } catch {}
-  ctx.y = addHeader(pdfDoc, page, ctx.typeLabel, datos, fonts, dims, true, logoImg);
-  ctx._atPageStart = true;
-
-  // CONCEPTO (si existe)
-  if ((datos.concepto || "").trim()) {
-    drawLabeledCard(pdfDoc, ctx, { label: "Concepto", text: datos.concepto.trim(), fontSize: 12 });
+  // --- Pre-flight con hasta 2 ajustes automáticos ---
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { ctx } = await composeReportePDF({ datos, items, params, dryRun: true });
+    // Heurística: si el documento usa más páginas de lo esperado por exceso de aire o si
+    // detecta que muchas filas se colocaron en nuevas páginas justo tras una píldora,
+    // compactamos un poco las filas (bajamos alturas/gaps).
+    // (ctx.state no guarda contadores por brevedad; afinamos por páginas)
+    if (ctx.audit.pages >= 6) {
+      // documento muy largo: compactar más
+      params.baseRowH = Math.max(180, params.baseRowH - 10);
+      params.minRowH  = Math.max(150, params.minRowH - 8);
+      params.maxRowH  = Math.max(210, params.maxRowH - 12);
+      params.cardGap  = Math.max(8, params.cardGap - 2);
+      params.blockGap = Math.max(8, params.blockGap - 2);
+      params.titleGap = Math.max(10, params.titleGap - 2);
+      continue; // otra vuelta rápida
+    }
+    // Si no es largo, salimos: distribución se considera estable
+    break;
   }
 
-  // Lista de items
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
+  showProgress(true, 45, "Componiendo PDF...");
 
-    // **Quitar “Actividad X”** (eliminado)
-    // DESCRIPCIÓN
-    const descText = `• ${String(it.descripcion || "").trim()}`;
-    drawLabeledCard(pdfDoc, ctx, { label: "Descripción", text: descText, fontSize: 11 });
+  // --- Render final (no dry run) ---
+  const { pdfDoc, ctx } = await composeReportePDF({ datos, items, params, dryRun: false });
 
-    // Fotos del ítem – galería packed
-    const fotos = Array.isArray(it.fotos) ? it.fotos : [];
-    if (fotos.length) {
-      await drawSmartGallery(pdfDoc, ctx, fotos, {
-        title: null,
-        captions: false,
-        baseTargetRowH: 200,
-        minRowH: 160,
-        maxRowH: 235,
-        minImgW: 150,
-        gutter: 10,
-        rowPad: 6
-      });
-    }
-
-    // Separador suave entre items (sin desperdiciar espacio)
-    if (i < items.length - 1) {
-      ctx.y -= 4;
-      rule(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, dims.pageW - dims.mx, gray(0.9), 0.5);
-      ctx.y -= 8;
-    }
-  }
-
-  // Observaciones como lista
-  if ((datos.notas || "").trim()) {
-    ensureSpace(pdfDoc, ctx, 60);
-    ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, "Observaciones", fonts);
-    const itemsObs = parseObservaciones(datos.notas);
-    if (itemsObs.length) {
-      drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "•", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
-    }
-  }
-
-  // Pie
-  applyFooters(pdfDoc, ctx.pages, fonts, dims);
+  // Pie de página en todas
+  applyFooters(pdfDoc, ctx.pages, ctx.fonts, ctx.dims);
 
   const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
-  showProgress(false, 100, "PDF listo");
+  showProgress(true, 90, "Exportando...");
 
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const fileName = `Reporte_${datos.numero || "reporte"}.pdf`;
@@ -1694,6 +1778,7 @@ async function generarPDFReporte(share = false) {
       const file = new File([blob], fileName, { type: "application/pdf" });
       if (navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` });
+        showProgress(false);
         return;
       }
     } catch { /* fallback */ }
@@ -1714,8 +1799,8 @@ async function generarPDFReporte(share = false) {
     }
   } finally {
     setTimeout(() => URL.revokeObjectURL(url), 3000);
+    showProgress(false);
   }
-  showProgress(false);
 }
 
 // ====== Eliminar docs ======
