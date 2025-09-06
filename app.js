@@ -269,10 +269,11 @@ function renderInicio() {
 
 window.onload = () => {
   renderInicio();
-  if (!navigator.onLine) showOffline?.(true);
+  // Llamado opcional si existe en el entorno
+  try { typeof showOffline === "function" && showOffline(true); } catch {}
 };
 
-aSYNC_ERR_GUARD = false; // marcador ad-hoc para depurar si algo cae en un catch silencioso
+let ASYNC_ERR_GUARD = false; // marcador ad-hoc para depurar si algo cae en un catch silencioso
 
 async function cargarHistorialEMS(filtro = "") {
   const cont = document.getElementById("historialEMS");
@@ -974,15 +975,15 @@ function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10 }) 
 
   // Píldora
   const pillW = Math.min(dims.usableW, fonts.bold.widthOfTextAtSize(labelTxt, 10.5) + 14);
-  ctx.pages[ctx.pages.length - 1].drawRectangle({ x: dims.mx, y: ctx.y - 18, width: pillW, height: 18, color: emsRgb(), opacity: 0.95 });
-  ctx.pages[ctx.pages.length - 1].drawText(labelTxt, { x: dims.mx + 7, y: ctx.y - 14, size: 10.5, font: fonts.bold, color: PDFLib.rgb(1,1,1) });
+  page.drawRectangle({ x: dims.mx, y: ctx.y - 18, width: pillW, height: 18, color: emsRgb(), opacity: 0.95 });
+  page.drawText(labelTxt, { x: dims.mx + 7, y: ctx.y - 14, size: 10.5, font: fonts.bold, color: PDFLib.rgb(1,1,1) });
 
   // Cuerpo
   const topBodyY = ctx.y - 18 - 6;
-  ctx.pages[ctx.pages.length - 1].drawRectangle({ x: dims.mx, y: topBodyY - bodyH, width: dims.usableW, height: bodyH, color: gray(0.985), borderColor: gray(0.90), borderWidth: 0.8, opacity: 1 });
+  page.drawRectangle({ x: dims.mx, y: topBodyY - bodyH, width: dims.usableW, height: bodyH, color: gray(0.985), borderColor: gray(0.90), borderWidth: 0.8, opacity: 1 });
   let y = topBodyY - pad - fontSize;
   lines.forEach(ln => {
-    ctx.pages[ctx.pages.length - 1].drawText(ln, { x: dims.mx + pad, y, size: fontSize, font: fonts.reg, color: gray(0.18) });
+    page.drawText(ln, { x: dims.mx + pad, y, size: fontSize, font: fonts.reg, color: gray(0.18) });
     y -= (fontSize + 3);
   });
 
