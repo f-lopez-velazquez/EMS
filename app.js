@@ -1,4 +1,4 @@
-// === INICIALIZACIÓN Y UTILIDADES ===
+﻿// === INICIALIZACIÓN Y UTILIDADES ===
 const EMS_CONTACT = {
   empresa: "ELECTROMOTORES SANTANA",
   direccion: "Carr. a Chichimequillas 306, Colonia Menchaca 2, 76147 Santiago de Querétaro, Qro.",
@@ -560,7 +560,17 @@ async function previsualizarPDFReporte() {
 }
 
 // --- Envoltura de texto por palabras (más estética que por caracteres)
-function wrapTextLines(text = "", font, fontSize, maxWidth) {
+function pdfSafe(s) {
+  try {
+    if (s == null) return '';
+    let t = String(s);
+    t = t.replace(/\uFFFD/g, '?');
+    if (t.normalize) t = t.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+    t = t.replace(/[•●▪◦]/g, '-');
+    t = t.replace([^\x0A\x0D\x20-\x7E\u00A0-\u00FF], '');
+    return t;
+  } catch { return String(s||''); }
+}function wrapTextLines(text = "", font, fontSize, maxWidth) {
   const words = String(text || "").replace(/\s+/g, " ").trim().split(" ");
   const lines = [];
   let line = "";
@@ -1513,9 +1523,7 @@ function gray(v) {
   const { rgb } = PDFLib;
   return rgb(v, v, v);
 }
-function drawTextRight(page, text, xRight, y, opts) {
-  const width = opts.font.widthOfTextAtSize(text, opts.size);
-  page.drawText(text, { x: xRight - width, y, ...opts });
+function drawTextRight(page, text, xRight, y, opts) {`n  const t = pdfSafe(text);`n  const width = opts.font.widthOfTextAtSize(t, opts.size);`n  page.drawText(t, { x: xRight - width, y, ...opts });
 }
 function rule(page, x1, y, x2, color = gray(0.85), thickness = 0.6) {
   page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, thickness, color });
@@ -1523,7 +1531,7 @@ function rule(page, x1, y, x2, color = gray(0.85), thickness = 0.6) {
 function drawSectionTitle(page, x, y, text, fonts, opts = {}) {
   const gap = opts.titleGap ?? 10; // gap extra bajo el título
   if (!opts.dryRun) page.drawRectangle({ x, y: y - 10, width: 4, height: 14, color: emsRgb(), opacity: 0.9 });
-  if (!opts.dryRun) page.drawText(String(text || "").toUpperCase(), { x: x + 10, y: y - 6, size: 11.5, font: fonts.bold, color: gray(0.18) });
+  if (!opts.dryRun) page.drawText(pdfSafe(String(text || "").toUpperCase()), { x: x + 10, y: y - 6, size: 11.5, font: fonts.bold, color: gray(0.18) });
   return y - 20 - gap;
 }
 
@@ -1671,8 +1679,7 @@ function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10, re
   if (ctx.state.prevBlock === "section-band") ctx.y -= 2;
 
   const page = ctx.pages[ctx.pages.length - 1];
-  const labelTxt = String(label || "").toUpperCase();
-  const bodyTxt  = String(text || "").trim();
+  const labelTxt = pdfSafe(String(label || "").toUpperCase());`n  const bodyTxt  = pdfSafe(String(text || "").trim());
   const lines = wrapTextLines(bodyTxt, fonts.reg, fontSize, dims.usableW - 2*pad);
   const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2*pad);
   const cardSelfHeight = 22 + 6 + bodyH + (opts.cardGap || 8);
@@ -1718,7 +1725,7 @@ function parseObservaciones(raw) {
   }
   return items;
 }
-function drawBulletList(pdfDoc, ctx, items, { bullet = "•", fontSize = 10, lineGap = 4, leftPad = 8, bulletGap = 6 } = {}) {
+function drawBulletList(pdfDoc, ctx, items, { bullet = "-", fontSize = 10, lineGap = 4, leftPad = 8, bulletGap = 6 } = {}) {
   const { dims, fonts, opts } = ctx;
   const xBullet = dims.mx + leftPad;
   const xText = xBullet + bulletGap + 6;
@@ -2069,7 +2076,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
 
   const ctx = { 
     pages: [], y: 0, dims, fonts, datos, 
-    typeLabel: "COTIZACI�N", logoImg, _atPageStart: true,
+    typeLabel: "COTIZACI�N", logoImg, _atPageStart: true,
     opts: { dryRun: false, titleGap: 8, cardGap: 8, blockGap: 6 },
     state: { prevBlock: 'start', inGallery: false, currentSection: null }
   };
@@ -2151,12 +2158,12 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   drawTextRight(pTot, mostrarPrecioLimpio(total), dims.pageW - dims.mx, ctx.y, { size: 11.5, font: helvB, color: emsRgb() });
   ctx.y -= 14;
 
-  // Anexos fotogr�ficos – galería packed
+  // Anexos fotogr�ficos – galería packed
   if (Array.isArray(fotosCotizacion) && fotosCotizacion.length) {
     const s = getSettings();
     const pdfCfg = s?.pdf || {};
     await drawSmartGallery(pdfDoc, ctx, fotosCotizacion.slice(0, 10), {
-      title: "Anexos fotogr�ficos",
+      title: "Anexos fotogr�ficos",
       captions: false,
       baseTargetRowH: Number(pdfCfg.galleryBase)||200,
       minRowH: Number(pdfCfg.galleryMin)||160,
@@ -2173,7 +2180,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, "Observaciones", fonts, { titleGap: 8, dryRun: false });
     const itemsObs = parseObservaciones(datos.notas);
     if (itemsObs.length) {
-      drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "•", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+      drawBulletList(pdfDoc, ctx, itemsObs, { fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
     }
   }
 
@@ -2187,7 +2194,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
       ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, 'Términos y condiciones', fonts, { titleGap: 8, dryRun: false });
       const itemsTerms = parseObservaciones(termsText);
       if (itemsTerms.length) {
-        drawBulletList(pdfDoc, ctx, itemsTerms, { bullet: '•', fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+        drawBulletList(pdfDoc, ctx, itemsTerms, { fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
       }
     }
   } catch {}
@@ -2207,316 +2214,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const file = new File([blob], `Cotizacion_${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
   // Descargar siempre y compartir si procede
-  const url = URL.createObjectURL(blob);
-  try {
-    if (isIOS()) {
-      window.open(url, '_blank', 'noopener');
-    } else {
-      const a = document.createElement("a");
-      a.href = url; a.download = file.name; a.rel = 'noopener';
-      document.body.appendChild(a); a.click();
-      setTimeout(() => { try{document.body.removeChild(a);}catch{} }, 0);
-    }
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-  }
-  if (share && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: "Cotizaci�n", text: Cotizaci�n  de Electromotores Santana }); } catch {}
-  }
-  return;
-
-  if (share && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-    await navigator.share({ files: [file], title: "Cotización", text: `Cotización ${datos.numero||""} de Electromotores Santana` });
-  } else {
-    const url = URL.createObjectURL(blob);
-    if (isIOS()) {
-      window.open(url, '_blank', 'noopener');
-    } else {
-      const a = document.createElement("a");
-      a.href = url; a.download = file.name; a.rel = 'noopener';
-      document.body.appendChild(a); a.click();
-      setTimeout(() => { document.body.removeChild(a); }, 0);
-    }
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-  }
-}
-
-function editarCotizacion(datos) {
-  nuevaCotizacion();
-  const form = document.getElementById("cotForm");
-  form.numero.value = datos.numero || "";
-  form.fecha.value = datos.fecha || "";
-  form.cliente.value = datos.cliente || "";
-  form.hora.value = datos.hora || "";
-  if (datos.incluyeIVA) form.incluyeIVA.checked = true;
-  if (datos.anticipo) {
-    form.anticipo.checked = true;
-    form.anticipoPorc.parentElement.style.display = '';
-    form.anticipoPorc.value = datos.anticipoPorc || "";
-  }
-  if (form.titulo) form.titulo.value = datos.titulo || "";
-  form.notas.value = datos.notas || "";
-
-  const wrap = document.getElementById('cotSeccionesWrap');
-  wrap.innerHTML = '';
-  if (Array.isArray(datos.secciones) && datos.secciones.length) {
-    datos.secciones.forEach(sec => agregarCotSeccion(sec));
-  } else if (Array.isArray(datos.items) && datos.items.length) {
-    const sec = { titulo: 'General', items: datos.items.map(it=>({ concepto: it.concepto, descripcion: '', precio: it.precio })) };
-    agregarCotSeccion(sec);
-  } else {
-    agregarCotSeccion({ titulo: 'General', items: [{},{}] });
-  }
-
-  fotosCotizacion = Array.isArray(datos.fotos) ? [...datos.fotos] : [];
-  renderCotFotosPreview();
-
-  setTimeout(() => {
-    actualizarPredictsEMSCloud();
-    agregarDictadoMicros();
-    activarPredictivosInstantaneos();
-  }, 100);
-}
-
-// ----- Abrir detalle desde Historial -----
-async function abrirReporte(numero) {
-  let doc = await db.collection("reportes").doc(numero).get();
-  if (!doc.exists) return showModal("No se encontró el reporte con el número especificado.", "error");
-  const datos = doc.data();
-  nuevoReporte();
-  const form = document.getElementById("repForm");
-  form.numero.value = datos.numero;
-  form.fecha.value = datos.fecha;
-  form.cliente.value = datos.cliente;
-  form.hora.value = datos.hora;
-  form.concepto.value = datos.concepto || "";
-  const tbody = form.querySelector("#repItemsTable tbody");
-  tbody.innerHTML = "";
-  fotosItemsReporteMap = {};
-  (datos.items || []).forEach((item) => {
-    const id = item._id || newUID();
-    fotosItemsReporteMap[id] = Array.isArray(item.fotos) ? [...item.fotos] : [];
-    tbody.insertAdjacentHTML("beforeend", renderRepItemRow({ ...item, _id:id }, id, true));
-  });
-  if ((datos.items || []).length === 0) agregarRepItemRow();
-  form.notas.value = datos.notas || "";
-  setTimeout(() => {
-    actualizarPredictsEMSCloud();
-    agregarDictadoMicros();
-    activarPredictivosInstantaneos();
-  }, 100);
-}
-
-async function abrirDetalleEMS(tipo, numero) {
-  if (tipo === "cotizacion") {
-    let doc = await db.collection("cotizaciones").doc(numero).get();
-    if (!doc.exists) return showModal("No se encontró la cotización con el número especificado.", "error");
-    editarCotizacion(doc.data());
-  } else if (tipo === "reporte") {
-    window.editandoReporte = true;
-    abrirReporte?.(numero);
-  }
-}
-
-// ======= (NUEVO) Medidor de altura de tarjeta de descripción =======
-function measureCardHeight(ctx, text, fontSize = 11, pad = 10) {
-  const { fonts, dims, opts } = ctx;
-  const lines = wrapTextLines(String(text||"").trim(), fonts.reg, fontSize, dims.usableW - 2*pad);
-  const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2*pad);
-  return 22 + 6 + bodyH + (opts.cardGap || 8); // altura total de la tarjeta
-}
-
-// ======= Motor de composición con PRE-FLIGHT (Reportes) =======
-async function composeReportePDF({ datos, items, params, dryRun = false }) {
-  const { PDFDocument, StandardFonts } = PDFLib;
-  const pdfDoc = await PDFDocument.create();
-  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-  const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
-  dims.usableW = dims.pageW - dims.mx*2;
-  const fonts = { reg: helv, bold: helvB };
-  const logoImg = await getLogoImage(pdfDoc);
-
-  const ctx = { 
-    pages: [], y: 0, dims, fonts, datos, 
-    typeLabel: "REPORTE DE SERVICIO", logoImg, _atPageStart: true,
-    opts: { 
-      dryRun,
-      titleGap: params.titleGap,
-      cardGap: params.cardGap,
-      blockGap: params.blockGap
-    },
-    state: { prevBlock: "start", inGallery: false, currentSection: null },
-    audit: { pages: 0 }
-  };
-
-  // Primera página
-  let page = pdfDoc.addPage([dims.pageW, dims.pageH]);
-  ctx.pages.push(page);
-  if (!dryRun) {
-    drawWatermark(page, dims, logoImg, WATERMARK_OP);
-  }
-  ctx.y = addHeader(pdfDoc, page, ctx.typeLabel, datos, fonts, dims, true, logoImg, { dryRun });
-  ctx._atPageStart = true;
-
-  // CONCEPTO (si existe)
-  if ((datos.concepto || "").trim()) {
-    drawLabeledCard(pdfDoc, ctx, { label: "Concepto", text: datos.concepto.trim(), fontSize: 12 });
-  }
-
-  // Lista de items
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-    const fotos = Array.isArray(it.fotos) ? it.fotos : [];
-
-    // Preparación: estimar altura de banda + tarjeta + primera fila de fotos
-    const descText = `• ${String(it.descripcion || "").trim()}`;
-    const cardH = measureCardHeight(ctx, descText, 11, 10);
-    const bandH = 26 + 8; // alto de la banda + respiro
-    // Reserva conservadora para la 1ª fila (pero compacta)
-    const reserveFirstRow = fotos.length > 0 ? (params.maxRowH + 2*5 + (ctx.opts.blockGap || 6) + 18) : 0;
-
-    // Garantiza que todo el bloque inicial del ítem entre junto
-    ensureSpace(pdfDoc, ctx, bandH + cardH + reserveFirstRow);
-
-    // Banda de sección
-    ctx.state.currentSection = `Sección ${i + 1}`;
-    drawSectionBand(pdfDoc, ctx, ctx.state.currentSection);
-
-    // DESCRIPCIÓN (píldora) con reserva de la primera fila de fotos
-    drawLabeledCard(pdfDoc, ctx, { label: "Descripción", text: descText, fontSize: 11, reserveBelow: reserveFirstRow });
-
-    // Fotos del ítem – galería packed
-    if (fotos.length) {
-      await drawSmartGallery(pdfDoc, ctx, fotos, {
-        title: null,
-        captions: false,
-        baseTargetRowH: params.baseRowH,
-        minRowH: params.minRowH,
-        maxRowH: params.maxRowH,
-        minImgW: 150,
-        gutter: 8,
-        rowPad: 5
-      });
-    }
-
-    // Separador suave entre items (más corto)
-    if (i < items.length - 1) {
-      const needed = 8;
-      ensureSpace(pdfDoc, ctx, needed);
-      if (!dryRun) rule(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, dims.pageW - dims.mx, gray(0.9), 0.5);
-      ctx.y -= 6;
-    }
-  }
-
-  // Observaciones como lista
-  if ((datos.notas || "").trim()) {
-    ensureSpace(pdfDoc, ctx, 48);
-    if (!dryRun) ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, "Observaciones", fonts, { titleGap: params.titleGap, dryRun });
-    else ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, "Observaciones", fonts, { titleGap: params.titleGap, dryRun: true });
-
-    const itemsObs = parseObservaciones(datos.notas);
-    if (itemsObs.length) {
-      drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "•", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
-    }
-  }
-
-  // Términos y condiciones (si se activó)
-  if (params.includeTerms && (params.termsText||'').trim()) {
-    ensureSpace(pdfDoc, ctx, 48);
-    if (!dryRun) ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, 'Términos y condiciones', fonts, { titleGap: params.titleGap, dryRun });
-    else ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, 'Términos y condiciones', fonts, { titleGap: params.titleGap, dryRun: true });
-    const itemsTerms = parseObservaciones(params.termsText);
-    if (itemsTerms.length) {
-      drawBulletList(pdfDoc, ctx, itemsTerms, { bullet: '•', fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
-    }
-  }
-
-  ctx.audit.pages = ctx.pages.length;
-  return { pdfDoc, ctx };
-}
-
-// ======= GUARDADO Y PDF DE REPORTES ==========
-async function enviarReporte(e) {
-  e.preventDefault();
-  showSaved("Guardando...");
-  const form = document.getElementById('repForm');
-  const datos = Object.fromEntries(new FormData(form));
-  const items = [];
-  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
-    const id = tr.getAttribute('data-rowid') || newUID();
-    items.push({
-      _id: id,
-      descripcion: tr.querySelector('textarea[name="descripcion"]').value,
-      fotos: (fotosItemsReporteMap[id] || [])
-    });
-  });
-  if (!datos.numero || !datos.cliente || !items.length) {
-    showSaved("Faltan datos");
-    showModal("Por favor completa todos los campos requeridos: número, cliente y al menos un item.", "warning");
-    return;
-  }
-  savePredictEMSCloud("cliente", datos.cliente);
-  if (datos.concepto) savePredictEMSCloud("concepto", datos.concepto);
-  items.forEach(it => savePredictEMSCloud("descripcion", it.descripcion));
-  const reporte = {
-    ...datos,
-    items,
-    tipo: 'reporte',
-    fecha: datos.fecha,
-    hora: datos.hora || ahora(),
-    creada: new Date().toISOString()
-  };
-  if (!navigator.onLine) {
-    showModal("Sin conexión a Internet. Los datos se guardarán localmente. Intenta guardar cuando tengas conexión.", "warning");
-    showSaved("Offline");
-    return;
-  }
-  await db.collection("reportes").doc(datos.numero).set(reporte);
-  localStorage.removeItem('EMS_REP_BORRADOR');
-  showSaved("¡Reporte guardado!");
-  renderInicio();
-}
-
-async function guardarReporteDraft() {
-  const form = document.getElementById('repForm');
-  if (!form) return;
-  const datos = Object.fromEntries(new FormData(form));
-  const items = [];
-  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
-    const id = tr.getAttribute('data-rowid') || newUID();
-    items.push({
-      _id: id,
-      descripcion: tr.querySelector('textarea[name="descripcion"]').value,
-      fotos: (fotosItemsReporteMap[id] || [])
-    });
-  });
-  const reporte = {
-    ...datos,
-    items,
-    tipo: 'reporte',
-    fecha: datos.fecha,
-    hora: datos.hora || ahora(),
-    creada: new Date().toISOString()
-  };
-  await db.collection("reportes").doc(datos.numero || "BORRADOR").set(reporte);
-  localStorage.setItem('EMS_REP_BORRADOR', JSON.stringify(reporte));
-  showSaved("Reporte guardado");
-}
-
-// === Generador de Reporte con análisis PRE-FLIGHT y auto-ajuste ===
-async function generarPDFReporte(share = false, isPreview = false) {
-  // Configuración de calidad según modo
-  const imgQuality = isPreview
-    ? { maxW: 640, maxH: 640, quality: 0.5 } // Baja calidad para preview rápido
-    : PDF_IMG_DEFAULTS; // Alta calidad para PDF final
-
-  showProgress(true, 10, isPreview ? "Analizando vista previa..." : "Analizando diseño...");
-  if (!isPreview) await guardarReporteDraft();
-
-  const form = document.getElementById('repForm');
-  if (!form) { showProgress(false); showModal("No hay formulario de reporte activo.", "error"); return; }
+  const url = URL.createObjectURL(blob);`n  try {`n    if (isIOS()) {`n      window.open(url, "_blank", "noopener");`n    } else {`n      const a = document.createElement("a");`n      a.href = url; a.download = fileName; a.rel = "noopener";`n      document.body.appendChild(a); a.click();`n      try{ document.body.removeChild(a);}catch{}`n    }`n  } finally { setTimeout(()=>URL.revokeObjectURL(url),3000); }`n  if (share && navigator.share) {`n    try { if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` }); } catch {}`n  }`n  showProgress(false); showModal("No hay formulario de reporte activo.", "error"); return; }
 
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
@@ -2597,22 +2295,7 @@ async function generarPDFReporte(share = false, isPreview = false) {
     } catch { /* fallback */ }
   }
 
-  const url = URL.createObjectURL(blob);
-  try {
-    if (isIOS()) {
-      window.open(url, '_blank', 'noopener');
-    } else {
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      a.rel = "noopener";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
-    showProgress(false);
+  const url = URL.createObjectURL(blob);`n  try {`n    if (isIOS()) {`n      window.open(url, "_blank", "noopener");`n    } else {`n      const a = document.createElement("a");`n      a.href = url; a.download = fileName; a.rel = "noopener";`n      document.body.appendChild(a); a.click();`n      try{ document.body.removeChild(a);}catch{}`n    }`n  } finally { setTimeout(()=>URL.revokeObjectURL(url),3000); }`n  if (share && navigator.share) {`n    try { if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` }); } catch {}`n  }`n  showProgress(false);
   }
 }
 
@@ -2686,7 +2369,7 @@ function observeSettingsPanel() {
       const s = getSettings();
       const pdf = s.pdf || {};
       const body = overlay.querySelector('.ems-settings-body');
-      // Tama�o de fotos amigable (compacto/medio/grande/personalizado)
+      // Tama�o de fotos amigable (compacto/medio/grande/personalizado)
       try {
         const baseInp = overlay.querySelector('#setGalBase');
         const minInp  = overlay.querySelector('#setGalMin');
@@ -2695,7 +2378,7 @@ function observeSettingsPanel() {
         if (baseInp && !overlay.querySelector('#setSizePreset')) {
           const presetRow = document.createElement('div');
           presetRow.className='ems-form-row';
-          presetRow.innerHTML = '<div class="ems-form-group"><label>Tama�o de fotos</label><select id="setSizePreset"><option value="compacto">Compacto</option><option value="medio">Medio</option><option value="grande">Grande</option><option value="personalizado">Personalizado</option></select></div>';
+          presetRow.innerHTML = '<div class="ems-form-group"><label>Tama�o de fotos</label><select id="setSizePreset"><option value="compacto">Compacto</option><option value="medio">Medio</option><option value="grande">Grande</option><option value="personalizado">Personalizado</option></select></div>';
           (rowNums ? rowNums.parentNode.insertBefore(presetRow, rowNums) : body.appendChild(presetRow));
           const presetSel = overlay.querySelector('#setSizePreset');
           function applyPreset(val){
@@ -2705,7 +2388,7 @@ function observeSettingsPanel() {
             else if (val==='grande'){ baseInp.value=235; minInp.value=180; maxInp.value=260; if(rowNums) rowNums.style.display='none'; }
             else { if(rowNums) rowNums.style.display=''; }
           }
-          // Inicializar seg�n valores actuales
+          // Inicializar seg�n valores actuales
           (function(){
             let preset='personalizado';
             const b=Number(baseInp.value||0), mn=Number(minInp.value||0), mx=Number(maxInp.value||0);
@@ -2735,7 +2418,7 @@ function observeSettingsPanel() {
       const saveBtn = overlay.querySelector('#btnSaveSettings');
       if (saveBtn && !saveBtn.__emsEnhanced) {
         saveBtn.__emsEnhanced = true;
-              // Ajustar valores num�ricos seg�n preset si no es personalizado
+              // Ajustar valores num�ricos seg�n preset si no es personalizado
       try {
         const preset = next.pdf.sizePreset;
         if (preset && preset !== 'personalizado'){
