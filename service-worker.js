@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ems-cache-v35';
+const CACHE_NAME = 'ems-cache-v36';
 const toCache = [
   './',
   './index.html',
