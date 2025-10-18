@@ -2,40 +2,94 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#F88A1D">
-  <title>Electromotores Santana - Cotizaciones & Reportes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+  <meta name="theme-color" content="#1e88e5">
+  <meta name="description" content="Sistema de gestión de cotizaciones y reportes para Electromotores Santana. Aplicación web progresiva optimizada para dispositivos móviles.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="EMS">
+
+  <title>EMS - Electromotores Santana</title>
+
+  <!-- Styles -->
   <link rel="stylesheet" href="styles.css">
+
+  <!-- PWA Manifest -->
   <link rel="manifest" href="manifest.json">
+
+  <!-- Icons -->
   <link rel="icon" type="image/png" href="./icons/icon-192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app-check.js"></script>
+  <link rel="shortcut icon" href="./icons/icon-192.png">
+
+  <!-- External Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app-check.js" defer></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
-  <!-- Puedes quitar esta línea si NO tienes iconos en /icons/ (y te da error 404):
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  -->
+
+  <!-- Preload critical assets -->
+  <link rel="preconnect" href="https://www.gstatic.com">
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com">
 </head>
 <body>
+  <!-- Splash Screen (se oculta cuando carga la app) -->
+  <div id="splash-screen" style="position:fixed;inset:0;background:linear-gradient(135deg,#1e88e5 0%,#1565c0 100%);display:flex;align-items:center;justify-content:center;z-index:10000;transition:opacity 0.3s;">
+    <div style="text-align:center;color:white;">
+      <div style="width:80px;height:80px;margin:0 auto 16px;background:white;border-radius:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+        <img src="./icons/icon-192.png" alt="EMS Logo" style="width:60px;height:60px;border-radius:12px;">
+      </div>
+      <h1 style="margin:0;font-size:1.8em;font-weight:700;letter-spacing:-0.02em;">EMS</h1>
+      <p style="margin:8px 0 0;opacity:0.9;font-size:0.95em;">Electromotores Santana</p>
+    </div>
+  </div>
+
+  <!-- Main App Container -->
   <div id="root"></div>
-  <div id="progress-bar" style="display:none;position:fixed;top:0;left:0;height:5px;width:100vw;background:#26B77A;z-index:1200;"></div>
+
+  <!-- Progress Bar -->
+  <div id="progress-bar" style="display:none;"></div>
+
+  <!-- Main App Script -->
   <script src="app.js"></script>
 
-<script>
-  try {
-    if (firebase && firebase.app) {
-      // App Check (reCAPTCHA v3)
-      firebase.appCheck().activate('TU_RECAPTCHA_V3_SITE_KEY', true);
-    }
-  } catch (e) { /* noop */ }
-  if ('serviceWorker' in navigator) {
+  <!-- Firebase & Service Worker Initialization -->
+  <script>
+    // Hide splash screen when app loads
     window.addEventListener('load', function() {
-      navigator.serviceWorker.register('./service-worker.js?ts=' + Date.now()).catch(function(){});
+      setTimeout(function() {
+        const splash = document.getElementById('splash-screen');
+        if (splash) {
+          splash.style.opacity = '0';
+          setTimeout(function() {
+            splash.style.display = 'none';
+          }, 300);
+        }
+      }, 800);
     });
-  }
-</script>
 
+    // Firebase App Check
+    try {
+      if (firebase && firebase.app) {
+        firebase.appCheck().activate('TU_RECAPTCHA_V3_SITE_KEY', true);
+      }
+    } catch (e) {
+      console.warn('App Check not configured:', e);
+    }
+
+    // Service Worker Registration
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./service-worker.js?v=34&ts=' + Date.now())
+          .then(function(registration) {
+            console.log('SW registered:', registration.scope);
+          })
+          .catch(function(error) {
+            console.log('SW registration failed:', error);
+          });
+      });
+    }
+  </script>
 </body>
 </html>

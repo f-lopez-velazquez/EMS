@@ -138,6 +138,12 @@ Plantilla sugerida:
 - Notas: validaciones, impactos, acciones pendientes
 
 Entradas:
+- Fecha: 2025-10-18 (Rediseño Mobile-First Completo)
+  - Agente: Claude Code
+  - Resumen: Rediseño completo de la interfaz con estética mobile-first moderna. Paleta de colores vibrante basada en Material Design, animaciones suaves, efectos glassmorphism, sistema de spacing y radius con variables CSS, botones con ripple effect, tarjetas con hover elevado, header sticky con gradiente, galería de fotos en grid, modales con backdrop blur, splash screen animado, responsive design optimizado para móviles (inputs 16px para evitar zoom iOS), acciones sticky en bottom, meta tags PWA mejorados, manifest.json con shortcuts, y SW v34.
+  - Archivos clave: `styles.css` (rediseño completo), `index.html` (meta tags, splash screen), `manifest.json` (shortcuts, categorías), `service-worker.js` (v34)
+  - Notas: Diseño completamente optimizado para dispositivos móviles con interacciones táctiles mejoradas. Sistema de diseño coherente con variables CSS. Animaciones y transiciones suaves. Requiere hard reload/desinstalar PWA y reinstalar para ver cambios completos.
+
 - Fecha: 2025-10-18
   - Agente: CLI
   - Resumen: Rediseño con alto contraste (sin degradados), íconos de borrado/mic con fallback, confirmación por palabra en eliminaciones, Undo (Ctrl+Z) para cotización y reporte, corrección de PDFs (ctx.state en cotización) y SW v33 con bypass explícito para Firestore/Cloudinary. Creado AGENTS.md.
