@@ -335,6 +335,7 @@ window.onload = () => {
   renderInicio();
   try { applyThemeFromSettings(); } catch {}
   try { typeof showOffline === "function" && showOffline(true); } catch {}
+  try { installUndoHandlers(); } catch {}
 };
 
 let ASYNC_ERR_GUARD = false;
@@ -674,6 +675,7 @@ function nuevaCotizacion() {
       </div>
       <div class="ems-form-actions">
         <button type="button" class="btn-mini" onclick="renderInicio(); localStorage.removeItem('EMS_COT_BORRADOR')"><i class="fa fa-arrow-left"></i> Cancelar</button>
+        <button type="button" class="btn-secondary" onclick="undoCot()"><i class="fa fa-undo"></i> Deshacer</button>
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
         <button type="button" class="btn-secondary" onclick="guardarCotizacionDraft(); generarPDFCotizacion()"><i class="fa fa-file-pdf"></i> PDF</button>
         <button type="button" class="btn-success" onclick="guardarCotizacionDraft(); generarPDFCotizacion(true)"><i class="fa fa-share-alt"></i> Compartir</button>
@@ -720,6 +722,7 @@ function nuevaCotizacion() {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
+    try { pushUndoCotSnapshot(); } catch {}
   }, 100);
 
   form.onsubmit = async (e) => {
@@ -923,6 +926,7 @@ function nuevoReporte() {
       </div>
       <div class="ems-form-actions">
         <button type="button" class="btn-mini" onclick="renderInicio(); localStorage.removeItem('EMS_REP_BORRADOR')"><i class="fa fa-arrow-left"></i> Cancelar</button>
+        <button type="button" class="btn-secondary" onclick="undoRep()"><i class="fa fa-undo"></i> Deshacer</button>
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
         <button type="button" class="btn-secondary" onclick="guardarReporteDraft(); generarPDFReporte()"><i class="fa fa-file-pdf"></i> PDF</button>
         <button type="button" class="btn-success" onclick="guardarReporteDraft(); generarPDFReporte(true)"><i class="fa fa-share-alt"></i> Compartir</button>
@@ -953,6 +957,7 @@ function nuevoReporte() {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
+    try { pushUndoRepSnapshot(); } catch {}
   }, 100);
   form.onsubmit = async (e) => {
     e.preventDefault();
@@ -2303,4 +2308,109 @@ function openSettings() {
     try { applyThemeFromSettings(); } catch {}
     overlay.remove();
   };
+}
+
+// ====== Undo/Redo (Deshacer básico) ======
+function serializeCotizacionForm() {
+  const form = document.getElementById('cotForm');
+  if (!form) return null;
+  const datos = Object.fromEntries(new FormData(form));
+  const secciones = [];
+  document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
+    const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
+    const items = [];
+    sec.querySelectorAll('tbody tr').forEach(tr=>{
+      const concepto = tr.querySelector('input[name="concepto"]').value;
+      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
+      const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
+      if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
+    });
+    if (titulo || items.length) secciones.push({ titulo, items });
+  });
+  return { ...datos, secciones, fotos: (fotosCotizacion||[]).slice(0) };
+}
+function applyCotSnapshot(snap) {
+  if (!snap) return;
+  editarCotizacion({ ...snap, tipo: 'cotizacion' });
+}
+function pushUndoCotSnapshot() {
+  const snap = serializeCotizacionForm();
+  if (!snap) return;
+  window.__EMS_UNDO_COT = window.__EMS_UNDO_COT || [];
+  window.__EMS_UNDO_COT.push(snap);
+  if (window.__EMS_UNDO_COT.length > 20) window.__EMS_UNDO_COT.shift();
+}
+function undoCot() {
+  const stack = window.__EMS_UNDO_COT || [];
+  if (stack.length < 2) { showSaved('Nada que deshacer'); return; }
+  stack.pop();
+  const prev = stack[stack.length-1];
+  applyCotSnapshot(prev);
+  showSaved('Deshecho');
+}
+
+function serializeReporteForm() {
+  const form = document.getElementById('repForm');
+  if (!form) return null;
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+    const id = tr.getAttribute('data-rowid') || newUID();
+    items.push({ _id: id, descripcion: tr.querySelector('textarea[name="descripcion"]').value, fotos: (fotosItemsReporteMap[id]||[]).slice(0) });
+  });
+  return { ...datos, items };
+}
+function applyRepSnapshot(snap) {
+  if (!snap) return;
+  nuevoReporte();
+  const form = document.getElementById('repForm');
+  form.numero.value = snap.numero||'';
+  form.fecha.value = snap.fecha||'';
+  form.cliente.value = snap.cliente||'';
+  form.hora.value = snap.hora||'';
+  form.concepto.value = snap.concepto||'';
+  const tbody = form.querySelector('#repItemsTable tbody');
+  tbody.innerHTML='';
+  fotosItemsReporteMap = {};
+  (snap.items||[]).forEach((item)=>{
+    const id = item._id || newUID();
+    fotosItemsReporteMap[id] = Array.isArray(item.fotos)? [...item.fotos]:[];
+    tbody.insertAdjacentHTML('beforeend', renderRepItemRow({ ...item, _id:id }, id, true));
+  });
+  form.notas.value = snap.notas||'';
+  setTimeout(()=>{ actualizarPredictsEMSCloud(); agregarDictadoMicros(); activarPredictivosInstantaneos(); }, 100);
+}
+function pushUndoRepSnapshot() {
+  const snap = serializeReporteForm();
+  if (!snap) return;
+  window.__EMS_UNDO_REP = window.__EMS_UNDO_REP || [];
+  window.__EMS_UNDO_REP.push(snap);
+  if (window.__EMS_UNDO_REP.length > 20) window.__EMS_UNDO_REP.shift();
+}
+function undoRep() {
+  const stack = window.__EMS_UNDO_REP || [];
+  if (stack.length < 2) { showSaved('Nada que deshacer'); return; }
+  stack.pop();
+  const prev = stack[stack.length-1];
+  applyRepSnapshot(prev);
+  showSaved('Deshecho');
+}
+
+function installUndoHandlers() {
+  // Ctrl+Z global
+  window.addEventListener('keydown', (e)=>{
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      if (document.getElementById('cotForm')) { e.preventDefault(); return undoCot(); }
+      if (document.getElementById('repForm')) { e.preventDefault(); return undoRep(); }
+    }
+  });
+  // Snapshots on input changes (debounced)
+  let t;
+  document.addEventListener('input', ()=>{
+    clearTimeout(t);
+    t = setTimeout(()=>{
+      if (document.getElementById('cotForm')) pushUndoCotSnapshot();
+      if (document.getElementById('repForm')) pushUndoRepSnapshot();
+    }, 400);
+  }, true);
 }

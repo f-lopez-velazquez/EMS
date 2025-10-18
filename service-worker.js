@@ -31,33 +31,45 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   const req = event.request;
-  if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // No interceptar Firestore/Cloudinary/externos: usa red directa
+  // Dejar pasar todo lo que no sea GET
+  if (req.method !== 'GET') return;
+
+  // No interceptar Firestore/Cloudinary ni otros cross-origin críticos
   const bypassHosts = [
     'firestore.googleapis.com',
     'res.cloudinary.com',
     'api.cloudinary.com'
   ];
-  const isCross = url.origin !== self.location.origin;
-  if (isCross && bypassHosts.some(h => url.host.includes(h))) {
-    event.respondWith(fetch(req));
+  if (url.origin !== self.location.origin && bypassHosts.some(h => url.host.includes(h))) {
+    // No usar respondWith: que el navegador maneje directamente
     return;
   }
 
-  // Cache-first para propios; network fallback
+  // Navegación: network-first, fallback a cache
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      fetch(req).then(r => {
+        const copy = r.clone();
+        caches.open(CACHE_NAME).then(c => c.put('./', copy));
+        return r;
+      }).catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
+  // Assets: cache-first con actualización pasiva
   event.respondWith(
     caches.match(req).then(cached => {
-      if (cached) return cached;
-      return fetch(req).then(resp => {
-        // Solo cachea GET exitosos, same-origin
-        if (resp.ok && url.origin === self.location.origin) {
-          const copy = resp.clone();
-          caches.open(CACHE_NAME).then(c => c.put(req, copy));
+      const fetchPromise = fetch(req).then(networkResp => {
+        if (networkResp && networkResp.ok && url.origin === self.location.origin) {
+          const clone = networkResp.clone();
+          caches.open(CACHE_NAME).then(c => c.put(req, clone));
         }
-        return resp;
-      }).catch(() => caches.match('./index.html'));
+        return networkResp;
+      }).catch(() => cached);
+      return cached || fetchPromise;
     })
   );
 });
