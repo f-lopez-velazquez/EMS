@@ -22,11 +22,11 @@
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
   <link rel="shortcut icon" href="./icons/icon-192.png">
 
-  <!-- External Libraries -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" defer></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js" defer></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js" defer></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app-check.js" defer></script>
+  <!-- External Libraries - SIN defer para que carguen antes -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app-check.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
   <!-- Preload critical assets -->
@@ -81,7 +81,7 @@
     // Service Worker Registration
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./service-worker.js?v=34&ts=' + Date.now())
+        navigator.serviceWorker.register('./service-worker.js?v=35&ts=' + Date.now())
           .then(function(registration) {
             console.log('SW registered:', registration.scope);
           })
