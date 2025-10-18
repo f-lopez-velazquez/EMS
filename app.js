@@ -409,6 +409,140 @@ if (document.readyState === 'loading') {
   initNetworkStatus();
 }
 
+// ===== SISTEMA DE VISTA PREVIA DE PDF =====
+
+// Variable global para el overlay actual
+let currentPDFPreviewOverlay = null;
+
+/**
+ * Muestra un PDF en el visor de vista previa
+ * @param {Uint8Array} pdfBytes - Bytes del PDF generado
+ * @param {string} title - Título del documento
+ * @param {Function} onRefresh - Función a llamar al refrescar
+ */
+function mostrarVisorPDF(pdfBytes, title, onRefresh) {
+  // Cerrar visor existente si hay
+  if (currentPDFPreviewOverlay) {
+    currentPDFPreviewOverlay.remove();
+  }
+
+  // Crear blob y URL del PDF
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+
+  // Crear overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'ems-pdf-preview-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Vista previa del PDF');
+
+  overlay.innerHTML = `
+    <div class="ems-pdf-preview-header">
+      <div class="ems-pdf-preview-title">
+        <i class="fa fa-file-pdf"></i>
+        ${title}
+        <span class="ems-pdf-preview-badge">Vista Previa</span>
+      </div>
+      <div class="ems-pdf-preview-actions">
+        <button class="ems-pdf-preview-btn refresh" id="pdf-preview-refresh">
+          <i class="fa fa-sync"></i> Actualizar
+        </button>
+        <button class="ems-pdf-preview-btn close" id="pdf-preview-close">
+          <i class="fa fa-times"></i> Cerrar
+        </button>
+      </div>
+    </div>
+    <div class="ems-pdf-preview-container" style="position: relative;">
+      <div class="ems-pdf-preview-loading" id="pdf-preview-loading">
+        <div class="ems-pdf-preview-spinner"></div>
+        <div class="ems-pdf-preview-loading-text">Generando vista previa...</div>
+      </div>
+      <iframe class="ems-pdf-preview-iframe" id="pdf-preview-iframe" src="${url}" title="Vista previa del PDF"></iframe>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  currentPDFPreviewOverlay = overlay;
+
+  // Ocultar loading cuando el iframe cargue
+  const iframe = overlay.querySelector('#pdf-preview-iframe');
+  const loading = overlay.querySelector('#pdf-preview-loading');
+  iframe.addEventListener('load', () => {
+    loading.style.display = 'none';
+  });
+
+  // Botón cerrar
+  const closeBtn = overlay.querySelector('#pdf-preview-close');
+  closeBtn.addEventListener('click', () => {
+    URL.revokeObjectURL(url);
+    overlay.remove();
+    currentPDFPreviewOverlay = null;
+  });
+
+  // Botón refrescar
+  const refreshBtn = overlay.querySelector('#pdf-preview-refresh');
+  refreshBtn.addEventListener('click', async () => {
+    if (onRefresh) {
+      loading.style.display = 'flex';
+      try {
+        await onRefresh();
+      } catch (e) {
+        showModal('Error al actualizar la vista previa: ' + (e.message || e), 'error');
+      }
+    }
+  });
+
+  // ESC para cerrar
+  const handleEsc = (e) => {
+    if (e.key === 'Escape') {
+      closeBtn.click();
+      document.removeEventListener('keydown', handleEsc);
+    }
+  };
+  document.addEventListener('keydown', handleEsc);
+
+  // Cleanup cuando se cierre
+  overlay.addEventListener('DOMNodeRemoved', () => {
+    URL.revokeObjectURL(url);
+    document.removeEventListener('keydown', handleEsc);
+  });
+}
+
+/**
+ * Genera y muestra vista previa de cotización
+ * Usa menor calidad de imagen para velocidad
+ */
+async function previsualizarPDFCotizacion() {
+  try {
+    const pdfBytes = await generarPDFCotizacion(false, true); // false = no compartir, true = preview
+    if (pdfBytes) {
+      mostrarVisorPDF(pdfBytes, 'Cotización - Vista Previa', previsualizarPDFCotizacion);
+      showToast('Vista previa generada correctamente', 'success');
+    }
+  } catch (e) {
+    showModal('Error al generar vista previa: ' + (e.message || e), 'error');
+    console.error('Error en vista previa:', e);
+  }
+}
+
+/**
+ * Genera y muestra vista previa de reporte
+ * Usa menor calidad de imagen para velocidad
+ */
+async function previsualizarPDFReporte() {
+  try {
+    const pdfBytes = await generarPDFReporte(false, true); // false = no compartir, true = preview
+    if (pdfBytes) {
+      mostrarVisorPDF(pdfBytes, 'Reporte - Vista Previa', previsualizarPDFReporte);
+      showToast('Vista previa generada correctamente', 'success');
+    }
+  } catch (e) {
+    showModal('Error al generar vista previa: ' + (e.message || e), 'error');
+    console.error('Error en vista previa:', e);
+  }
+}
+
 // --- Envoltura de texto por palabras (más estética que por caracteres)
 function wrapTextLines(text = "", font, fontSize, maxWidth) {
   const words = String(text || "").replace(/\s+/g, " ").trim().split(" ");
@@ -914,6 +1048,7 @@ function nuevaCotizacion() {
         <button type="button" class="btn-mini" onclick="renderInicio(); localStorage.removeItem('EMS_COT_BORRADOR')"><i class="fa fa-arrow-left"></i> Cancelar</button>
         <button type="button" class="btn-secondary" onclick="undoCot()"><i class="fa fa-undo"></i> Deshacer</button>
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
+        <button type="button" class="btn-secondary" onclick="previsualizarPDFCotizacion()" title="Ver vista previa antes de generar el PDF final"><i class="fa fa-eye"></i> Vista Previa</button>
         <button type="button" class="btn-secondary" onclick="guardarCotizacionDraft(); generarPDFCotizacion()"><i class="fa fa-file-pdf"></i> PDF</button>
         <button type="button" class="btn-success" onclick="guardarCotizacionDraft(); generarPDFCotizacion(true)"><i class="fa fa-share-alt"></i> Compartir</button>
       </div>
@@ -1165,6 +1300,7 @@ function nuevoReporte() {
         <button type="button" class="btn-mini" onclick="renderInicio(); localStorage.removeItem('EMS_REP_BORRADOR')"><i class="fa fa-arrow-left"></i> Cancelar</button>
         <button type="button" class="btn-secondary" onclick="undoRep()"><i class="fa fa-undo"></i> Deshacer</button>
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
+        <button type="button" class="btn-secondary" onclick="previsualizarPDFReporte()" title="Ver vista previa antes de generar el PDF final"><i class="fa fa-eye"></i> Vista Previa</button>
         <button type="button" class="btn-secondary" onclick="guardarReporteDraft(); generarPDFReporte()"><i class="fa fa-file-pdf"></i> PDF</button>
         <button type="button" class="btn-success" onclick="guardarReporteDraft(); generarPDFReporte(true)"><i class="fa fa-share-alt"></i> Compartir</button>
       </div>
@@ -1833,9 +1969,14 @@ async function drawSmartGallery(
 }
 
 // ====== COTIZACIÓN: PDF ======
-async function generarPDFCotizacion(share = false) {
-  showSaved("Generando PDF...");
-  await guardarCotizacionDraft();
+async function generarPDFCotizacion(share = false, isPreview = false) {
+  // Configuración de calidad según modo
+  const imgQuality = isPreview
+    ? { maxW: 640, maxH: 640, quality: 0.5 } // Baja calidad para preview rápido
+    : PDF_IMG_DEFAULTS; // Alta calidad para PDF final
+
+  showSaved(isPreview ? "Generando vista previa..." : "Generando PDF...");
+  if (!isPreview) await guardarCotizacionDraft();
 
   const form = document.getElementById('cotForm');
   const datos = Object.fromEntries(new FormData(form));
@@ -1982,6 +2123,14 @@ async function generarPDFCotizacion(share = false) {
   applyFooters(pdfDoc, ctx.pages, fonts, dims);
 
   const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
+
+  // Si es preview, retornar los bytes directamente
+  if (isPreview) {
+    showSaved("Vista previa lista");
+    return pdfBytes;
+  }
+
+  // Si no es preview, proceder con download/share normal
   showSaved("PDF Listo");
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const file = new File([blob], `Cotizacion_${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
@@ -2256,9 +2405,14 @@ async function guardarReporteDraft() {
 }
 
 // === Generador de Reporte con análisis PRE-FLIGHT y auto-ajuste ===
-async function generarPDFReporte(share = false) {
-  showProgress(true, 10, "Analizando diseño...");
-  await guardarReporteDraft();
+async function generarPDFReporte(share = false, isPreview = false) {
+  // Configuración de calidad según modo
+  const imgQuality = isPreview
+    ? { maxW: 640, maxH: 640, quality: 0.5 } // Baja calidad para preview rápido
+    : PDF_IMG_DEFAULTS; // Alta calidad para PDF final
+
+  showProgress(true, 10, isPreview ? "Analizando vista previa..." : "Analizando diseño...");
+  if (!isPreview) await guardarReporteDraft();
 
   const form = document.getElementById('repForm');
   if (!form) { showProgress(false); showModal("No hay formulario de reporte activo.", "error"); return; }
@@ -2311,6 +2465,15 @@ async function generarPDFReporte(share = false) {
   applyFooters(pdfDoc, ctx.pages, ctx.fonts, ctx.dims);
 
   const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
+
+  // Si es preview, retornar los bytes directamente
+  if (isPreview) {
+    showProgress(false);
+    showSaved("Vista previa lista");
+    return pdfBytes;
+  }
+
+  // Si no es preview, proceder con download/share normal
   showProgress(true, 90, "Exportando...");
 
   const blob = new Blob([pdfBytes], { type: "application/pdf" });

@@ -113,8 +113,12 @@ Este documento orienta a cualquier CLI/IA que intervenga en este proyecto. Mante
 
 ## Glosario de funciones clave
 - UI raíz: `renderInicio()`.
-- Cotización: `nuevaCotizacion()`, `enviarCotizacion()`, `generarPDFCotizacion()`.
-- Reporte: `nuevoReporte()`, `enviarReporte()`, `generarPDFReporte()`.
+- Cotización: `nuevaCotizacion()`, `enviarCotizacion()`, `generarPDFCotizacion(share, isPreview)`.
+- Reporte: `nuevoReporte()`, `enviarReporte()`, `generarPDFReporte(share, isPreview)`.
+- Vista Previa PDF:
+  - `previsualizarPDFCotizacion()` - Vista previa rápida de cotización
+  - `previsualizarPDFReporte()` - Vista previa rápida de reporte
+  - `mostrarVisorPDF(pdfBytes, title, onRefresh)` - Visor de PDF en overlay
 - Undo: `pushUndoCotSnapshot()`, `undoCot()`, `pushUndoRepSnapshot()`, `undoRep()`.
 - SW: evento `fetch` con bypass para Firestore/Cloudinary.
 - UI Profesional:
@@ -144,6 +148,12 @@ Plantilla sugerida:
 - Notas: validaciones, impactos, acciones pendientes
 
 Entradas:
+- Fecha: 2025-10-18 (Vista Previa PDF en Tiempo Real)
+  - Agente: Claude Code
+  - Resumen: Sistema completo de vista previa de PDFs antes de generarlos. Visor profesional en overlay con iframe, barra de acciones (actualizar/cerrar), spinner de carga, soporte ESC y accesibilidad (ARIA). Funciones generarPDFCotizacion() y generarPDFReporte() ahora aceptan parámetro isPreview que usa menor calidad de imagen (640x640, quality 0.5 vs 1280x1280, quality 0.72) para generación rápida. Retornan pdfBytes cuando isPreview=true en lugar de descargar. Botones "Vista Previa" agregados en UI de cotización y reporte con icono ojo. Función mostrarVisorPDF() crea overlay con backdrop blur, iframe para mostrar PDF, botón de actualizar que regenera en tiempo real, botón cerrar con cleanup de URLs. Funciones previsualizarPDFCotizacion() y previsualizarPDFReporte() orquestan el flujo completo. CSS profesional con +140 líneas de estilos responsivos. Usuario puede ver estructura y distribución antes de generar PDF final de alta calidad.
+  - Archivos clave: `app.js` (+140 líneas vista previa, modificación generarPDFCotizacion/generarPDFReporte), `styles.css` (+140 líneas visor), `service-worker.js` (v40), `index.html` (v40)
+  - Notas: Vista previa rápida con menor calidad. Botón actualizar regenera en tiempo real. Responsive mobile-first. Accesibilidad completa. UX espectacular para verificar estructura antes del PDF final.
+
 - Fecha: 2025-10-18 (Optimización Profesional Total - Sistema UI/UX Enterprise)
   - Agente: Claude Code
   - Resumen: TRANSFORMACIÓN PROFESIONAL COMPLETA de la webapp. Sistema de modales profesionales reemplazando todos los alert() nativos (25+ instancias) con modales animados con tipos (info/success/warning/error), atributos ARIA y soporte de teclado (ESC). Sistema de confirmación profesional reemplazando confirm() nativos con showConfirm(). Toast notifications no bloqueantes con animaciones. Indicador de estado de red online/offline persistente. Validación visual de inputs con estados error/success. Service Worker v39 con manejo robusto de errores, fallbacks offline, detección automática de actualizaciones cada 60s y notificación al usuario. Meta tags de seguridad (referrer policy, X-UA-Compatible) y performance (preconnect, dns-prefetch para Firebase/Cloudinary). CSS profesional con +240 líneas de nuevos componentes (modales, toasts, spinners, estados de validación). Funciones helper documentadas: showModal(), showConfirm(), showToast(), initNetworkStatus(), validateInput(). Experiencia de usuario nivel enterprise.
