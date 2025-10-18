@@ -1635,7 +1635,8 @@ async function generarPDFCotizacion(share = false) {
   const ctx = { 
     pages: [], y: 0, dims, fonts, datos, 
     typeLabel: "COTIZACIÓN", logoImg, _atPageStart: true,
-    opts: { dryRun: false, titleGap: 8, cardGap: 8, blockGap: 6 }
+    opts: { dryRun: false, titleGap: 8, cardGap: 8, blockGap: 6 },
+    state: { prevBlock: 'start', inGallery: false, currentSection: null }
   };
 
   const first = pdfDoc.addPage([dims.pageW, dims.pageH]);

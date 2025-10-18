@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ems-cache-v32';
+const CACHE_NAME = 'ems-cache-v33';
 const toCache = [
   './',
   './index.html',
@@ -43,7 +43,7 @@ self.addEventListener('fetch', event => {
     'api.cloudinary.com'
   ];
   if (url.origin !== self.location.origin && bypassHosts.some(h => url.host.includes(h))) {
-    // No usar respondWith: que el navegador maneje directamente
+    event.respondWith(fetch(req));
     return;
   }
 
