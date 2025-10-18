@@ -2069,7 +2069,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
 
   const ctx = { 
     pages: [], y: 0, dims, fonts, datos, 
-    typeLabel: "COTIZACIÓN", logoImg, _atPageStart: true,
+    typeLabel: "COTIZACI�N", logoImg, _atPageStart: true,
     opts: { dryRun: false, titleGap: 8, cardGap: 8, blockGap: 6 },
     state: { prevBlock: 'start', inGallery: false, currentSection: null }
   };
@@ -2151,12 +2151,12 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   drawTextRight(pTot, mostrarPrecioLimpio(total), dims.pageW - dims.mx, ctx.y, { size: 11.5, font: helvB, color: emsRgb() });
   ctx.y -= 14;
 
-  // Anexos fotográficos – galería packed
+  // Anexos fotogr�ficos – galería packed
   if (Array.isArray(fotosCotizacion) && fotosCotizacion.length) {
     const s = getSettings();
     const pdfCfg = s?.pdf || {};
     await drawSmartGallery(pdfDoc, ctx, fotosCotizacion.slice(0, 10), {
-      title: "Anexos fotográficos",
+      title: "Anexos fotogr�ficos",
       captions: false,
       baseTargetRowH: Number(pdfCfg.galleryBase)||200,
       minRowH: Number(pdfCfg.galleryMin)||160,
