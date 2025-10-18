@@ -160,7 +160,7 @@ body {
   border-color: var(--azul);
 }
 
-/* Tarjetas de historial - Minimalistas */
+/* Tarjetas de historial - Más intuitivas */
 .ems-historial-list {
   display: flex;
   flex-direction: column;
@@ -171,30 +171,58 @@ body {
 .ems-card-ems {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  gap: var(--space-4);
+  padding: var(--space-5);
   background: white;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
   cursor: pointer;
   transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.ems-card-ems::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--azul);
+  transform: scaleY(0);
+  transition: transform 0.2s ease;
+}
+
+.ems-card-ems:hover::before {
+  transform: scaleY(1);
+}
+
+.ems-card-ems:hover {
+  border-color: var(--azul);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(2px);
 }
 
 .ems-card-ems:active {
   transform: scale(0.98);
-  box-shadow: var(--shadow-md);
 }
 
 .ems-card-ico {
-  width: 44px;
-  height: 44px;
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--gris);
-  border-radius: var(--radius);
-  font-size: 1.125rem;
+  border-radius: var(--radius-lg);
+  font-size: 1.5rem;
   flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.ems-card-ems:hover .ems-card-ico {
+  transform: scale(1.1);
 }
 
 .ems-cotizacion .ems-card-ico {
@@ -276,11 +304,11 @@ body {
 }
 
 .ems-form-group label {
-  font-size: 0.8125rem;
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 700;
   color: var(--text);
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
+  margin-bottom: var(--space-1);
+  display: block;
 }
 
 .ems-form-input-icon {
@@ -293,14 +321,15 @@ input,
 select,
 textarea {
   width: 100%;
-  padding: var(--space-3);
+  padding: var(--space-4);
   border: 2px solid var(--border);
   border-radius: var(--radius);
   font-size: 16px; /* Evita zoom en iOS */
   background: white;
   color: var(--text);
   font-family: inherit;
-  transition: border-color 0.2s;
+  transition: all 0.2s ease;
+  min-height: 48px; /* Altura mínima para fácil toque */
 }
 
 input:focus,
@@ -308,31 +337,63 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--azul);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  transform: translateY(-1px);
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--gris-oscuro);
 }
 
 textarea {
-  min-height: 80px;
+  min-height: 120px;
   resize: vertical;
+  line-height: 1.5;
 }
 
-/* Botones minimalistas */
+/* Inputs específicos más grandes en móvil */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="email"],
+input[type="tel"] {
+  min-height: 52px;
+}
+
+select {
+  min-height: 52px;
+  cursor: pointer;
+}
+
+/* Botones minimalistas e intuitivos */
 button {
-  padding: var(--space-3) var(--space-5);
+  padding: var(--space-4) var(--space-5);
   border: 2px solid var(--border);
   border-radius: var(--radius);
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 0.9375rem;
+  font-weight: 700;
   font-family: inherit;
   cursor: pointer;
   transition: all 0.2s ease;
   background: white;
   color: var(--text);
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 button:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 button.btn-primary {
@@ -408,9 +469,10 @@ button.btn-mini {
 
 .ems-items-table th,
 .ems-items-table td {
-  padding: var(--space-3);
+  padding: var(--space-4);
   text-align: left;
   border-bottom: 1px solid var(--border);
+  vertical-align: middle;
 }
 
 .ems-items-table th {
@@ -428,8 +490,14 @@ button.btn-mini {
 
 .ems-items-table input,
 .ems-items-table textarea {
-  font-size: 0.875rem;
-  padding: var(--space-2);
+  font-size: 16px; /* Evita zoom */
+  padding: var(--space-3);
+  min-height: 44px;
+  border-radius: var(--radius);
+}
+
+.ems-items-table textarea {
+  min-height: 60px;
 }
 
 /* Acciones de formulario - Sticky optimizado */

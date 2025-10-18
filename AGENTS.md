@@ -138,6 +138,12 @@ Plantilla sugerida:
 - Notas: validaciones, impactos, acciones pendientes
 
 Entradas:
+- Fecha: 2025-10-18 (Fix SW + UX Mejorada)
+  - Agente: Claude Code
+  - Resumen: Corregido error crítico de SW interceptando Firestore (ahora NO intercepta googleapis.com/gstatic.com). Inputs más grandes y dinámicos (min-height 48-52px), labels más claros, textareas 120px, hover effects en inputs, tarjetas con animación de barra lateral, iconos 56px con zoom hover, botones con elevación, padding mejorado en tablas. UX ultra intuitiva.
+  - Archivos clave: `service-worker.js` (v37, bypass correcto), `styles.css` (inputs dinámicos, navegación mejorada), `index.html` (v37)
+  - Notas: SW ya NO da error con Firestore. Inputs y navegación mucho más intuitivos. Feedback visual mejorado en toda la app.
+
 - Fecha: 2025-10-18 (Rediseño Minimalista Ultra-Optimizado)
   - Agente: Claude Code
   - Resumen: Rediseño COMPLETO minimalista sin degradados. Paleta de colores sólidos (azul #2563eb), diseño ultra-limpio, botones optimizados para móviles (56px altura, grid 1fr evita cortes), espaciado consistente con variables, tablas responsivas, formularios en columna en móvil, acciones sticky mejoradas, splash screen minimalista, sombras sutiles, bordes redondeados consistentes (8px), theme-color actualizado. TODO sin degradados, enfoque en claridad y usabilidad móvil.

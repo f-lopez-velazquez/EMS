@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ems-cache-v36';
+const CACHE_NAME = 'ems-cache-v37';
 const toCache = [
   './',
   './index.html',
@@ -36,14 +36,17 @@ self.addEventListener('fetch', event => {
   // Dejar pasar todo lo que no sea GET
   if (req.method !== 'GET') return;
 
-  // No interceptar Firestore/Cloudinary ni otros cross-origin críticos
+  // NO interceptar Firestore/Cloudinary - dejar pasar directamente
   const bypassHosts = [
     'firestore.googleapis.com',
     'res.cloudinary.com',
-    'api.cloudinary.com'
+    'api.cloudinary.com',
+    'googleapis.com',
+    'gstatic.com'
   ];
-  if (url.origin !== self.location.origin && bypassHosts.some(h => url.host.includes(h))) {
-    event.respondWith(fetch(req));
+
+  if (bypassHosts.some(h => url.hostname.includes(h))) {
+    // No usar event.respondWith - dejar que el navegador maneje directamente
     return;
   }
 
@@ -59,17 +62,19 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Assets: cache-first con actualización pasiva
-  event.respondWith(
-    caches.match(req).then(cached => {
-      const fetchPromise = fetch(req).then(networkResp => {
-        if (networkResp && networkResp.ok && url.origin === self.location.origin) {
-          const clone = networkResp.clone();
-          caches.open(CACHE_NAME).then(c => c.put(req, clone));
-        }
-        return networkResp;
-      }).catch(() => cached);
-      return cached || fetchPromise;
-    })
-  );
+  // Assets same-origin: cache-first con actualización pasiva
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.match(req).then(cached => {
+        const fetchPromise = fetch(req).then(networkResp => {
+          if (networkResp && networkResp.ok) {
+            const clone = networkResp.clone();
+            caches.open(CACHE_NAME).then(c => c.put(req, clone));
+          }
+          return networkResp;
+        }).catch(() => cached);
+        return cached || fetchPromise;
+      })
+    );
+  }
 });
