@@ -5,7 +5,61 @@ const EMS_CONTACT = {
   telefono: "cel: 442 469 9895; Tel/Fax: 4422208910",
   correo: "electromotores.santana@gmail.com"
 };
-const EMS_COLOR = [0.97, 0.54, 0.11]; // rgb(248,138,29)
+const EMS_COLOR = [0.97, 0.54, 0.11]; // rgb(248,138,29) (fallback)
+
+// Ajustes (tema/PDF) persistentes
+function getSettings() {
+  try {
+    const raw = localStorage.getItem('EMS_SETTINGS');
+    if (!raw) return {};
+    return JSON.parse(raw) || {};
+  } catch { return {}; }
+}
+function saveSettings(conf) {
+  try { localStorage.setItem('EMS_SETTINGS', JSON.stringify(conf||{})); } catch {}
+}
+function hexToRgbArray(hex) {
+  if (!hex || typeof hex !== 'string') return EMS_COLOR;
+  const m = hex.replace('#','');
+  if (m.length !== 6) return EMS_COLOR;
+  const r = parseInt(m.slice(0,2),16)/255, g = parseInt(m.slice(2,4),16)/255, b = parseInt(m.slice(4,6),16)/255;
+  return [r,g,b];
+}
+function getThemeRgbArray() {
+  const s = getSettings();
+  const hex = s?.themeColor;
+  if (hex) return hexToRgbArray(hex);
+  return EMS_COLOR;
+}
+
+// Aplicar tema (CSS vars y meta theme-color)
+function setCssVar(name, value) {
+  try { document.documentElement.style.setProperty(name, value); } catch {}
+}
+function shadeHex(hex, percent) {
+  // percent: -1..1 (negro..blanco)
+  if (!hex) return hex;
+  hex = hex.replace('#','');
+  if (hex.length !== 6) return '#' + hex;
+  const num = parseInt(hex, 16);
+  let r = (num >> 16) & 0xFF, g = (num >> 8) & 0xFF, b = num & 0xFF;
+  const t = percent < 0 ? 0 : 255;
+  const p = Math.abs(percent);
+  r = Math.round((t - r) * p) + r;
+  g = Math.round((t - g) * p) + g;
+  b = Math.round((t - b) * p) + b;
+  const toHex = (v)=>('0' + v.toString(16)).slice(-2);
+  return '#' + toHex(Math.max(0, Math.min(255, r))) + toHex(Math.max(0, Math.min(255, g))) + toHex(Math.max(0, Math.min(255, b)));
+}
+function applyThemeFromSettings() {
+  const s = getSettings();
+  const main = (s.themeColor || '#F88A1D');
+  const light = shadeHex(main, 0.25);
+  setCssVar('--azul', main);
+  setCssVar('--azul-claro', light);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', main);
+}
 
 // === Firebase (tus credenciales) ===
 const firebaseConfig = {
@@ -24,6 +78,9 @@ const CLOUDINARY_CLOUD = "ds9b1mczi";
 const CLOUDINARY_PRESET = "ml_default";
 
 const LOGO_URL = "https://i.imgur.com/CKDrg9w.png";
+
+// Estado de secciones para Cotización (en DOM, pero guardamos helpers)
+let cotSeccionesTemp = [];
 
 // ⬇⬇ IMPORTANTE: fotos por ÍTEM con ID estable (no por índice)
 let fotosItemsReporteMap = {}; // { [rowId]: string[] }
@@ -249,10 +306,13 @@ function renderInicio() {
   document.getElementById("root").innerHTML = `
     <div class="ems-header">
       <img src="${LOGO_URL}" class="ems-logo">
-      <div>
+      <div style="flex:1">
         <h1>Electromotores Santana</h1>
         <span class="ems-subtitle">Cotizaciones y Reportes</span>
       </div>
+      <button class="btn-mini" style="margin-left:auto" title="Ajustes" onclick="openSettings()">
+        <i class="fa fa-gear"></i>
+      </button>
     </div>
     <div class="ems-main-btns">
       <button onclick="nuevaCotizacion()" class="btn-primary"><i class="fa fa-file-invoice"></i> Nueva Cotización</button>
@@ -265,12 +325,14 @@ function renderInicio() {
       </div>
       <div id="historialEMS" class="ems-historial-list"></div>
     </div>
+    <div class="ems-credit">Programado por: Francisco López Velázquez.</div>
   `;
   cargarHistorialEMS();
 }
 
 window.onload = () => {
   renderInicio();
+  try { applyThemeFromSettings(); } catch {}
   try { typeof showOffline === "function" && showOffline(true); } catch {}
 };
 
@@ -359,6 +421,106 @@ function eliminarCotItemRow(btn) {
   btn.closest('tr').remove();
 }
 
+// ========== NUEVO: Secciones de cotización ==========
+function renderCotSeccion(seccion = {}, rowId) {
+  const id = rowId || newUID();
+  const items = Array.isArray(seccion.items) ? seccion.items : [];
+  const itemsHtml = items.map(it => `
+      <tr>
+        <td><input type="text" name="concepto" value="${safe(it.concepto)}" list="conceptosEMS" autocomplete="off"></td>
+        <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto...">${safe(it.descripcion)}</textarea></td>
+        <td style="white-space:nowrap;display:flex;align-items:center;">
+          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
+          <input type="number" name="precioSec" min="0" step="0.01" value="${safe(it.precio)}" style="width:100px;">
+          <button type="button" class="btn-mini" onclick="this.closest('tr').remove(); recalcSeccionSubtotal(this.closest('.cot-seccion'))"><i class="fa fa-trash"></i></button>
+        </td>
+      </tr>
+  `).join('');
+  return `
+    <div class="cot-seccion" data-secid="${id}">
+      <div class="cot-seccion-head">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="Título de sección (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
+        <div class="cot-sec-actions">
+          <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
+          <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
+        </div>
+      </div>
+      <table class="ems-items-table cot-seccion-table">
+        <thead>
+          <tr>
+            <th style="width:30%">Concepto</th>
+            <th>Descripción</th>
+            <th style="width:180px">Precio</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+      </table>
+      <div class="cot-seccion-subtotal"><span>Subtotal sección:</span> <b class="cot-subtotal-val">$0.00</b></div>
+    </div>
+  `;
+}
+function agregarCotSeccion(preload = null) {
+  const wrap = document.getElementById('cotSeccionesWrap');
+  if (!wrap) return;
+  wrap.insertAdjacentHTML('beforeend', renderCotSeccion(preload||{ items:[{},{},] }));
+  agregarDictadoMicros();
+  activarPredictivosInstantaneos();
+  recalcTotalesCotizacion();
+}
+function eliminarCotSeccion(btn) {
+  const sec = btn.closest('.cot-seccion');
+  if (sec) { sec.remove(); recalcTotalesCotizacion(); }
+}
+function agregarRubroEnSeccion(btn) {
+  const sec = btn.closest('.cot-seccion');
+  if (!sec) return;
+  const tbody = sec.querySelector('tbody');
+  tbody.insertAdjacentHTML('beforeend', `
+    <tr>
+      <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off"></td>
+      <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..."></textarea></td>
+      <td style="white-space:nowrap;display:flex;align-items:center;">
+        <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
+        <input type="number" name="precioSec" min="0" step="0.01" style="width:100px;">
+        <button type="button" class="btn-mini" onclick="this.closest('tr').remove(); recalcSeccionSubtotal(this.closest('.cot-seccion'))"><i class="fa fa-trash"></i></button>
+      </td>
+    </tr>
+  `);
+  agregarDictadoMicros();
+  activarPredictivosInstantaneos();
+  recalcSeccionSubtotal(sec);
+}
+function recalcSeccionSubtotal(sec) {
+  if (!sec) return;
+  const precios = Array.from(sec.querySelectorAll('input[name="precioSec"]'));
+  const subtotal = precios.reduce((a,inp)=>{
+    const v = String(inp.value||"").trim();
+    if (v===''||v==='.'||v==='-') return a;
+    const n = Number(v); return a + (isNaN(n)?0:n);
+  },0);
+  const el = sec.querySelector('.cot-subtotal-val');
+  if (el) el.textContent = mostrarPrecioLimpio(subtotal);
+  return subtotal;
+}
+function recalcTotalesCotizacion() {
+  const sections = Array.from(document.querySelectorAll('#cotSeccionesWrap .cot-seccion'));
+  let subtotal = 0;
+  sections.forEach(sec => subtotal += recalcSeccionSubtotal(sec) || 0);
+  const form = document.getElementById('cotForm');
+  if (!form) return;
+  const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
+  const iva = incluyeIVA ? subtotal * 0.16 : 0;
+  const total = subtotal + iva;
+  const box = document.getElementById('cotResumenTotales');
+  if (box) {
+    box.querySelector('.cot-res-sub').textContent = mostrarPrecioLimpio(subtotal);
+    box.querySelector('.cot-res-iva').textContent = mostrarPrecioLimpio(iva);
+    box.querySelector('.cot-res-tot').textContent = mostrarPrecioLimpio(total);
+  }
+}
+
 // === Fotos de COTIZACIÓN (Cloudinary, máx 5) ===
 async function subirFotosCot(input) {
   if (!input.files || input.files.length === 0) return;
@@ -439,8 +601,11 @@ function nuevaCotizacion() {
         <h1>Electromotores Santana</h1>
         <span class="ems-subtitle">Nueva Cotización</span>
       </div>
+      <button class="btn-mini" style="margin-left:auto" title="Ajustes" onclick="openSettings()">
+        <i class="fa fa-gear"></i>
+      </button>
     </div>
-    <form id="cotForm" class="ems-form" autocomplete="off">
+    <form id="cotForm" class="ems-form" autocomplete="off" oninput="recalcTotalesCotizacion()">
       <div class="ems-form-row">
         <div class="ems-form-group">
           <label>No. Cotización</label>
@@ -477,25 +642,20 @@ function nuevaCotizacion() {
           <label><input type="checkbox" name="corrigeIA"> Mejorar redacción con IA</label>
         </div>
       </div>
-      <!-- CAMPO NUEVO DE TÍTULO -->
+      <!-- SUPERTÍTULO GENERAL -->
       <div class="ems-form-group">
-        <label>Título del trabajo/equipo</label>
+        <label>Supertítulo general del documento</label>
         <input type="text" name="titulo" placeholder="Ej: Motor de 5 HP, Rebobinado de alternador..." autocomplete="off">
       </div>
-      <div>
-        <table class="ems-items-table" id="itemsTable">
-          <thead>
-            <tr>
-              <th>Concepto</th>
-              <th>Unidad</th>
-              <th>Cantidad</th>
-              <th>Precio</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-        <button type="button" class="btn-secondary" onclick="agregarCotItemRow()">Agregar item</button>
+      <!-- Secciones -->
+      <div id="cotSeccionesWrap"></div>
+      <button type="button" class="btn-secondary" onclick="agregarCotSeccion()"><i class="fa fa-list"></i> Agregar sección</button>
+
+      <!-- Resumen Totales -->
+      <div id="cotResumenTotales" class="cot-resumen">
+        <div>Subtotal: <b class="cot-res-sub">$0.00</b></div>
+        <div>IVA (16%): <b class="cot-res-iva">$0.00</b></div>
+        <div>Total: <b class="cot-res-tot">$0.00</b></div>
       </div>
       <div class="ems-form-group">
         <label>Notas / Observaciones</label>
@@ -518,6 +678,7 @@ function nuevaCotizacion() {
         <button type="button" class="btn-success" onclick="guardarCotizacionDraft(); generarPDFCotizacion(true)"><i class="fa fa-share-alt"></i> Compartir</button>
       </div>
     </form>
+    <div class="ems-credit">Programado por: Francisco López Velázquez.</div>
   `;
 
   const form = document.getElementById('cotForm');
@@ -529,19 +690,27 @@ function nuevaCotizacion() {
   if (draft) {
     draft = JSON.parse(draft);
     Object.keys(draft).forEach(k => {
-      if (k !== "items" && k !== "fotos" && form[k] !== undefined) form[k].value = draft[k];
+      if (k !== "items" && k !== "fotos" && k !== "secciones" && form[k] !== undefined) form[k].value = draft[k];
     });
-    const tbody = form.querySelector("#itemsTable tbody");
-    tbody.innerHTML = "";
-    (draft.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
-    if ((draft.items || []).length === 0) agregarCotItemRow();
+    // Secciones nuevas o fallback a items
+    const wrap = document.getElementById('cotSeccionesWrap');
+    wrap.innerHTML = '';
+    if (Array.isArray(draft.secciones) && draft.secciones.length) {
+      draft.secciones.forEach(sec => agregarCotSeccion(sec));
+    } else if (Array.isArray(draft.items) && draft.items.length) {
+      const sec = { titulo: 'General', items: draft.items.map(it=>({ concepto: it.concepto, descripcion: '', precio: it.precio })) };
+      agregarCotSeccion(sec);
+    } else {
+      agregarCotSeccion({ titulo: 'General', items: [{},{},] });
+    }
     if (form.anticipo && form.anticipo.checked) {
       form.anticipoPorc.parentElement.style.display = '';
       form.anticipoPorc.value = draft.anticipoPorc || "";
     }
     if (Array.isArray(draft.fotos)) fotosCotizacion = [...draft.fotos];
   } else {
-    agregarCotItemRow();
+    // Inicial con una sección
+    agregarCotSeccion({ titulo: 'General', items: [{},{}] });
   }
 
   renderCotFotosPreview();
@@ -696,6 +865,9 @@ function nuevoReporte() {
         <h1>Electromotores Santana</h1>
         <span class="ems-subtitle">Nuevo Reporte</span>
       </div>
+      <button class="btn-mini" style="margin-left:auto" title="Ajustes" onclick="openSettings()">
+        <i class="fa fa-gear"></i>
+      </button>
     </div>
     <form id="repForm" class="ems-form" autocomplete="off">
       <div class="ems-form-row">
@@ -755,6 +927,7 @@ function nuevoReporte() {
         <button type="button" class="btn-success" onclick="guardarReporteDraft(); generarPDFReporte(true)"><i class="fa fa-share-alt"></i> Compartir</button>
       </div>
     </form>
+    <div class="ems-credit">Programado por: Francisco López Velázquez.</div>
   `;
   const form = document.getElementById('repForm');
   let draft = localStorage.getItem('EMS_REP_BORRADOR');
@@ -811,28 +984,37 @@ async function enviarCotizacion(e) {
   showSaved("Guardando...");
   const form = document.getElementById('cotForm');
   const datos = Object.fromEntries(new FormData(form));
-  const items = [];
-  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
-    items.push({
-      concepto: tr.querySelector('input[name="concepto"]').value,
-      unidad: tr.querySelector('input[name="unidad"]').value,
-      cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
-      precio: Number(tr.querySelector('input[name="precio"]').value)
+  // Tomar secciones
+  const secciones = [];
+  document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
+    const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
+    const items = [];
+    sec.querySelectorAll('tbody tr').forEach(tr=>{
+      const concepto = tr.querySelector('input[name="concepto"]').value;
+      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
+      const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
+      if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
     });
+    if (titulo || items.length) secciones.push({ titulo, items });
   });
-  if (!datos.numero || !datos.cliente || !items.length) {
+  if (!datos.numero || !datos.cliente || !secciones.length) {
     showSaved("Faltan datos");
     alert("Completa todos los campos requeridos.");
     return;
   }
   savePredictEMSCloud("cliente", datos.cliente);
-  items.forEach(it => {
-    savePredictEMSCloud("concepto", it.concepto);
-    savePredictEMSCloud("unidad", it.unidad);
-  });
+  secciones.forEach(sec => (sec.items||[]).forEach(it => { savePredictEMSCloud("concepto", it.concepto); }));
+  // Cálculos
+  const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (Number(it.precio)||0),0), 0);
+  const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
+  const iva = incluyeIVA ? subtotal*0.16 : 0;
+  const total = subtotal + iva;
   const cotizacion = {
     ...datos,
-    items,
+    secciones,
+    subtotal,
+    iva,
+    total,
     fotos: fotosCotizacion.slice(0,5),
     tipo: 'cotizacion',
     fecha: datos.fecha,
@@ -854,18 +1036,26 @@ async function guardarCotizacionDraft() {
   const form = document.getElementById('cotForm');
   if (!form) return;
   const datos = Object.fromEntries(new FormData(form));
-  const items = [];
-  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
-    items.push({
-      concepto: tr.querySelector('input[name="concepto"]').value,
-      unidad: tr.querySelector('input[name="unidad"]').value,
-      cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
-      precio: Number(tr.querySelector('input[name="precio"]').value)
+  const secciones = [];
+  document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
+    const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
+    const items = [];
+    sec.querySelectorAll('tbody tr').forEach(tr=>{
+      const concepto = tr.querySelector('input[name="concepto"]').value;
+      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
+      const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
+      if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
     });
+    if (titulo || items.length) secciones.push({ titulo, items });
   });
+  const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (Number(it.precio)||0),0), 0);
+  const incluyeIVA = datos.incluyeIVA === 'on';
+  const iva = incluyeIVA ? subtotal*0.16 : 0;
+  const total = subtotal + iva;
   const cotizacion = {
     ...datos,
-    items,
+    secciones,
+    subtotal, iva, total,
     fotos: fotosCotizacion.slice(0,5),
     tipo: 'cotizacion',
     fecha: datos.fecha,
@@ -880,7 +1070,8 @@ async function guardarCotizacionDraft() {
 // ====== Helpers PDF estéticos ======
 function emsRgb(arr = EMS_COLOR) {
   const { rgb } = PDFLib;
-  return rgb(arr[0], arr[1], arr[2]);
+  const theme = Array.isArray(arr) ? arr : getThemeRgbArray();
+  return rgb(theme[0], theme[1], theme[2]);
 }
 function gray(v) {
   const { rgb } = PDFLib;
@@ -985,6 +1176,12 @@ function applyFooters(pdfDoc, pages, fonts, dims) {
     page.drawText(`${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`, { x: dims.mx + 8, y: y + 2, size: 9.2, font: fonts.reg, color: gray(0.25) });
     page.drawText(`Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`, { x: dims.mx + 8, y: y - 11, size: 9.2, font: fonts.reg, color: gray(0.25) });
     drawTextRight(page, `Página ${i + 1} de ${total}`, dims.pageW - dims.mx, y - 11, { size: 9.2, font: fonts.bold, color: gray(0.45) });
+    try {
+      const s = getSettings();
+      if (s.showCredit !== false) {
+        page.drawText('Programado por: Francisco López Velázquez.', { x: dims.mx + 8, y: y - 24, size: 8.8, font: fonts.reg, color: gray(0.55) });
+      }
+    } catch {}
   }
 }
 
@@ -1399,25 +1596,21 @@ async function generarPDFCotizacion(share = false) {
 
   const form = document.getElementById('cotForm');
   const datos = Object.fromEntries(new FormData(form));
-  const items = [];
-  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
-    items.push({
-      concepto: tr.querySelector('input[name="concepto"]').value,
-      unidad: tr.querySelector('input[name="unidad"]').value,
-      cantidad: tr.querySelector('input[name="cantidad"]').value,
-      precio: tr.querySelector('input[name="precio"]').value
+  // Secciones
+  const secciones = [];
+  form.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
+    const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
+    const items = [];
+    sec.querySelectorAll('tbody tr').forEach(tr => {
+      const concepto = tr.querySelector('input[name="concepto"]').value;
+      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
+      const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
+      if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
     });
+    if (titulo || items.length) secciones.push({ titulo, items });
   });
 
-  let subtotal = items.reduce((acc, x) => {
-    const cantidadVal = String(x.cantidad).trim();
-    const precioVal = String(x.precio).trim();
-    if (cantidadVal === "" || cantidadVal === "." || cantidadVal === "-" || precioVal === "" || precioVal === "." || precioVal === "-") return acc;
-    let cantidad = Number(x.cantidad);
-    let precio = Number(x.precio);
-    if (isNaN(cantidad) || isNaN(precio)) return acc;
-    return acc + (cantidad * precio);
-  }, 0);
+  let subtotal = secciones.reduce((acc, sec)=> acc + (sec.items||[]).reduce((a,it)=> a + (Number(it.precio)||0), 0), 0);
   const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
   const iva = incluyeIVA ? subtotal * 0.16 : 0;
   const total = subtotal + iva;
@@ -1445,7 +1638,7 @@ async function generarPDFCotizacion(share = false) {
   ctx.y = addHeader(pdfDoc, first, ctx.typeLabel, datos, fonts, dims, true, logoImg);
   ctx._atPageStart = true;
 
-  // TÍTULO (opcional)
+  // SUPERTÍTULO (opcional)
   if ((datos.titulo || "").trim()) {
     const titulo = datos.titulo.trim();
     const rectH = 32;
@@ -1458,56 +1651,55 @@ async function generarPDFCotizacion(share = false) {
     ctx.y -= 6;
   }
 
-  // Tabla de conceptos
-  ensureSpace(pdfDoc, ctx, 22);
-  const thY = ctx.y;
-  const p0 = ctx.pages[ctx.pages.length - 1];
-  p0.drawRectangle({ x: dims.mx, y: thY - 18, width: dims.usableW, height: 20, color: emsRgb(), opacity: 0.98 });
-  p0.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-  p0.drawText("Unidad",   { x: dims.mx + 185, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-  p0.drawText("Cantidad", { x: dims.mx + 274, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-  p0.drawText("Precio",   { x: dims.mx + 356, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-  p0.drawText("Importe",  { x: dims.mx + 446, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-  ctx.y = thY - 24;
-
-  let currentPage = () => ctx.pages[ctx.pages.length - 1];
-
-  for (let i = 0; i < items.length; i++) {
-    ensureSpace(pdfDoc, ctx, 20);
-    const p = currentPage();
-    if (i % 2 === 0) {
-      p.drawRectangle({ x: dims.mx, y: ctx.y - 2, width: dims.usableW, height: 18, color: rgb(0.98,0.91,0.75), opacity: 0.24 });
-    }
-    const it = items[i];
-    const cX = dims.mx + 6, uX = dims.mx + 185, qX = dims.mx + 274, prRight = dims.mx + 432, impRight = dims.mx + dims.usableW - 6;
-    p.drawText(String(it.concepto || ""), { x: cX, y: ctx.y, size: 10, font: helv, color: gray(0.2) });
-    p.drawText(String(it.unidad || ""),   { x: uX, y: ctx.y, size: 10, font: helv, color: gray(0.2) });
-    p.drawText(String(it.cantidad || ""), { x: qX, y: ctx.y, size: 10, font: helv, color: gray(0.2) });
-
-    const precioTxt = mostrarPrecioLimpio(it.precio);
-    drawTextRight(p, precioTxt, prRight, ctx.y, { size: 10, font: helv, color: gray(0.2) });
-
-    let importe = "";
-    const cv = String(it.cantidad).trim(), pv = String(it.precio).trim();
-    if (cv !== "" && cv !== "." && cv !== "-" && pv !== "" && pv !== "." && pv !== "-" &&
-        !isNaN(Number(it.cantidad)) && !isNaN(Number(it.precio))) {
-      importe = mostrarPrecioLimpio(Number(it.cantidad) * Number(it.precio));
-    }
-    drawTextRight(p, importe, impRight, ctx.y, { size: 10, font: helv, color: gray(0.2) });
-    rule(p, dims.mx, ctx.y - 3, dims.pageW - dims.mx, gray(0.93), 0.5);
-    ctx.y -= 18;
+  const currentPage = () => ctx.pages[ctx.pages.length - 1];
+  for (let s = 0; s < secciones.length; s++) {
+    const sec = secciones[s];
+    // Banda de sección
+    drawSectionBand(pdfDoc, ctx, sec.titulo || `Sección ${s+1}`);
+    // Encabezado de tabla
+    ensureSpace(pdfDoc, ctx, 24);
+    const pT = currentPage();
+    const thY = ctx.y;
+    pT.drawRectangle({ x: dims.mx, y: thY - 18, width: dims.usableW, height: 20, color: emsRgb(), opacity: 0.98 });
+    pT.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+    pT.drawText("Descripción", { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+    pT.drawText("Precio", { x: dims.mx + dims.usableW - 120, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+    ctx.y = thY - 24;
+    let subSec = 0;
+    (sec.items||[]).forEach((it, idx) => {
+      ensureSpace(pdfDoc, ctx, 22);
+      const p = currentPage();
+      if (idx % 2 === 0) {
+        p.drawRectangle({ x: dims.mx, y: ctx.y - 2, width: dims.usableW, height: 18, color: rgb(0.98,0.91,0.75), opacity: 0.16 });
+      }
+      p.drawText(String(it.concepto||""), { x: dims.mx + 6, y: ctx.y, size: 10, font: helv, color: gray(0.24) });
+      const maxW = dims.usableW - 120 - (180 - 6);
+      const lines = wrapTextLines(String(it.descripcion||""), helv, 10, maxW);
+      let yy = ctx.y;
+      lines.slice(0,3).forEach((ln)=>{
+        p.drawText(ln, { x: dims.mx + 180, y: yy, size: 10, font: helv, color: gray(0.28) });
+        yy -= 12;
+      });
+      drawTextRight(p, mostrarPrecioLimpio(it.precio), dims.mx + dims.usableW - 6, ctx.y, { size: 10, font: helv, color: gray(0.24) });
+      rule(p, dims.mx, ctx.y - 3, dims.pageW - dims.mx, gray(0.93), 0.4);
+      ctx.y -= 18;
+      subSec += Number(it.precio)||0;
+    });
+    ctx.y -= 4;
+    const pS = currentPage();
+    pS.drawText("Subtotal sección:", { x: dims.mx + dims.usableW - 180, y: ctx.y, size: 10.5, font: helvB, color: gray(0.3) });
+    drawTextRight(pS, mostrarPrecioLimpio(subSec), dims.mx + dims.usableW - 6, ctx.y, { size: 10.5, font: helvB, color: gray(0.3) });
+    ctx.y -= 16;
   }
 
-  // Totales
+  // Totales generales
   ctx.y -= 6;
   rule(currentPage(), dims.mx + 336, ctx.y, dims.pageW - dims.mx, emsRgb(), 1);
   ctx.y -= 12;
-
   const pTot = currentPage();
   pTot.drawText("Subtotal:", { x: dims.mx + 336, y: ctx.y, size: 10.5, font: helvB, color: gray(0.25) });
   drawTextRight(pTot, mostrarPrecioLimpio(subtotal), dims.pageW - dims.mx, ctx.y, { size: 10.5, font: helvB, color: gray(0.25) });
   ctx.y -= 13;
-
   if (iva > 0) {
     pTot.drawText("IVA (16%):", { x: dims.mx + 336, y: ctx.y, size: 10.5, font: helvB, color: gray(0.25) });
     drawTextRight(pTot, mostrarPrecioLimpio(iva), dims.pageW - dims.mx, ctx.y, { size: 10.5, font: helvB, color: emsRgb() });
@@ -1519,12 +1711,14 @@ async function generarPDFCotizacion(share = false) {
 
   // Anexos fotográficos – galería packed
   if (Array.isArray(fotosCotizacion) && fotosCotizacion.length) {
+    const s = getSettings();
+    const pdfCfg = s?.pdf || {};
     await drawSmartGallery(pdfDoc, ctx, fotosCotizacion.slice(0, 10), {
       title: "Anexos fotográficos",
       captions: false,
-      baseTargetRowH: 200,
-      minRowH: 160,
-      maxRowH: 235,
+      baseTargetRowH: Number(pdfCfg.galleryBase)||200,
+      minRowH: Number(pdfCfg.galleryMin)||160,
+      maxRowH: Number(pdfCfg.galleryMax)||235,
       minImgW: 150,
       gutter: 8,
       rowPad: 5
@@ -1578,11 +1772,18 @@ function editarCotizacion(datos) {
     form.anticipoPorc.value = datos.anticipoPorc || "";
   }
   if (form.titulo) form.titulo.value = datos.titulo || "";
-
-  const tbody = form.querySelector("#itemsTable tbody");
-  tbody.innerHTML = "";
-  (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
   form.notas.value = datos.notas || "";
+
+  const wrap = document.getElementById('cotSeccionesWrap');
+  wrap.innerHTML = '';
+  if (Array.isArray(datos.secciones) && datos.secciones.length) {
+    datos.secciones.forEach(sec => agregarCotSeccion(sec));
+  } else if (Array.isArray(datos.items) && datos.items.length) {
+    const sec = { titulo: 'General', items: datos.items.map(it=>({ concepto: it.concepto, descripcion: '', precio: it.precio })) };
+    agregarCotSeccion(sec);
+  } else {
+    agregarCotSeccion({ titulo: 'General', items: [{},{}] });
+  }
 
   fotosCotizacion = Array.isArray(datos.fotos) ? [...datos.fotos] : [];
   renderCotFotosPreview();
@@ -1829,14 +2030,16 @@ async function generarPDFReporte(share = false) {
     });
   });
 
-  // Parámetros iniciales compactos
+  // Parámetros iniciales compactos, con ajustes desde panel
+  const s = getSettings();
+  const pdfCfg = s?.pdf || {};
   let params = {
-    baseRowH: 200,
-    minRowH: 160,
-    maxRowH: 235,
-    titleGap: 8,
-    cardGap: 8,
-    blockGap: 6
+    baseRowH: Number(pdfCfg.galleryBase)||200,
+    minRowH: Number(pdfCfg.galleryMin)||160,
+    maxRowH: Number(pdfCfg.galleryMax)||235,
+    titleGap: Number(pdfCfg.titleGap)||8,
+    cardGap: Number(pdfCfg.cardGap)||8,
+    blockGap: Number(pdfCfg.blockGap)||6
   };
 
   // --- Pre-flight con hasta 2 ajustes automáticos ---
@@ -1957,4 +2160,60 @@ function agregarDictadoMicros() {
       recog.start();
     };
   });
+}
+
+// ===== Panel de Ajustes (tema/pdf) =====
+function openSettings() {
+  const s = getSettings();
+  const themeHex = s.themeColor || '#F88A1D';
+  const pdf = s.pdf || {};
+  const overlay = document.createElement('div');
+  overlay.className = 'ems-settings-overlay';
+  overlay.innerHTML = `
+    <div class="ems-settings-modal">
+      <div class="ems-settings-head">
+        <h3 style="margin:0">Ajustes de Apariencia y PDF</h3>
+        <button class="btn-mini" onclick="this.closest('.ems-settings-overlay').remove()"><i class='fa fa-times'></i></button>
+      </div>
+      <div class="ems-settings-body">
+        <div class="ems-form-row">
+          <div class="ems-form-group"><label>Color principal (PDF)</label><input type="color" id="setThemeColor" value="${themeHex}"></div>
+          <div class="ems-form-group"><label>Mostrar crédito</label><select id="setShowCredit"><option value="1" ${s.showCredit!==false?'selected':''}>Sí</option><option value="0" ${s.showCredit===false?'selected':''}>No</option></select></div>
+        </div>
+        <div class="ems-form-row">
+          <div class="ems-form-group"><label>Galería base (px)</label><input type="number" id="setGalBase" min="120" max="300" value="${pdf.galleryBase||200}"></div>
+          <div class="ems-form-group"><label>Galería min (px)</label><input type="number" id="setGalMin" min="120" max="260" value="${pdf.galleryMin||160}"></div>
+          <div class="ems-form-group"><label>Galería max (px)</label><input type="number" id="setGalMax" min="160" max="300" value="${pdf.galleryMax||235}"></div>
+        </div>
+        <div class="ems-form-row">
+          <div class="ems-form-group"><label>Espaciado título</label><input type="number" id="setTitleGap" min="4" max="20" value="${pdf.titleGap||8}"></div>
+          <div class="ems-form-group"><label>Espaciado tarjeta</label><input type="number" id="setCardGap" min="4" max="20" value="${pdf.cardGap||8}"></div>
+          <div class="ems-form-group"><label>Espaciado bloques</label><input type="number" id="setBlockGap" min="4" max="20" value="${pdf.blockGap||6}"></div>
+        </div>
+      </div>
+      <div class="ems-form-actions">
+        <button class="btn-mini" onclick="this.closest('.ems-settings-overlay').remove()">Cancelar</button>
+        <button class="btn-primary" id="btnSaveSettings">Guardar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#btnSaveSettings').onclick = () => {
+    const next = {
+      themeColor: overlay.querySelector('#setThemeColor').value,
+      showCredit: overlay.querySelector('#setShowCredit').value === '1',
+      pdf: {
+        galleryBase: Number(overlay.querySelector('#setGalBase').value)||200,
+        galleryMin: Number(overlay.querySelector('#setGalMin').value)||160,
+        galleryMax: Number(overlay.querySelector('#setGalMax').value)||235,
+        titleGap: Number(overlay.querySelector('#setTitleGap').value)||8,
+        cardGap: Number(overlay.querySelector('#setCardGap').value)||8,
+        blockGap: Number(overlay.querySelector('#setBlockGap').value)||6,
+      }
+    };
+    saveSettings(next);
+    showSaved('Ajustes guardados');
+    try { applyThemeFromSettings(); } catch {}
+    overlay.remove();
+  };
 }
