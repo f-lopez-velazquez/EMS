@@ -77,7 +77,8 @@ const db = firebase.firestore();
 const CLOUDINARY_CLOUD = "ds9b1mczi";
 const CLOUDINARY_PRESET = "ml_default";
 
-const LOGO_URL = "https://i.imgur.com/CKDrg9w.png";
+// Usa ícono local para coherencia con GH Pages e ícono de pestaña
+const LOGO_URL = "./icons/icon-192.png";
 
 // Estado de secciones para Cotización (en DOM, pero guardamos helpers)
 let cotSeccionesTemp = [];
@@ -427,8 +428,8 @@ function renderCotSeccion(seccion = {}, rowId) {
   const items = Array.isArray(seccion.items) ? seccion.items : [];
   const itemsHtml = items.map(it => `
       <tr>
-        <td><input type="text" name="concepto" value="${safe(it.concepto)}" list="conceptosEMS" autocomplete="off"></td>
-        <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto...">${safe(it.descripcion)}</textarea></td>
+        <td><input type="text" name="concepto" value="${safe(it.concepto)}" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
+        <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..." spellcheck="true" autocapitalize="sentences">${safe(it.descripcion)}</textarea></td>
         <td style="white-space:nowrap;display:flex;align-items:center;">
           <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
           <input type="number" name="precioSec" min="0" step="0.01" value="${safe(it.precio)}" style="width:100px;">
@@ -479,8 +480,8 @@ function agregarRubroEnSeccion(btn) {
   const tbody = sec.querySelector('tbody');
   tbody.insertAdjacentHTML('beforeend', `
     <tr>
-      <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off"></td>
-      <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..."></textarea></td>
+      <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
+      <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..." spellcheck="true" autocapitalize="sentences"></textarea></td>
       <td style="white-space:nowrap;display:flex;align-items:center;">
         <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
         <input type="number" name="precioSec" min="0" step="0.01" style="width:100px;">
@@ -620,7 +621,7 @@ function nuevaCotizacion() {
         <div class="ems-form-group">
           <label>Cliente</label>
           <div class="ems-form-input-icon">
-            <input type="text" name="cliente" list="clientesEMS" required placeholder="Nombre o Empresa" autocomplete="off">
+            <input type="text" name="cliente" list="clientesEMS" required placeholder="Nombre o Empresa" autocomplete="off" spellcheck="true" autocapitalize="words">
             <button type="button" class="mic-btn" title="Dictar por voz"><i class="fa fa-microphone"></i></button>
           </div>
           <datalist id="clientesEMS"></datalist>
@@ -645,7 +646,7 @@ function nuevaCotizacion() {
       <!-- SUPERTÍTULO GENERAL -->
       <div class="ems-form-group">
         <label>Supertítulo general del documento</label>
-        <input type="text" name="titulo" placeholder="Ej: Motor de 5 HP, Rebobinado de alternador..." autocomplete="off">
+        <input type="text" name="titulo" placeholder="Ej: Motor de 5 HP, Rebobinado de alternador..." autocomplete="off" spellcheck="true" autocapitalize="sentences">
       </div>
       <!-- Secciones -->
       <div id="cotSeccionesWrap"></div>
@@ -660,7 +661,7 @@ function nuevaCotizacion() {
       <div class="ems-form-group">
         <label>Notas / Observaciones</label>
         <div class="ems-form-input-icon">
-          <textarea name="notas" rows="3" placeholder="Detalles, condiciones..."></textarea>
+          <textarea name="notas" rows="3" placeholder="Detalles, condiciones..." spellcheck="true" autocapitalize="sentences"></textarea>
           <button type="button" class="mic-btn"><i class="fa fa-microphone"></i></button>
         </div>
       </div>
@@ -770,7 +771,7 @@ function renderRepItemRow(item = {}, rowId, modoEdicion = true) {
   return `
     <tr data-rowid="${id}">
       <td>
-        <textarea name="descripcion" list="descEMS" rows="2" required placeholder="Describe la actividad" style="width:97%">${item.descripcion||""}</textarea>
+        <textarea name="descripcion" list="descEMS" rows="2" required placeholder="Describe la actividad" style="width:97%" spellcheck="true" autocapitalize="sentences">${item.descripcion||""}</textarea>
         <datalist id="descEMS"></datalist>
       </td>
       <td>
@@ -2162,6 +2163,92 @@ function agregarDictadoMicros() {
   });
 }
 
+// ====== Sobrescrituras de confirmación por palabra en acciones destructivas ======
+function confirmByTyping(seed = 'eliminar', title = 'Confirmar acción', onConfirm = ()=>{}) {
+  const words = ['eliminar','borrar','confirmar','continuar','aprobar','aceptar'];
+  const w = words[Math.floor(Math.random()*words.length)];
+  const overlay = document.createElement('div');
+  overlay.className = 'ems-confirm-overlay';
+  overlay.innerHTML = `
+    <div class="ems-confirm-box">
+      <h3>${title}</h3>
+      <p>Escribe <b>${w}</b> para confirmar. Esta acción no se puede deshacer.</p>
+      <input type="text" id="emsConfirmInput" placeholder="Escribe la palabra aquí" style="width:100%;padding:10px;border:1px solid #d2dbe7;border-radius:8px;">
+      <div class="ems-confirm-actions">
+        <button class="btn-mini" id="emsConfirmCancel">Cancelar</button>
+        <button class="btn-danger" id="emsConfirmOk"><i class="fa fa-trash"></i> Confirmar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = ()=>{ try { document.body.removeChild(overlay); } catch {} };
+  overlay.querySelector('#emsConfirmCancel').onclick = close;
+  overlay.querySelector('#emsConfirmOk').onclick = ()=>{
+    const val = overlay.querySelector('#emsConfirmInput').value.trim().toLowerCase();
+    if (val === w) { try { onConfirm(); } finally { close(); } }
+    else { alert('Palabra incorrecta'); }
+  };
+}
+
+// Re-definir eliminaciones puntuales para requerir confirmación por palabra
+const __orig_eliminarCotItemRow = typeof eliminarCotItemRow === 'function' ? eliminarCotItemRow : null;
+function eliminarCotItemRow(btn){
+  confirmByTyping('eliminar','Eliminar este elemento de cotización',()=>{
+    try{ const tr = btn.closest('tr'); tr && tr.remove(); recalcTotalesCotizacion?.(); }catch{}
+  });
+}
+
+const __orig_eliminarRepItemRow = typeof eliminarRepItemRow === 'function' ? eliminarRepItemRow : null;
+function eliminarRepItemRow(btn){
+  confirmByTyping('eliminar','Eliminar esta actividad del reporte',()=>{
+    try{
+      const tr = btn.closest('tr');
+      const id = tr?.getAttribute('data-rowid');
+      if (id && fotosItemsReporteMap[id]) delete fotosItemsReporteMap[id];
+      tr && tr.remove();
+    }catch{}
+  });
+}
+
+const __orig_eliminarFotoRepItem = typeof eliminarFotoRepItem === 'function' ? eliminarFotoRepItem : null;
+function eliminarFotoRepItem(btn, id, fidx){
+  confirmByTyping('borrar','Eliminar esta imagen del item',()=>{
+    try{
+      if (!fotosItemsReporteMap[id]) return;
+      fotosItemsReporteMap[id].splice(fidx,1);
+      const tr = btn.closest('tr');
+      const desc = tr?.querySelector('textarea')?.value || '';
+      tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
+      agregarDictadoMicros(); activarPredictivosInstantaneos();
+    }catch{}
+  });
+}
+
+const __orig_eliminarFotoCot = typeof eliminarFotoCot === 'function' ? eliminarFotoCot : null;
+function eliminarFotoCot(index){
+  confirmByTyping('borrar','Eliminar esta imagen de la cotización',()=>{
+    try{ fotosCotizacion.splice(index,1); renderCotFotosPreview(); guardarCotizacionDraft?.(); }catch{}
+  });
+}
+
+const __orig_eliminarCotizacionCompleta = typeof eliminarCotizacionCompleta === 'function' ? eliminarCotizacionCompleta : null;
+async function eliminarCotizacionCompleta(numero){
+  if (!numero){ const form = document.getElementById('cotForm'); if (form && form.numero && form.numero.value) numero=form.numero.value; }
+  if (!numero) return alert('No se encontró el número de cotización.');
+  confirmByTyping('eliminar','Para confirmar escribe la palabra indicada', async ()=>{
+    try{ await db.collection('cotizaciones').doc(numero).delete(); showSaved('Cotización eliminada'); localStorage.removeItem('EMS_COT_BORRADOR'); renderInicio(); }
+    catch(e){ alert('Error eliminando cotización: '+(e?.message||e)); }
+  });
+}
+
+const __orig_eliminarReporteCompleto = typeof eliminarReporteCompleto === 'function' ? eliminarReporteCompleto : null;
+async function eliminarReporteCompleto(numero){
+  if (!numero){ const form = document.getElementById('repForm'); if (form && form.numero && form.numero.value) numero=form.numero.value; }
+  if (!numero) return alert('No se encontró el número de reporte.');
+  confirmByTyping('eliminar','Para confirmar escribe la palabra indicada', async ()=>{
+    try{ await db.collection('reportes').doc(numero).delete(); showSaved('Reporte eliminado'); localStorage.removeItem('EMS_REP_BORRADOR'); renderInicio(); }
+    catch(e){ alert('Error eliminando reporte: '+(e?.message||e)); }
+  });
+}
 // ===== Panel de Ajustes (tema/pdf) =====
 function openSettings() {
   const s = getSettings();
