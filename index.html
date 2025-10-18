@@ -129,6 +129,21 @@
           });
       });
     }
+
+    // Auto-expand textareas for comfortable typing (works with dynamic forms)
+    (function(){
+      function autosize(el){
+        try { el.style.height = 'auto'; el.style.height = (el.scrollHeight)+'px'; } catch {}
+      }
+      function attach(el){
+        if (!el || el.__ems_auto) return; el.__ems_auto = true; autosize(el);
+        el.addEventListener('input', function(){ autosize(el); });
+      }
+      function scan(){ document.querySelectorAll('textarea').forEach(attach); }
+      document.addEventListener('input', function(e){ if (e.target && e.target.tagName==='TEXTAREA') attach(e.target); }, true);
+      const mo = new MutationObserver(scan); mo.observe(document.documentElement, { childList:true, subtree:true });
+      window.addEventListener('load', scan);
+    })();
   </script>
 </body>
 </html>
