@@ -2206,6 +2206,24 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   showSaved("PDF Listo");
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const file = new File([blob], `Cotizacion_${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
+  // Descargar siempre y compartir si procede
+  const url = URL.createObjectURL(blob);
+  try {
+    if (isIOS()) {
+      window.open(url, '_blank', 'noopener');
+    } else {
+      const a = document.createElement("a");
+      a.href = url; a.download = file.name; a.rel = 'noopener';
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { try{document.body.removeChild(a);}catch{} }, 0);
+    }
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+  if (share && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: "Cotización", text: Cotización  de Electromotores Santana }); } catch {}
+  }
+  return;
 
   if (share && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
     await navigator.share({ files: [file], title: "CotizaciÃ³n", text: `CotizaciÃ³n ${datos.numero||""} de Electromotores Santana` });

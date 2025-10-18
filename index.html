@@ -98,7 +98,37 @@
       console.warn('App Check not configured:', e);
     }
 
-    // Service Worker Registration with Update Detection
+    
+    // Back handler: no salir de la app, volver al inicio
+    (function(){
+      try {
+        if (!history.state || !history.state.ems) history.replaceState({ems:'root'}, '');
+        window.addEventListener('popstate', function(e){
+          e.preventDefault();
+          try { if (typeof renderInicio === 'function') renderInicio(); } catch {}
+          history.replaceState({ems:'root'}, '');
+        });
+      } catch {}
+    })();
+
+    // Recordatorios espor·dicos
+    (function(){
+      if (!('Notification' in window)) return;
+      try { Notification.requestPermission().catch(()=>{}); } catch {}
+      function countPendientes(){
+        let n = 0; try { if (localStorage.getItem('EMS_COT_BORRADOR')) n++; } catch {}
+        try { if (localStorage.getItem('EMS_REP_BORRADOR')) n++; } catch {}
+        return n;
+      }
+      function remind(){
+        const n = countPendientes();
+        if (n>0 && Notification.permission==='granted'){
+          try { new Notification('Tienes pendientes', { body: Hay  pendientes por terminar., icon: './icons/icon-192.png' }); } catch {}
+        }
+      }
+      setInterval(remind, 1000*60*60*6); // cada 6 horas
+      setTimeout(remind, 1000*30);
+    })();// Service Worker Registration with Update Detection
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
         // Solo usar versi√≥n, NO timestamp (evita updates falsos)
