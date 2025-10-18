@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#F88A1D">
   <title>Electromotores Santana - Cotizaciones & Reportes</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="manifest" href="manifest.json">
@@ -28,6 +29,11 @@
       firebase.appCheck().activate('TU_RECAPTCHA_V3_SITE_KEY', true);
     }
   } catch (e) { /* noop */ }
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('./service-worker.js?ts=' + Date.now()).catch(function(){});
+    });
+  }
 </script>
 
 </body>

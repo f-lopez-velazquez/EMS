@@ -274,6 +274,42 @@ button.btn-mini:hover {
   justify-content: flex-end;
 }
 
+/* Resumen y secciones de cotización */
+.cot-seccion {
+  background: #fff;
+  border: 1px solid var(--bordes);
+  border-radius: 12px;
+  padding: 10px 10px 6px 10px;
+  margin: 10px 0;
+  box-shadow: var(--sombra);
+}
+.cot-seccion-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.cot-sec-title {
+  flex: 1;
+}
+.cot-sec-actions { display: flex; gap: 6px; }
+.cot-seccion-subtotal {
+  display: flex; justify-content: flex-end; align-items: center;
+  gap: 8px; margin-top: 6px; color: #5a6781;
+}
+.cot-resumen {
+  display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr));
+  gap: 8px; margin: 10px 0 4px 0; padding: 8px 10px;
+  border: 1px dashed var(--bordes); border-radius: 10px; background: #fbfcff;
+}
+.ems-credit { text-align:center; color:#9aa4b2; font-size:0.85em; margin: 24px 0 12px; }
+
+/* Ajustes modal */
+.ems-settings-overlay { position: fixed; inset: 0; background: #0006; z-index: 2000; display:flex; align-items:center; justify-content:center; padding: 10px; }
+.ems-settings-modal { background:#fff; border-radius:14px; width: 680px; max-width: 96vw; box-shadow: 0 8px 30px #0003; padding: 14px; }
+.ems-settings-head { display:flex; align-items:center; justify-content: space-between; border-bottom: 1px solid var(--bordes); padding-bottom: 8px; margin-bottom: 10px; }
+.ems-settings-body { max-height: 60vh; overflow:auto; padding-right: 6px; }
+
 .ems-rep-fotos-row {
   display: flex;
   flex-wrap: wrap;
@@ -358,6 +394,7 @@ button.btn-mini:hover {
   .ems-form-actions { gap: 6px;}
   .ems-rep-foto img { width: 52px; height: 52px;}
   .ems-rep-foto button { font-size: 0.94em;}
+  .ems-form-actions { position: sticky; bottom: 0; background:#fff; padding: 8px 4px; border-top:1px solid var(--bordes); }
 }
 
 /* Permite scroll horizontal en tablas en móvil */

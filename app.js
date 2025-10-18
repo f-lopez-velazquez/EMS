@@ -5,7 +5,61 @@ const EMS_CONTACT = {
   telefono: "cel: 442 469 9895; Tel/Fax: 4422208910",
   correo: "electromotores.santana@gmail.com"
 };
-const EMS_COLOR = [0.97, 0.54, 0.11]; // rgb(248,138,29)
+const EMS_COLOR = [0.97, 0.54, 0.11]; // rgb(248,138,29) (fallback)
+
+// Ajustes (tema/PDF) persistentes
+function getSettings() {
+  try {
+    const raw = localStorage.getItem('EMS_SETTINGS');
+    if (!raw) return {};
+    return JSON.parse(raw) || {};
+  } catch { return {}; }
+}
+function saveSettings(conf) {
+  try { localStorage.setItem('EMS_SETTINGS', JSON.stringify(conf||{})); } catch {}
+}
+function hexToRgbArray(hex) {
+  if (!hex || typeof hex !== 'string') return EMS_COLOR;
+  const m = hex.replace('#','');
+  if (m.length !== 6) return EMS_COLOR;
+  const r = parseInt(m.slice(0,2),16)/255, g = parseInt(m.slice(2,4),16)/255, b = parseInt(m.slice(4,6),16)/255;
+  return [r,g,b];
+}
+function getThemeRgbArray() {
+  const s = getSettings();
+  const hex = s?.themeColor;
+  if (hex) return hexToRgbArray(hex);
+  return EMS_COLOR;
+}
+
+// Aplicar tema (CSS vars y meta theme-color)
+function setCssVar(name, value) {
+  try { document.documentElement.style.setProperty(name, value); } catch {}
+}
+function shadeHex(hex, percent) {
+  // percent: -1..1 (negro..blanco)
+  if (!hex) return hex;
+  hex = hex.replace('#','');
+  if (hex.length !== 6) return '#' + hex;
+  const num = parseInt(hex, 16);
+  let r = (num >> 16) & 0xFF, g = (num >> 8) & 0xFF, b = num & 0xFF;
+  const t = percent < 0 ? 0 : 255;
+  const p = Math.abs(percent);
+  r = Math.round((t - r) * p) + r;
+  g = Math.round((t - g) * p) + g;
+  b = Math.round((t - b) * p) + b;
+  const toHex = (v)=>('0' + v.toString(16)).slice(-2);
+  return '#' + toHex(Math.max(0, Math.min(255, r))) + toHex(Math.max(0, Math.min(255, g))) + toHex(Math.max(0, Math.min(255, b)));
+}
+function applyThemeFromSettings() {
+  const s = getSettings();
+  const main = (s.themeColor || '#F88A1D');
+  const light = shadeHex(main, 0.25);
+  setCssVar('--azul', main);
+  setCssVar('--azul-claro', light);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', main);
+}
 
 // === Firebase (tus credenciales) ===
 const firebaseConfig = {
@@ -19,13 +73,17 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// === Cloudinary usado en reportes (lo reutilizamos en cotización) ===
+// === Cloudinary usado en reportes/cotización ===
 const CLOUDINARY_CLOUD = "ds9b1mczi";
 const CLOUDINARY_PRESET = "ml_default";
 
 const LOGO_URL = "https://i.imgur.com/CKDrg9w.png";
 
-let fotosItemsReporte = [];
+// Estado de secciones para Cotización (en DOM, pero guardamos helpers)
+let cotSeccionesTemp = [];
+
+// ⬇⬇ IMPORTANTE: fotos por ÍTEM con ID estable (no por índice)
+let fotosItemsReporteMap = {}; // { [rowId]: string[] }
 let fotosCotizacion = []; // Hasta 5 fotos por cotización
 let autoSaveTimer = null;
 
@@ -34,11 +92,11 @@ function safe(val) { return (val === undefined || val === null) ? "" : String(va
 function formatMoney(val) { return "$" + Number(val || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function hoy() { return (new Date()).toISOString().slice(0, 10); }
 function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
+function newUID(){ return 'i' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
 
 function mostrarPrecio(val) {
   if (val === undefined || val === null) return "";
   if (typeof val === "string" && (val.trim() === "." || val.trim() === "-")) return "";
-  if (Number(val) === 0 && (val === "." || val === "-")) return "";
   if (isNaN(Number(val)) || val === "") return "";
   return "$" + Number(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -113,29 +171,81 @@ function showSaved(msg = "Guardado") {
   el._timer = setTimeout(() => { el.style.display = "none"; }, 1800);
 }
 
-// Helper PDF: cortar texto por ancho
-function breakTextLines(text = "", font, fontSize, maxWidth) {
-  let lines = [];
-  let currentLine = "";
-  for (let char of text) {
-    let nextLine = currentLine + char;
-    let width = font.widthOfTextAtSize(nextLine, fontSize);
-    if (width > maxWidth && currentLine.length > 0) {
-      lines.push(currentLine);
-      currentLine = char;
+// --- Envoltura de texto por palabras (más estética que por caracteres)
+function wrapTextLines(text = "", font, fontSize, maxWidth) {
+  const words = String(text || "").replace(/\s+/g, " ").trim().split(" ");
+  const lines = [];
+  let line = "";
+  for (let i = 0; i < words.length; i++) {
+    const test = (line ? line + " " : "") + words[i];
+    if (font.widthOfTextAtSize(test, fontSize) <= maxWidth) {
+      line = test;
     } else {
-      currentLine = nextLine;
+      if (line) lines.push(line);
+      line = words[i];
     }
   }
-  if (currentLine) lines.push(currentLine);
+  if (line) lines.push(line);
   return lines;
+}
+
+// ====== Compresión de imágenes para PDFs ======
+const __IMG_CACHE = new Map();
+const PDF_IMG_DEFAULTS = { maxW: 1280, maxH: 1280, quality: 0.72 };
+
+/**
+ * Comprime/redimensiona una imagen remota o dataURL a JPEG.
+ * Devuelve: ArrayBuffer con JPEG ya comprimido.
+ */
+async function compressImageToJpegArrayBuffer(src, { maxW, maxH, quality } = PDF_IMG_DEFAULTS) {
+  const key = `${src}|${maxW}x${maxH}|q${quality}`;
+  if (__IMG_CACHE.has(key)) return __IMG_CACHE.get(key);
+
+  let blob;
+  if (src.startsWith('data:')) {
+    const res = await fetch(src);
+    blob = await res.blob();
+  } else {
+    const res = await fetch(src, { mode: 'cors' });
+    if (!res.ok) throw new Error('No se pudo cargar imagen: ' + src);
+    blob = await res.blob();
+  }
+
+  const bitmap = await createImageBitmap(blob);
+  const { width, height } = bitmap;
+  const scale = Math.min(maxW / width, maxH / height, 1); // nunca agrandar
+  const w = Math.max(1, Math.round(width * scale));
+  const h = Math.max(1, Math.round(height * scale));
+
+  let outBlob;
+  if (typeof OffscreenCanvas !== 'undefined') {
+    const canvas = new OffscreenCanvas(w, h);
+    const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    outBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality });
+  } else {
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    outBlob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+  }
+
+  const arrBuf = await outBlob.arrayBuffer();
+  __IMG_CACHE.set(key, arrBuf);
+  return arrBuf;
+}
+
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
 }
 
 // ====== Predictivos Firestore ======
 async function savePredictEMSCloud(tipo, valor, user = "general") {
   if (!valor || valor.length < 2) return;
   const docRef = db.collection("predictEMS").doc(user);
-  let data = (await docRef.get()).data() || {};
+  const snap = await docRef.get();
+  let data = snap.data() || {};
   if (!data[tipo]) data[tipo] = [];
   if (!data[tipo].includes(valor)) data[tipo].unshift(valor);
   if (data[tipo].length > 30) data[tipo] = data[tipo].slice(0, 30);
@@ -191,15 +301,18 @@ function activarPredictivosInstantaneos() {
 // --------- Renderización de interfaz ---------
 function renderInicio() {
   if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
-  fotosItemsReporte = [];
+  fotosItemsReporteMap = {};
   fotosCotizacion = [];
   document.getElementById("root").innerHTML = `
     <div class="ems-header">
       <img src="${LOGO_URL}" class="ems-logo">
-      <div>
+      <div style="flex:1">
         <h1>Electromotores Santana</h1>
         <span class="ems-subtitle">Cotizaciones y Reportes</span>
       </div>
+      <button class="btn-mini" style="margin-left:auto" title="Ajustes" onclick="openSettings()">
+        <i class="fa fa-gear"></i>
+      </button>
     </div>
     <div class="ems-main-btns">
       <button onclick="nuevaCotizacion()" class="btn-primary"><i class="fa fa-file-invoice"></i> Nueva Cotización</button>
@@ -212,15 +325,20 @@ function renderInicio() {
       </div>
       <div id="historialEMS" class="ems-historial-list"></div>
     </div>
+    <div class="ems-credit">Programado por: Francisco López Velázquez.</div>
   `;
   cargarHistorialEMS();
 }
 
 window.onload = () => {
   renderInicio();
-  if (!navigator.onLine) showOffline?.(true);
+  try { applyThemeFromSettings(); } catch {}
+  try { typeof showOffline === "function" && showOffline(true); } catch {}
 };
 
+let ASYNC_ERR_GUARD = false;
+
+// ==== Historial ====
 async function cargarHistorialEMS(filtro = "") {
   const cont = document.getElementById("historialEMS");
   if (!cont) return;
@@ -303,6 +421,106 @@ function eliminarCotItemRow(btn) {
   btn.closest('tr').remove();
 }
 
+// ========== NUEVO: Secciones de cotización ==========
+function renderCotSeccion(seccion = {}, rowId) {
+  const id = rowId || newUID();
+  const items = Array.isArray(seccion.items) ? seccion.items : [];
+  const itemsHtml = items.map(it => `
+      <tr>
+        <td><input type="text" name="concepto" value="${safe(it.concepto)}" list="conceptosEMS" autocomplete="off"></td>
+        <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto...">${safe(it.descripcion)}</textarea></td>
+        <td style="white-space:nowrap;display:flex;align-items:center;">
+          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
+          <input type="number" name="precioSec" min="0" step="0.01" value="${safe(it.precio)}" style="width:100px;">
+          <button type="button" class="btn-mini" onclick="this.closest('tr').remove(); recalcSeccionSubtotal(this.closest('.cot-seccion'))"><i class="fa fa-trash"></i></button>
+        </td>
+      </tr>
+  `).join('');
+  return `
+    <div class="cot-seccion" data-secid="${id}">
+      <div class="cot-seccion-head">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="Título de sección (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
+        <div class="cot-sec-actions">
+          <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
+          <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
+        </div>
+      </div>
+      <table class="ems-items-table cot-seccion-table">
+        <thead>
+          <tr>
+            <th style="width:30%">Concepto</th>
+            <th>Descripción</th>
+            <th style="width:180px">Precio</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+      </table>
+      <div class="cot-seccion-subtotal"><span>Subtotal sección:</span> <b class="cot-subtotal-val">$0.00</b></div>
+    </div>
+  `;
+}
+function agregarCotSeccion(preload = null) {
+  const wrap = document.getElementById('cotSeccionesWrap');
+  if (!wrap) return;
+  wrap.insertAdjacentHTML('beforeend', renderCotSeccion(preload||{ items:[{},{},] }));
+  agregarDictadoMicros();
+  activarPredictivosInstantaneos();
+  recalcTotalesCotizacion();
+}
+function eliminarCotSeccion(btn) {
+  const sec = btn.closest('.cot-seccion');
+  if (sec) { sec.remove(); recalcTotalesCotizacion(); }
+}
+function agregarRubroEnSeccion(btn) {
+  const sec = btn.closest('.cot-seccion');
+  if (!sec) return;
+  const tbody = sec.querySelector('tbody');
+  tbody.insertAdjacentHTML('beforeend', `
+    <tr>
+      <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off"></td>
+      <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..."></textarea></td>
+      <td style="white-space:nowrap;display:flex;align-items:center;">
+        <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
+        <input type="number" name="precioSec" min="0" step="0.01" style="width:100px;">
+        <button type="button" class="btn-mini" onclick="this.closest('tr').remove(); recalcSeccionSubtotal(this.closest('.cot-seccion'))"><i class="fa fa-trash"></i></button>
+      </td>
+    </tr>
+  `);
+  agregarDictadoMicros();
+  activarPredictivosInstantaneos();
+  recalcSeccionSubtotal(sec);
+}
+function recalcSeccionSubtotal(sec) {
+  if (!sec) return;
+  const precios = Array.from(sec.querySelectorAll('input[name="precioSec"]'));
+  const subtotal = precios.reduce((a,inp)=>{
+    const v = String(inp.value||"").trim();
+    if (v===''||v==='.'||v==='-') return a;
+    const n = Number(v); return a + (isNaN(n)?0:n);
+  },0);
+  const el = sec.querySelector('.cot-subtotal-val');
+  if (el) el.textContent = mostrarPrecioLimpio(subtotal);
+  return subtotal;
+}
+function recalcTotalesCotizacion() {
+  const sections = Array.from(document.querySelectorAll('#cotSeccionesWrap .cot-seccion'));
+  let subtotal = 0;
+  sections.forEach(sec => subtotal += recalcSeccionSubtotal(sec) || 0);
+  const form = document.getElementById('cotForm');
+  if (!form) return;
+  const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
+  const iva = incluyeIVA ? subtotal * 0.16 : 0;
+  const total = subtotal + iva;
+  const box = document.getElementById('cotResumenTotales');
+  if (box) {
+    box.querySelector('.cot-res-sub').textContent = mostrarPrecioLimpio(subtotal);
+    box.querySelector('.cot-res-iva').textContent = mostrarPrecioLimpio(iva);
+    box.querySelector('.cot-res-tot').textContent = mostrarPrecioLimpio(total);
+  }
+}
+
 // === Fotos de COTIZACIÓN (Cloudinary, máx 5) ===
 async function subirFotosCot(input) {
   if (!input.files || input.files.length === 0) return;
@@ -383,8 +601,11 @@ function nuevaCotizacion() {
         <h1>Electromotores Santana</h1>
         <span class="ems-subtitle">Nueva Cotización</span>
       </div>
+      <button class="btn-mini" style="margin-left:auto" title="Ajustes" onclick="openSettings()">
+        <i class="fa fa-gear"></i>
+      </button>
     </div>
-    <form id="cotForm" class="ems-form" autocomplete="off">
+    <form id="cotForm" class="ems-form" autocomplete="off" oninput="recalcTotalesCotizacion()">
       <div class="ems-form-row">
         <div class="ems-form-group">
           <label>No. Cotización</label>
@@ -421,25 +642,20 @@ function nuevaCotizacion() {
           <label><input type="checkbox" name="corrigeIA"> Mejorar redacción con IA</label>
         </div>
       </div>
-      <!-- CAMPO NUEVO DE TÍTULO -->
+      <!-- SUPERTÍTULO GENERAL -->
       <div class="ems-form-group">
-        <label>Título del trabajo/equipo</label>
+        <label>Supertítulo general del documento</label>
         <input type="text" name="titulo" placeholder="Ej: Motor de 5 HP, Rebobinado de alternador..." autocomplete="off">
       </div>
-      <div>
-        <table class="ems-items-table" id="itemsTable">
-          <thead>
-            <tr>
-              <th>Concepto</th>
-              <th>Unidad</th>
-              <th>Cantidad</th>
-              <th>Precio</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-        <button type="button" class="btn-secondary" onclick="agregarCotItemRow()">Agregar item</button>
+      <!-- Secciones -->
+      <div id="cotSeccionesWrap"></div>
+      <button type="button" class="btn-secondary" onclick="agregarCotSeccion()"><i class="fa fa-list"></i> Agregar sección</button>
+
+      <!-- Resumen Totales -->
+      <div id="cotResumenTotales" class="cot-resumen">
+        <div>Subtotal: <b class="cot-res-sub">$0.00</b></div>
+        <div>IVA (16%): <b class="cot-res-iva">$0.00</b></div>
+        <div>Total: <b class="cot-res-tot">$0.00</b></div>
       </div>
       <div class="ems-form-group">
         <label>Notas / Observaciones</label>
@@ -460,15 +676,13 @@ function nuevaCotizacion() {
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
         <button type="button" class="btn-secondary" onclick="guardarCotizacionDraft(); generarPDFCotizacion()"><i class="fa fa-file-pdf"></i> PDF</button>
         <button type="button" class="btn-success" onclick="guardarCotizacionDraft(); generarPDFCotizacion(true)"><i class="fa fa-share-alt"></i> Compartir</button>
-        <!-- El botón de eliminar se insertará dinámicamente -->
       </div>
     </form>
+    <div class="ems-credit">Programado por: Francisco López Velázquez.</div>
   `;
 
-  // <<< CORRECCIÓN: definir 'form' y quitar el $1 que rompía >>>
   const form = document.getElementById('cotForm');
 
-  // Inicializa fotos de cotización
   fotosCotizacion = [];
 
   // Draft
@@ -476,21 +690,27 @@ function nuevaCotizacion() {
   if (draft) {
     draft = JSON.parse(draft);
     Object.keys(draft).forEach(k => {
-      if (k !== "items" && k !== "fotos" && form[k] !== undefined) form[k].value = draft[k];
+      if (k !== "items" && k !== "fotos" && k !== "secciones" && form[k] !== undefined) form[k].value = draft[k];
     });
-    // Items tabla
-    const tbody = form.querySelector("#itemsTable tbody");
-    tbody.innerHTML = "";
-    (draft.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
-    if ((draft.items || []).length === 0) agregarCotItemRow();
+    // Secciones nuevas o fallback a items
+    const wrap = document.getElementById('cotSeccionesWrap');
+    wrap.innerHTML = '';
+    if (Array.isArray(draft.secciones) && draft.secciones.length) {
+      draft.secciones.forEach(sec => agregarCotSeccion(sec));
+    } else if (Array.isArray(draft.items) && draft.items.length) {
+      const sec = { titulo: 'General', items: draft.items.map(it=>({ concepto: it.concepto, descripcion: '', precio: it.precio })) };
+      agregarCotSeccion(sec);
+    } else {
+      agregarCotSeccion({ titulo: 'General', items: [{},{},] });
+    }
     if (form.anticipo && form.anticipo.checked) {
       form.anticipoPorc.parentElement.style.display = '';
       form.anticipoPorc.value = draft.anticipoPorc || "";
     }
-    // Fotos desde draft
     if (Array.isArray(draft.fotos)) fotosCotizacion = [...draft.fotos];
   } else {
-    agregarCotItemRow();
+    // Inicial con una sección
+    agregarCotSeccion({ titulo: 'General', items: [{},{}] });
   }
 
   renderCotFotosPreview();
@@ -507,13 +727,12 @@ function nuevaCotizacion() {
     localStorage.removeItem('EMS_COT_BORRADOR');
   };
 
-  // AUTOGUARDADO cada 15 s
   if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
   window.autoSaveTimer = setInterval(() => {
     if (document.getElementById('cotForm')) guardarCotizacionDraft();
   }, 15000);
 
-  // BOTÓN ELIMINAR SOLO EN EDICIÓN
+  // eliminar si ya existe
   setTimeout(() => {
     if(form && form.numero && form.numero.value && !document.getElementById('btnEliminarCot')){
       let btn = document.createElement("button");
@@ -529,36 +748,38 @@ function nuevaCotizacion() {
 }
 
 // ========== Reporte (con imágenes Cloudinary) ==========
-function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
-  if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = item.fotos ? [...item.fotos] : [];
-  // Agrupa fotos de 2 en 2
+function renderRepItemRow(item = {}, rowId, modoEdicion = true) {
+  const id = rowId || item._id || newUID();
+  if (!fotosItemsReporteMap[id]) fotosItemsReporteMap[id] = Array.isArray(item.fotos) ? [...item.fotos] : [];
+  const fotos = fotosItemsReporteMap[id] || [];
+
+  // Agrupa fotos de 2 en 2 (solo para vista previa en la app)
   let fotosHtml = '';
-  const fotos = fotosItemsReporte[idx] || [];
   for (let i = 0; i < fotos.length; i += 2) {
     fotosHtml += `<div class="ems-rep-fotos-pair">`;
     for (let j = i; j < i + 2 && j < fotos.length; ++j) {
       fotosHtml += `
         <div class="ems-rep-foto">
           <img src="${fotos[j]}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #dbe2ea;display:block;margin:auto;">
-          ${modoEdicion ? `<button type="button" class="ems-btn-delimg" title="Eliminar imagen" onclick="eliminarFotoRepItem(this, ${idx}, ${j}, '${fotos[j]}')"><i class="fa fa-trash"></i></button>` : ''}
+          ${modoEdicion ? `<button type="button" class="ems-btn-delimg" title="Eliminar imagen" onclick="eliminarFotoRepItem(this, '${id}', ${j})"><i class="fa fa-trash"></i></button>` : ''}
         </div>
       `;
     }
     fotosHtml += `</div>`;
   }
   return `
-    <tr>
+    <tr data-rowid="${id}">
       <td>
         <textarea name="descripcion" list="descEMS" rows="2" required placeholder="Describe la actividad" style="width:97%">${item.descripcion||""}</textarea>
         <datalist id="descEMS"></datalist>
       </td>
       <td>
-        <div class="ems-rep-fotos-row" id="fotos-item-${idx}">
+        <div class="ems-rep-fotos-row" id="fotos-item-${id}">
           ${fotosHtml}
           ${modoEdicion && (fotos.length < 6) ? `
             <input type="file" accept="image/*" multiple
               style="display:block; margin-top:7px;"
-              onchange="subirFotoRepItem(this, ${idx})">
+              onchange="subirFotoRepItem(this, '${id}')">
             <div style="font-size:0.92em; color:#888;">${6 - fotos.length} fotos disponibles</div>
           ` : ""}
         </div>
@@ -571,22 +792,22 @@ function renderRepItemRow(item = {}, idx = 0, modoEdicion = true) {
 }
 function agregarRepItemRow() {
   const tbody = document.getElementById('repItemsTable').querySelector('tbody');
-  const idx = tbody.children.length;
-  fotosItemsReporte[idx] = [];
-  tbody.insertAdjacentHTML('beforeend', renderRepItemRow({}, idx, true));
+  const id = newUID();
+  fotosItemsReporteMap[id] = [];
+  tbody.insertAdjacentHTML('beforeend', renderRepItemRow({_id:id}, id, true));
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
 }
 function eliminarRepItemRow(btn) {
   const tr = btn.closest('tr');
-  const idx = Array.from(tr.parentNode.children).indexOf(tr);
-  fotosItemsReporte.splice(idx, 1);
+  const id = tr.getAttribute('data-rowid');
+  if (id && fotosItemsReporteMap[id]) delete fotosItemsReporteMap[id];
   tr.remove();
 }
-async function subirFotoRepItem(input, idx) {
+async function subirFotoRepItem(input, id) {
   if (!input.files || input.files.length === 0) return;
-  const files = Array.from(input.files).slice(0, 6 - (fotosItemsReporte[idx]?.length || 0));
-  if (!fotosItemsReporte[idx]) fotosItemsReporte[idx] = [];
+  const list = fotosItemsReporteMap[id] || (fotosItemsReporteMap[id] = []);
+  const files = Array.from(input.files).slice(0, 6 - list.length);
   input.disabled = true;
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
@@ -599,7 +820,7 @@ async function subirFotoRepItem(input, idx) {
       const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method: 'POST', body: formData });
       const data = await res.json();
       if (data.secure_url) {
-        if (fotosItemsReporte[idx].length < 6) fotosItemsReporte[idx].push(data.secure_url);
+        if (list.length < 6) list.push(data.secure_url);
       } else {
         alert("No se pudo subir la imagen a Cloudinary");
       }
@@ -608,27 +829,29 @@ async function subirFotoRepItem(input, idx) {
     }
   }
   // Re-renderiza la fila
-  const tbody = document.querySelector('#repItemsTable tbody');
-  const tr = tbody.children[idx];
-  const desc = tr.querySelector("textarea")?.value || "";
-  tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporte[idx] }, idx, true);
+  const tr = document.querySelector(`#repItemsTable tbody tr[data-rowid="${id}"]`);
+  const desc = tr?.querySelector("textarea")?.value || "";
+  if (tr) tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
+  agregarDictadoMicros();
+  activarPredictivosInstantaneos();
   showSaved("¡Imagen(es) subida(s)!");
   input.disabled = false;
   input.value = "";
 }
-function eliminarFotoRepItem(btn, idx, fidx/*, url*/) {
-  if (!fotosItemsReporte[idx]) return;
-  fotosItemsReporte[idx].splice(fidx, 1);
+function eliminarFotoRepItem(btn, id, fidx) {
+  if (!fotosItemsReporteMap[id]) return;
+  fotosItemsReporteMap[id].splice(fidx, 1);
   const tr = btn.closest('tr');
-  const tbody = tr.parentElement;
-  const desc = tr.querySelector("textarea")?.value || "";
-  tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporte[idx] }, idx, true);
+  const desc = tr?.querySelector("textarea")?.value || "";
+  tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
+  agregarDictadoMicros();
+  activarPredictivosInstantaneos();
 }
 
 // ========== Reporte: Formulario y Flujos ==========
 function nuevoReporte() {
   window.editandoReporte = false;
-  fotosItemsReporte = [];
+  fotosItemsReporteMap = {};
 
   let volverBtn = `
     <button class="btn-secondary" onclick="renderInicio()" style="margin-bottom:14px;">
@@ -642,6 +865,9 @@ function nuevoReporte() {
         <h1>Electromotores Santana</h1>
         <span class="ems-subtitle">Nuevo Reporte</span>
       </div>
+      <button class="btn-mini" style="margin-left:auto" title="Ajustes" onclick="openSettings()">
+        <i class="fa fa-gear"></i>
+      </button>
     </div>
     <form id="repForm" class="ems-form" autocomplete="off">
       <div class="ems-form-row">
@@ -667,6 +893,12 @@ function nuevoReporte() {
           <label>Hora</label>
           <input type="time" name="hora" value="${ahora()}">
         </div>
+      </div>
+      <!-- NUEVA SECCIÓN: CONCEPTO -->
+      <div class="ems-form-group">
+        <label>Concepto (ej. MOTOR 4HP)</label>
+        <input type="text" name="concepto" list="conceptosEMS" placeholder="Equipo/Trabajo principal" autocomplete="off">
+        <datalist id="conceptosEMS"></datalist>
       </div>
       <div>
         <table class="ems-items-table" id="repItemsTable">
@@ -695,6 +927,7 @@ function nuevoReporte() {
         <button type="button" class="btn-success" onclick="guardarReporteDraft(); generarPDFReporte(true)"><i class="fa fa-share-alt"></i> Compartir</button>
       </div>
     </form>
+    <div class="ems-credit">Programado por: Francisco López Velázquez.</div>
   `;
   const form = document.getElementById('repForm');
   let draft = localStorage.getItem('EMS_REP_BORRADOR');
@@ -705,10 +938,11 @@ function nuevoReporte() {
     });
     const tbody = form.querySelector("#repItemsTable tbody");
     tbody.innerHTML = "";
-    fotosItemsReporte = [];
-    (draft.items || []).forEach((item, idx) => {
-      fotosItemsReporte[idx] = Array.isArray(item.fotos) ? [...item.fotos] : [];
-      tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
+    fotosItemsReporteMap = {};
+    (draft.items || []).forEach((item) => {
+      const id = item._id || newUID();
+      fotosItemsReporteMap[id] = Array.isArray(item.fotos) ? [...item.fotos] : [];
+      tbody.insertAdjacentHTML("beforeend", renderRepItemRow({ ...item, _id:id }, id, true));
     });
     if ((draft.items || []).length === 0) agregarRepItemRow();
   } else {
@@ -750,28 +984,37 @@ async function enviarCotizacion(e) {
   showSaved("Guardando...");
   const form = document.getElementById('cotForm');
   const datos = Object.fromEntries(new FormData(form));
-  const items = [];
-  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
-    items.push({
-      concepto: tr.querySelector('input[name="concepto"]').value,
-      unidad: tr.querySelector('input[name="unidad"]').value,
-      cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
-      precio: Number(tr.querySelector('input[name="precio"]').value)
+  // Tomar secciones
+  const secciones = [];
+  document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
+    const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
+    const items = [];
+    sec.querySelectorAll('tbody tr').forEach(tr=>{
+      const concepto = tr.querySelector('input[name="concepto"]').value;
+      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
+      const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
+      if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
     });
+    if (titulo || items.length) secciones.push({ titulo, items });
   });
-  if (!datos.numero || !datos.cliente || !items.length) {
+  if (!datos.numero || !datos.cliente || !secciones.length) {
     showSaved("Faltan datos");
     alert("Completa todos los campos requeridos.");
     return;
   }
   savePredictEMSCloud("cliente", datos.cliente);
-  items.forEach(it => {
-    savePredictEMSCloud("concepto", it.concepto);
-    savePredictEMSCloud("unidad", it.unidad);
-  });
+  secciones.forEach(sec => (sec.items||[]).forEach(it => { savePredictEMSCloud("concepto", it.concepto); }));
+  // Cálculos
+  const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (Number(it.precio)||0),0), 0);
+  const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
+  const iva = incluyeIVA ? subtotal*0.16 : 0;
+  const total = subtotal + iva;
   const cotizacion = {
     ...datos,
-    items,
+    secciones,
+    subtotal,
+    iva,
+    total,
     fotos: fotosCotizacion.slice(0,5),
     tipo: 'cotizacion',
     fecha: datos.fecha,
@@ -793,245 +1036,708 @@ async function guardarCotizacionDraft() {
   const form = document.getElementById('cotForm');
   if (!form) return;
   const datos = Object.fromEntries(new FormData(form));
-  const items = [];
-  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
-    items.push({
-      concepto: tr.querySelector('input[name="concepto"]').value,
-      unidad: tr.querySelector('input[name="unidad"]').value,
-      cantidad: Number(tr.querySelector('input[name="cantidad"]').value),
-      precio: Number(tr.querySelector('input[name="precio"]').value)
+  const secciones = [];
+  document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
+    const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
+    const items = [];
+    sec.querySelectorAll('tbody tr').forEach(tr=>{
+      const concepto = tr.querySelector('input[name="concepto"]').value;
+      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
+      const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
+      if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
     });
+    if (titulo || items.length) secciones.push({ titulo, items });
   });
+  const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (Number(it.precio)||0),0), 0);
+  const incluyeIVA = datos.incluyeIVA === 'on';
+  const iva = incluyeIVA ? subtotal*0.16 : 0;
+  const total = subtotal + iva;
   const cotizacion = {
     ...datos,
-    items,
+    secciones,
+    subtotal, iva, total,
     fotos: fotosCotizacion.slice(0,5),
     tipo: 'cotizacion',
     fecha: datos.fecha,
     hora: datos.hora || ahora(),
     creada: new Date().toISOString()
   };
-  // Guarda remoto (como antes) y también local para recuperación offline
   await db.collection("cotizaciones").doc(datos.numero || "BORRADOR").set(cotizacion);
   localStorage.setItem('EMS_COT_BORRADOR', JSON.stringify(cotizacion));
   showSaved("Cotización guardada");
 }
 
+// ====== Helpers PDF estéticos ======
+function emsRgb(arr = EMS_COLOR) {
+  const { rgb } = PDFLib;
+  const theme = Array.isArray(arr) ? arr : getThemeRgbArray();
+  return rgb(theme[0], theme[1], theme[2]);
+}
+function gray(v) {
+  const { rgb } = PDFLib;
+  return rgb(v, v, v);
+}
+function drawTextRight(page, text, xRight, y, opts) {
+  const width = opts.font.widthOfTextAtSize(text, opts.size);
+  page.drawText(text, { x: xRight - width, y, ...opts });
+}
+function rule(page, x1, y, x2, color = gray(0.85), thickness = 0.6) {
+  page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, thickness, color });
+}
+function drawSectionTitle(page, x, y, text, fonts, opts = {}) {
+  const gap = opts.titleGap ?? 10; // gap extra bajo el título
+  if (!opts.dryRun) page.drawRectangle({ x, y: y - 10, width: 4, height: 14, color: emsRgb(), opacity: 0.9 });
+  if (!opts.dryRun) page.drawText(String(text || "").toUpperCase(), { x: x + 10, y: y - 6, size: 11.5, font: fonts.bold, color: gray(0.18) });
+  return y - 20 - gap;
+}
+
+// === Compactación global (menos blanco) ===
+const FOOTER_SAFE = 70;              // zona reservada inferior (pie de página)
+const TOP_PAD_NO_HEADER = 6;        // respiro arriba cuando NO hay encabezado
+const WATERMARK_W = 220, WATERMARK_H = 220, WATERMARK_OP = 0.04;
+
+// --- Banda de sección (mejora de contraste y asociación) con reserva anti-solape
+function drawSectionBand(pdfDoc, ctx, label, { continuation = false, preservePageStart = false } = {}) {
+  const { fonts, dims } = ctx;
+  const bandH = 26;
+  ensureSpace(pdfDoc, ctx, bandH + 6); // un poco más compacto
+  const page = ctx.pages[ctx.pages.length - 1];
+  page.drawRectangle({
+    x: dims.mx,
+    y: ctx.y - bandH + 6,
+    width: dims.usableW,
+    height: bandH,
+    color: emsRgb(),
+    opacity: 0.10,
+    borderColor: emsRgb(),
+    borderWidth: 0.8
+  });
+  const txt = continuation ? `${label} — continuación` : label;
+  page.drawText(String(txt).toUpperCase(), {
+    x: dims.mx + 10,
+    y: ctx.y - bandH + 12,
+    size: 11.5,
+    font: fonts.bold,
+    color: emsRgb()
+  });
+  ctx.y -= bandH + 8; // gap más corto
+  if (!preservePageStart) ctx._atPageStart = false;
+  ctx.state.prevBlock = "section-band";
+}
+
+// --- Logo embebido (caché por documento)
+async function getLogoImage(pdfDoc) {
+  if (!pdfDoc.__EMS_LOGO_IMG_TRIED) {
+    pdfDoc.__EMS_LOGO_IMG_TRIED = true;
+    try {
+      const bytes = await fetch(LOGO_URL, { mode: 'cors' }).then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.arrayBuffer();
+      });
+      try { pdfDoc.__EMS_LOGO_IMG = await pdfDoc.embedPng(bytes); }
+      catch { pdfDoc.__EMS_LOGO_IMG = await pdfDoc.embedJpg(bytes); }
+    } catch (e) {
+      console.warn('No se pudo cargar el logo para watermark/header:', e);
+      pdfDoc.__EMS_LOGO_IMG = null; // seguimos sin logo
+    }
+  }
+  return pdfDoc.__EMS_LOGO_IMG;
+}
+
+// Header con logo (solo se usa en PRIMERA página)
+function addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, isFirst = false, logoImg = null, opts = {}) {
+  const { pageW, mx } = dims;
+  let yTop = dims.pageH - dims.my;
+
+  if (!opts.dryRun && logoImg) {
+    page.drawImage(logoImg, { x: mx, y: yTop - 46, width: 46, height: 46 });
+  }
+
+  if (!opts.dryRun) {
+    page.drawText(EMS_CONTACT.empresa, { x: mx + 64, y: yTop - 4, size: 16.5, font: fonts.bold, color: gray(0.18) });
+    page.drawText(typeLabel, { x: mx + 64, y: yTop - 22, size: 12, font: fonts.bold, color: emsRgb() });
+
+    page.drawText(`Cliente: ${datos.cliente || ""}`, { x: mx + 64, y: yTop - 38, size: 10.5, font: fonts.reg, color: gray(0.25) });
+    drawTextRight(page, `No: ${datos.numero || ""}`, pageW - mx, yTop - 4, { size: 10.5, font: fonts.bold, color: gray(0.25) });
+    drawTextRight(page, `Fecha: ${datos.fecha || ""}${datos.hora ? " • " + datos.hora : ""}`, pageW - mx, yTop - 22, { size: 10.5, font: fonts.bold, color: gray(0.25) });
+
+    rule(page, mx, yTop - 48, pageW - mx, gray(0.85), 0.8);
+  }
+  return yTop - 58;
+}
+
+// Pie de página en TODAS las páginas
+function applyFooters(pdfDoc, pages, fonts, dims) {
+  const total = pages.length;
+  for (let i = 0; i < total; i++) {
+    const page = pages[i];
+    const y = 56;
+    rule(page, dims.mx, y + 14, dims.pageW - dims.mx, gray(0.85), 0.8);
+    page.drawText(`${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`, { x: dims.mx + 8, y: y + 2, size: 9.2, font: fonts.reg, color: gray(0.25) });
+    page.drawText(`Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`, { x: dims.mx + 8, y: y - 11, size: 9.2, font: fonts.reg, color: gray(0.25) });
+    drawTextRight(page, `Página ${i + 1} de ${total}`, dims.pageW - dims.mx, y - 11, { size: 9.2, font: fonts.bold, color: gray(0.45) });
+    try {
+      const s = getSettings();
+      if (s.showCredit !== false) {
+        page.drawText('Programado por: Francisco López Velázquez.', { x: dims.mx + 8, y: y - 24, size: 8.8, font: fonts.reg, color: gray(0.55) });
+      }
+    } catch {}
+  }
+}
+
+async function embedSmart(pdfDoc, url) {
+  try {
+    // 1) Intento rápido: comprimir a JPEG y embeber
+    const jpegBytes = await compressImageToJpegArrayBuffer(url, PDF_IMG_DEFAULTS);
+    return await pdfDoc.embedJpg(jpegBytes);
+  } catch (err) {
+    // 2) Fallback: descargar tal cual y probar JPG/PNG
+    try {
+      const orig = await fetch(url, { mode: 'cors' }).then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.arrayBuffer();
+      });
+      try { return await pdfDoc.embedJpg(orig); } catch { return await pdfDoc.embedPng(orig); }
+    } catch {
+      // 3) Si todo falla (403/CORS), devolvemos null para que el flujo siga sin imagen
+      return null;
+    }
+  }
+}
+
+// === Watermark tenue
+function drawWatermark(page, dims, logoImg, op = WATERMARK_OP) {
+  try { page.drawImage(logoImg, { x: (dims.pageW - WATERMARK_W) / 2, y: (dims.pageH - WATERMARK_H) / 2, width: WATERMARK_W, height: WATERMARK_H, opacity: op }); } catch {}
+}
+
+// === Control de salto de página (sin encabezado en páginas siguientes)
+function ensureSpace(pdfDoc, ctx, needed) {
+  const { dims, logoImg, opts } = ctx;
+  const bottomSafe = FOOTER_SAFE; // más compacto
+  if (ctx.y - needed < bottomSafe) {
+    const page = pdfDoc.addPage([dims.pageW, dims.pageH]);
+    ctx.pages.push(page);
+    if (!opts.dryRun && logoImg) drawWatermark(page, dims, logoImg, WATERMARK_OP);
+    // Arranque de página SIN encabezado: casi al tope
+    ctx.y = dims.pageH - dims.my - TOP_PAD_NO_HEADER;
+    ctx._atPageStart = true;
+    ctx.state.prevBlock = "page-start";
+    if (ctx.state.inGallery && ctx.state.currentSection) {
+      drawSectionBand(pdfDoc, ctx, ctx.state.currentSection, { continuation: true, preservePageStart: true });
+      ctx._atPageStart = true;
+    }
+  }
+}
+
+// --- Card de texto con etiqueta tipo “píldora” (con reserva para primera fila de fotos)
+function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10, reserveBelow = 0 }) {
+  const { dims, fonts, opts } = ctx;
+  if (ctx.state.prevBlock === "section-band") ctx.y -= 2;
+
+  const page = ctx.pages[ctx.pages.length - 1];
+  const labelTxt = String(label || "").toUpperCase();
+  const bodyTxt  = String(text || "").trim();
+  const lines = wrapTextLines(bodyTxt, fonts.reg, fontSize, dims.usableW - 2*pad);
+  const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2*pad);
+  const cardSelfHeight = 22 + 6 + bodyH + (opts.cardGap || 8);
+  const needed = cardSelfHeight + (reserveBelow || 0);
+
+  ensureSpace(pdfDoc, ctx, needed);
+
+  const pillW = Math.min(dims.usableW, fonts.bold.widthOfTextAtSize(labelTxt, 10.5) + 14);
+  if (!opts.dryRun) {
+    page.drawRectangle({ x: dims.mx, y: ctx.y - 18, width: pillW, height: 18, color: emsRgb(), opacity: 0.95 });
+    page.drawText(labelTxt, { x: dims.mx + 7, y: ctx.y - 14, size: 10.5, font: fonts.bold, color: PDFLib.rgb(1,1,1) });
+
+    const topBodyY = ctx.y - 18 - 5;
+    page.drawRectangle({ x: dims.mx, y: topBodyY - bodyH, width: dims.usableW, height: bodyH, color: gray(0.985), borderColor: gray(0.90), borderWidth: 0.8 });
+    let y = topBodyY - pad - fontSize;
+    lines.forEach(ln => {
+      page.drawText(ln, { x: dims.mx + pad, y, size: fontSize, font: fonts.reg, color: gray(0.18) });
+      y -= (fontSize + 3);
+    });
+  }
+
+  const topBodyY = ctx.y - 18 - 5;
+  const endY = topBodyY - bodyH + (-(opts.cardGap || 8));
+  ctx.y = endY;
+  ctx._atPageStart = false;
+  ctx.state.prevBlock = "card";
+}
+
+// ====== OBSERVACIONES EN LISTA ======
+function parseObservaciones(raw) {
+  let t = String(raw || "").trim();
+  if (!t) return [];
+  t = t.replace(/\r\n/g, "\n")
+       .replace(/[;•]/g, "\n")
+       .replace(/\n{2,}/g, "\n")
+       .replace(/\t/g, " ");
+  const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
+  const items = [];
+  for (let ln of lines) {
+    ln = ln.replace(/^\s*[-*•]\s+/, "")
+           .replace(/^\s*\d+[\.\)]\s+/, "");
+    if (ln) items.push(ln);
+  }
+  return items;
+}
+function drawBulletList(pdfDoc, ctx, items, { bullet = "•", fontSize = 10, lineGap = 4, leftPad = 8, bulletGap = 6 } = {}) {
+  const { dims, fonts, opts } = ctx;
+  const xBullet = dims.mx + leftPad;
+  const xText = xBullet + bulletGap + 6;
+  const maxW = dims.usableW - (xText - dims.mx) - leftPad;
+
+  for (const it of items) {
+    const lines = wrapTextLines(it, fonts.reg, fontSize, maxW);
+    const needed = (lines.length * (fontSize + lineGap)) + 2 + (opts.blockGap || 6);
+    ensureSpace(pdfDoc, ctx, needed);
+
+    if (!opts.dryRun) {
+      ctx.pages[ctx.pages.length - 1].drawText(bullet, {
+        x: xBullet,
+        y: ctx.y - fontSize,
+        size: fontSize,
+        font: fonts.bold,
+        color: gray(0.25)
+      });
+
+      let y = ctx.y - fontSize;
+      lines.forEach((ln) => {
+        ctx.pages[ctx.pages.length - 1].drawText(ln, { x: xText, y, size: fontSize, font: fonts.reg, color: gray(0.28) });
+        y -= (fontSize + lineGap);
+      });
+    }
+
+    ctx.y -= (lines.length * (fontSize + lineGap)) + (opts.blockGap || 6);
+  }
+  ctx._atPageStart = false;
+  ctx.state.prevBlock = "list";
+}
+
+// --- Utilidades de galería ---
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function availablePageHeight(ctx) {
+  // altura real libre hasta el footer seguro (más compacto)
+  return ctx.y - FOOTER_SAFE;
+}
+
+// Dibuja una sola imagen (centrada)
+async function drawSingleImageBlock(pdfDoc, ctx, url, { maxWFactor = 0.92, maxH = 300, pad = 6 } = {}) {
+  const { dims, opts } = ctx;
+  const img = await embedSmart(pdfDoc, url);
+  if (!img) return;
+  const maxW = Math.floor(dims.usableW * maxWFactor);
+  let w = img.width, h = img.height;
+  const scale = Math.min(maxW / w, maxH / h, 1);
+  w = Math.round(w * scale); h = Math.round(h * scale);
+
+  const needed = h + pad * 2 + (opts.blockGap || 6);
+  ensureSpace(pdfDoc, ctx, needed);
+
+  if (!opts.dryRun) {
+    const p = ctx.pages[ctx.pages.length - 1];
+    p.drawRectangle({ x: dims.mx, y: ctx.y - (h + pad * 2), width: dims.usableW, height: h + pad * 2, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
+    const x = dims.mx + (dims.usableW - w) / 2;
+    const y = ctx.y - pad - h;
+    p.drawImage(img, { x, y, width: w, height: h });
+  }
+  ctx.y -= (h + pad * 2 + (opts.blockGap || 6));
+  ctx._atPageStart = false;
+  ctx.state.prevBlock = "image";
+}
+
+// == Grid 2x2 inteligente (garantiza 4 por página al inicio) ==
+async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 8, pad = 6, vGap = 8 } = {}) {
+  const { dims, opts } = ctx;
+
+  const emb1 = [], emb2 = [];
+  for (const u of row1Imgs) { const e = await embedSmart(pdfDoc, u); if (e) emb1.push({img:e, r:e.width/e.height}); }
+  for (const u of row2Imgs) { const e = await embedSmart(pdfDoc, u); if (e) emb2.push({img:e, r:e.width/e.height}); }
+  if (emb1.length + emb2.length === 0) return;
+
+  const sumR1 = emb1.reduce((a,b)=>a+b.r,0) || 1;
+  const sumR2 = emb2.reduce((a,b)=>a+b.r,0) || 1;
+
+  let h1 = Math.floor((dims.usableW - gutter*(emb1.length-1)) / sumR1);
+  let h2 = Math.floor((dims.usableW - gutter*(emb2.length-1)) / sumR2);
+
+  const boxH = pad*2 + h1 + vGap + h2 + pad*2 + (opts.blockGap || 6);
+  let avail = availablePageHeight(ctx) - 8;
+  if (boxH > avail) {
+    const s = (avail) / boxH;
+    h1 = Math.floor(h1 * s);
+    h2 = Math.floor(h2 * s);
+  }
+
+  const needed = pad*2 + h1 + vGap + h2 + pad*2 + (opts.blockGap || 6);
+  ensureSpace(pdfDoc, ctx, needed);
+
+  if (!opts.dryRun) {
+    const p = ctx.pages[ctx.pages.length - 1];
+    const topY = ctx.y;
+
+    // fila 1
+    let x = dims.mx + Math.round((dims.usableW - (emb1.reduce((a,b)=>a+Math.round(b.r*h1),0) + gutter*(emb1.length-1)))/2);
+    let y = topY - pad - h1;
+    for (let i=0;i<emb1.length;i++) {
+      const w = Math.round(emb1[i].r*h1);
+      p.drawImage(emb1[i].img, { x, y, width: w, height: h1 });
+      x += w + gutter;
+    }
+
+    // fila 2
+    x = dims.mx + Math.round((dims.usableW - (emb2.reduce((a,b)=>a+Math.round(b.r*h2),0) + gutter*(emb2.length-1)))/2);
+    y = topY - pad - h1 - vGap - h2;
+    for (let i=0;i<emb2.length;i++) {
+      const w = Math.round(emb2[i].r*h2);
+      p.drawImage(emb2[i].img, { x, y, width: w, height: h2 });
+      x += w + gutter;
+    }
+
+    // marco sutil de bloque
+    p.drawRectangle({
+      x: dims.mx,
+      y: topY - (pad*2 + h1 + vGap + h2),
+      width: dims.usableW,
+      height: pad*2 + h1 + vGap + h2,
+      color: gray(0.99),
+      borderColor: gray(0.90),
+      borderWidth: 0.6
+    });
+  }
+
+  ctx.y -= (pad*2 + h1 + vGap + h2 + (opts.blockGap || 6));
+  ctx._atPageStart = false;
+  ctx.state.prevBlock = "grid2x2";
+}
+
+// Dibuja dos imágenes lado a lado
+async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 8, rowPad = 5, targetH = 210, maxH = 230 } = {}) {
+  const { dims, opts } = ctx;
+  const imgs = [];
+  for (const u of urls) {
+    const img = await embedSmart(pdfDoc, u);
+    if (img) imgs.push({ img, r: img.width / img.height });
+  }
+  if (imgs.length === 0) return;
+  if (imgs.length === 1) return drawSingleImageBlock(pdfDoc, ctx, urls[0], { maxH });
+
+  let rowH = clamp(targetH, 160, maxH);
+  const sumR = imgs[0].r + imgs[1].r;
+  rowH = Math.min(rowH, Math.floor((dims.usableW - gutter) / sumR));
+
+  const needed = rowPad * 2 + rowH + (opts.blockGap || 6);
+  ensureSpace(pdfDoc, ctx, needed);
+
+  if (!opts.dryRun) {
+    const p = ctx.pages[ctx.pages.length - 1];
+    const topY = ctx.y;
+    p.drawRectangle({ x: dims.mx, y: topY - (rowPad * 2 + rowH), width: dims.usableW, height: rowPad * 2 + rowH, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
+
+    const w1 = Math.round(imgs[0].r * rowH);
+    const w2 = Math.round(imgs[1].r * rowH);
+    let startX = dims.mx + Math.round((dims.usableW - (w1 + w2 + gutter)) / 2);
+    const y = topY - rowPad - rowH;
+    p.drawImage(imgs[0].img, { x: startX, y, width: w1, height: rowH });
+    p.drawImage(imgs[1].img, { x: startX + w1 + gutter, y, width: w2, height: rowH });
+  }
+
+  ctx.y -= (rowPad * 2 + rowH + (opts.blockGap || 6));
+  ctx._atPageStart = false;
+  ctx.state.prevBlock = "row2";
+}
+
+/**
+ * Galería "packed" profesional (más compacta):
+ * - En inicio de página usa grid 2×2 para asegurar 4 fotos por hoja.
+ * - Evita filas de 1 imagen (funde con la siguiente).
+ * - Ajusta dinámicamente la altura objetivo a lo disponible.
+ * - Última fila centrada sin estirar de más.
+ * - Marca continuidad de sección cuando salta de página.
+ */
+async function drawSmartGallery(
+  pdfDoc,
+  ctx,
+  images,
+  {
+    title = null,
+    captions = false,
+    baseTargetRowH = 200,
+    minRowH = 160,
+    maxRowH = 235,
+    minImgW = 150,
+    gutter = 8,
+    rowPad = 5,
+  } = {}
+) {
+  const { dims, fonts, opts } = ctx;
+  const page = () => ctx.pages[ctx.pages.length - 1];
+
+  if (!Array.isArray(images) || images.length === 0) return;
+
+  // Título opcional
+  if (title) {
+    ensureSpace(pdfDoc, ctx, 24 + (opts.titleGap ?? 8));
+    ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts, { titleGap: opts.titleGap ?? 8, dryRun: opts.dryRun });
+    ctx._atPageStart = false;
+    ctx.state.prevBlock = "title";
+  }
+
+  // Pre-embed ratios
+  const emb = [];
+  for (const url of images) {
+    const img = await embedSmart(pdfDoc, url);
+    if (!img) continue;
+    emb.push({ img, r: img.width / img.height });
+  }
+  if (emb.length === 0) return;
+
+  let i = 0;
+  let figCounter = 1;
+  ctx.state.inGallery = true;
+
+  while (i < emb.length) {
+    // Si estamos al inicio de página y hay >= 4 imágenes, aplicar grid 2x2
+    if (ctx._atPageStart && (emb.length - i) >= 4) {
+      await drawFourUpGrid(pdfDoc, ctx,
+        [images[i], images[i+1]],
+        [images[i+2], images[i+3]],
+        { gutter: 8, pad: 6, vGap: 8 }
+      );
+      i += 4;
+      continue;
+    }
+
+    // Altura objetivo dinámica para llenado eficiente
+    const dynamicTarget = clamp(Math.floor(availablePageHeight(ctx) / 2) - 10, minRowH, maxRowH);
+    const targetRowH = clamp(dynamicTarget || baseTargetRowH, minRowH, maxRowH);
+
+    // Construcción de fila evitando 1 sola imagen
+    let row = [];
+    let sumRatios = 0;
+
+    while (i < emb.length) {
+      row.push(emb[i]);
+      sumRatios += emb[i].r;
+      const widthAtTarget = Math.round(sumRatios * targetRowH) + gutter * (row.length - 1);
+
+      const minWidthAtTarget = Math.min(...row.map(o => o.r * targetRowH));
+      if (minWidthAtTarget < minImgW && row.length > 1) {
+        row.pop(); sumRatios -= emb[i].r; break;
+      }
+      if (widthAtTarget >= dims.usableW) break;
+      i++;
+    }
+    if (row.length > 0 && emb[i] === row[row.length - 1]) i++;
+
+    // Si quedó una sola imagen y aún hay más disponibles, forzar pareja
+    if (row.length === 1 && i < emb.length) {
+      row.push(emb[i]); sumRatios += emb[i].r; i++;
+    }
+
+    // altura final de fila
+    let rowH = (dims.usableW - gutter * (row.length - 1)) / sumRatios;
+    rowH = clamp(rowH, minRowH, maxRowH);
+
+    // Asegurar que cabe en la página
+    const boxH = rowPad * 2 + rowH + (captions ? 16 : 0) + (opts.blockGap || 6);
+    ensureSpace(pdfDoc, ctx, boxH);
+
+    if (!opts.dryRun) {
+      const p = page();
+      const topY = ctx.y;
+
+      p.drawRectangle({
+        x: dims.mx,
+        y: topY - (rowPad * 2 + rowH + (captions ? 16 : 0)),
+        width: dims.usableW,
+        height: rowPad * 2 + rowH + (captions ? 16 : 0),
+        color: gray(0.99),
+        borderColor: gray(0.90),
+        borderWidth: 0.6
+      });
+
+      let widths = row.map(o => Math.round(o.r * rowH));
+      let totalRowWidth = widths.reduce((a, b) => a + b, 0) + gutter * (row.length - 1);
+
+      // reajuste fino
+      while (totalRowWidth > dims.usableW && rowH > minRowH) {
+        rowH -= 1;
+        widths = row.map(o => Math.round(o.r * rowH));
+        totalRowWidth = widths.reduce((a, b) => a + b, 0) + gutter * (row.length - 1);
+      }
+
+      let startX = dims.mx + Math.round((dims.usableW - totalRowWidth) / 2);
+      let x = startX;
+      const iy = topY - rowPad - rowH;
+      for (let k = 0; k < row.length; k++) {
+        p.drawImage(row[k].img, { x, y: iy, width: widths[k], height: rowH });
+        if (captions) {
+          p.drawText(`Figura ${figCounter}`, { x, y: iy - 12, size: 9.2, font: fonts.reg, color: gray(0.45) });
+        }
+        figCounter++;
+        x += widths[k] + gutter;
+      }
+    }
+
+    ctx.y -= (rowPad * 2 + rowH + (captions ? 16 : 0) + (opts.blockGap || 6));
+    ctx._atPageStart = false;
+    ctx.state.prevBlock = "galleryRow";
+  }
+
+  ctx.state.inGallery = false;
+}
+
+// ====== COTIZACIÓN: PDF ======
 async function generarPDFCotizacion(share = false) {
   showSaved("Generando PDF...");
   await guardarCotizacionDraft();
+
   const form = document.getElementById('cotForm');
   const datos = Object.fromEntries(new FormData(form));
-  const items = [];
-  form.querySelectorAll('#itemsTable tbody tr').forEach(tr => {
-    items.push({
-      concepto: tr.querySelector('input[name="concepto"]').value,
-      unidad: tr.querySelector('input[name="unidad"]').value,
-      cantidad: tr.querySelector('input[name="cantidad"]').value,
-      precio: tr.querySelector('input[name="precio"]').value // string para validaciones
+  // Secciones
+  const secciones = [];
+  form.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
+    const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
+    const items = [];
+    sec.querySelectorAll('tbody tr').forEach(tr => {
+      const concepto = tr.querySelector('input[name="concepto"]').value;
+      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
+      const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
+      if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
     });
+    if (titulo || items.length) secciones.push({ titulo, items });
   });
 
-  // Totales con chequeo de ".", "-"
-  let subtotal = items.reduce((acc, x) => {
-    const cantidadVal = String(x.cantidad).trim();
-    const precioVal = String(x.precio).trim();
-    if (
-      cantidadVal === "" || cantidadVal === "." || cantidadVal === "-" ||
-      precioVal === "" || precioVal === "." || precioVal === "-"
-    ) return acc;
-    let cantidad = Number(x.cantidad);
-    let precio = Number(x.precio);
-    if (isNaN(cantidad) || isNaN(precio)) return acc;
-    return acc + (cantidad * precio);
-  }, 0);
+  let subtotal = secciones.reduce((acc, sec)=> acc + (sec.items||[]).reduce((a,it)=> a + (Number(it.precio)||0), 0), 0);
   const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
   const iva = incluyeIVA ? subtotal * 0.16 : 0;
   const total = subtotal + iva;
-  const anticipoPorc = (form.anticipo && form.anticipo.checked && form.anticipoPorc.value) ? parseFloat(form.anticipoPorc.value) : 0;
-  const anticipo = anticipoPorc ? (total * (anticipoPorc/100)) : 0;
 
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
   const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // Medidas A4
-  const pageW = 595.28, pageH = 841.89;
-  const mx = 32, my = 38;
-  const usableW = pageW - mx*2;
-  let y = pageH - my;
+  const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
+  dims.usableW = dims.pageW - dims.mx * 2;
 
-  let page = pdfDoc.addPage([pageW, pageH]);
+  const fonts = { reg: helv, bold: helvB };
+  const logoImg = await getLogoImage(pdfDoc);
 
-  // Marca de agua
-  try {
-    const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
-    const logoImg   = await pdfDoc.embedPng(logoBytes);
-    page.drawImage(logoImg, { x: (pageW-220)/2, y: (pageH-240)/2, width: 220, height: 220, opacity: 0.06 });
+  const ctx = { 
+    pages: [], y: 0, dims, fonts, datos, 
+    typeLabel: "COTIZACIÓN", logoImg, _atPageStart: true,
+    opts: { dryRun: false, titleGap: 8, cardGap: 8, blockGap: 6 }
+  };
 
-    const logoH = 46;
-    page.drawImage(logoImg, { x: mx, y: y - logoH + 10, width: logoH, height: logoH });
+  const first = pdfDoc.addPage([dims.pageW, dims.pageH]);
+  ctx.pages.push(first);
+  drawWatermark(first, dims, logoImg, WATERMARK_OP);
+  ctx.y = addHeader(pdfDoc, first, ctx.typeLabel, datos, fonts, dims, true, logoImg);
+  ctx._atPageStart = true;
 
-    const leftX = mx + logoH + 14;
-    page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y + 2, size: 17, font: helvB, color: rgb(0.10,0.20,0.40) });
-    page.drawText("COTIZACIÓN", { x: leftX, y: y - 16, size: 12, font: helvB, color: rgb(0.98,0.54,0.10) });
-    page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 32, size: 10.5, font: helv, color: rgb(0.16,0.18,0.22) });
-    page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 180, y: y + 2, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
-    page.drawText(`Fecha: ${datos.fecha||""}`, { x: mx + usableW - 180, y: y - 15, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
-  } catch { /* sin logo, continúa */ }
-
-  y -= (46 + 24);
-
-  // TÍTULO (opcional)
-  if (datos.titulo && datos.titulo.trim()) {
+  // SUPERTÍTULO (opcional)
+  if ((datos.titulo || "").trim()) {
     const titulo = datos.titulo.trim();
-    const fontSizeTitulo = 15;
-    const rectHeight = 33;
-    page.drawRectangle({
-      x: mx, y: y - rectHeight + 9, width: usableW, height: rectHeight,
-      color: rgb(0.97, 0.54, 0.11), opacity: 0.17, borderColor: rgb(0.97, 0.54, 0.11), borderWidth: 1.2
-    });
-    const textWidth = helvB.widthOfTextAtSize(titulo, fontSizeTitulo);
-    const textX = mx + (usableW - textWidth) / 2;
-    const textY = y - rectHeight/2 + 10;
-    page.drawText(titulo, { x: textX, y: textY, size: fontSizeTitulo, font: helvB, color: rgb(0.97, 0.54, 0.11) });
-    y -= rectHeight + 13;
+    const rectH = 32;
+    first.drawRectangle({ x: dims.mx, y: ctx.y - rectH + 10, width: dims.usableW, height: rectH, color: emsRgb(), opacity: 0.08, borderColor: emsRgb(), borderWidth: 1 });
+    const w = helvB.widthOfTextAtSize(titulo, 15);
+    first.drawText(titulo, { x: dims.mx + (dims.usableW - w) / 2, y: ctx.y - rectH / 2 + 12, size: 15, font: helvB, color: emsRgb() });
+    ctx.y -= rectH + 14;
+    ctx._atPageStart = false;
   } else {
-    y -= 10;
+    ctx.y -= 6;
   }
 
-  // Tabla cabecera
-  page.drawRectangle({ x: mx, y: y + 2, width: usableW, height: 20, color: rgb(0.98,0.54,0.11), opacity: 0.97 });
-  page.drawText("Concepto", { x: mx + 2, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
-  page.drawText("Unidad",   { x: mx+176, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
-  page.drawText("Cantidad", { x: mx+265, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
-  page.drawText("Precio",   { x: mx+350, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
-  page.drawText("Importe",  { x: mx+440, y: y + 6, size: 11, font: helvB, color: rgb(1,1,1) });
-
-  // Líneas y filas
-  let rowY = y - 16;
-  let colXs = [mx, mx+176, mx+265, mx+350, mx+440, pageW-mx];
-  page.drawLine({ start: { x: mx, y: rowY }, end: { x: pageW-mx, y: rowY }, thickness: 1.1, color: rgb(0.96,0.78,0.30) });
-  y = rowY - 18;
-
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-    const cantidadVal = String(it.cantidad).trim();
-    const precioVal = String(it.precio).trim();
-    if (y < 110) {
-      page = pdfDoc.addPage([pageW, pageH]);
-      y = pageH - my - 70;
-    }
-    if (i % 2 === 0) {
-      page.drawRectangle({ x: mx, y: y - 2, width: usableW, height: 18, color: rgb(0.98,0.91,0.75), opacity: 0.29 });
-    }
-    page.drawText(String(it.concepto || ""), { x: mx+2, y, size: 10, font: helv, color: rgb(0.13,0.18,0.38) });
-    page.drawText(String(it.unidad || ""),   { x: mx+176+2, y, size: 10, font: helv, color: rgb(0.13,0.18,0.38) });
-    page.drawText(String(it.cantidad || ""), { x: mx+265+2, y, size: 10, font: helv, color: rgb(0.13,0.18,0.38) });
-    page.drawText(mostrarPrecioLimpio(it.precio),  { x: mx+350+2, y, size: 10, font: helv, color: rgb(0.10,0.35,0.16) });
-
-    let importe = "";
-    if (cantidadVal !== "" && cantidadVal !== "." && cantidadVal !== "-" &&
-        precioVal   !== "" && precioVal   !== "." && precioVal   !== "-" &&
-        !isNaN(Number(it.cantidad)) && !isNaN(Number(it.precio))) {
-      importe = mostrarPrecioLimpio(Number(it.cantidad) * Number(it.precio));
-    }
-    page.drawText(importe, { x: mx+440+2, y, size: 10, font: helv, color: rgb(0.10,0.35,0.16) });
-    page.drawLine({ start: { x: mx, y: y-3 }, end: { x: pageW-mx, y: y-3 }, thickness: 0.47, color: rgb(0.98,0.85,0.48) });
-    y -= 18;
+  const currentPage = () => ctx.pages[ctx.pages.length - 1];
+  for (let s = 0; s < secciones.length; s++) {
+    const sec = secciones[s];
+    // Banda de sección
+    drawSectionBand(pdfDoc, ctx, sec.titulo || `Sección ${s+1}`);
+    // Encabezado de tabla
+    ensureSpace(pdfDoc, ctx, 24);
+    const pT = currentPage();
+    const thY = ctx.y;
+    pT.drawRectangle({ x: dims.mx, y: thY - 18, width: dims.usableW, height: 20, color: emsRgb(), opacity: 0.98 });
+    pT.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+    pT.drawText("Descripción", { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+    pT.drawText("Precio", { x: dims.mx + dims.usableW - 120, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+    ctx.y = thY - 24;
+    let subSec = 0;
+    (sec.items||[]).forEach((it, idx) => {
+      ensureSpace(pdfDoc, ctx, 22);
+      const p = currentPage();
+      if (idx % 2 === 0) {
+        p.drawRectangle({ x: dims.mx, y: ctx.y - 2, width: dims.usableW, height: 18, color: rgb(0.98,0.91,0.75), opacity: 0.16 });
+      }
+      p.drawText(String(it.concepto||""), { x: dims.mx + 6, y: ctx.y, size: 10, font: helv, color: gray(0.24) });
+      const maxW = dims.usableW - 120 - (180 - 6);
+      const lines = wrapTextLines(String(it.descripcion||""), helv, 10, maxW);
+      let yy = ctx.y;
+      lines.slice(0,3).forEach((ln)=>{
+        p.drawText(ln, { x: dims.mx + 180, y: yy, size: 10, font: helv, color: gray(0.28) });
+        yy -= 12;
+      });
+      drawTextRight(p, mostrarPrecioLimpio(it.precio), dims.mx + dims.usableW - 6, ctx.y, { size: 10, font: helv, color: gray(0.24) });
+      rule(p, dims.mx, ctx.y - 3, dims.pageW - dims.mx, gray(0.93), 0.4);
+      ctx.y -= 18;
+      subSec += Number(it.precio)||0;
+    });
+    ctx.y -= 4;
+    const pS = currentPage();
+    pS.drawText("Subtotal sección:", { x: dims.mx + dims.usableW - 180, y: ctx.y, size: 10.5, font: helvB, color: gray(0.3) });
+    drawTextRight(pS, mostrarPrecioLimpio(subSec), dims.mx + dims.usableW - 6, ctx.y, { size: 10.5, font: helvB, color: gray(0.3) });
+    ctx.y -= 16;
   }
 
-  // Totales
-  y -= 8;
-  page.drawLine({ start: { x: mx+340, y }, end: { x: pageW-mx, y }, thickness: 1.1, color: rgb(0.97, 0.54, 0.11) });
-  y -= 13;
-  page.drawText("Subtotal:", { x: mx+340, y, size: 10.5, font: helvB, color: rgb(0.12,0.20,0.40) });
-  page.drawText(mostrarPrecioLimpio(subtotal), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.12,0.20,0.40) });
-  y -= 13;
+  // Totales generales
+  ctx.y -= 6;
+  rule(currentPage(), dims.mx + 336, ctx.y, dims.pageW - dims.mx, emsRgb(), 1);
+  ctx.y -= 12;
+  const pTot = currentPage();
+  pTot.drawText("Subtotal:", { x: dims.mx + 336, y: ctx.y, size: 10.5, font: helvB, color: gray(0.25) });
+  drawTextRight(pTot, mostrarPrecioLimpio(subtotal), dims.pageW - dims.mx, ctx.y, { size: 10.5, font: helvB, color: gray(0.25) });
+  ctx.y -= 13;
   if (iva > 0) {
-    page.drawText("IVA (16%):", { x: mx+340, y, size: 10.5, font: helvB, color: rgb(0.12,0.20,0.40) });
-    page.drawText(mostrarPrecioLimpio(iva), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-    y -= 13;
+    pTot.drawText("IVA (16%):", { x: dims.mx + 336, y: ctx.y, size: 10.5, font: helvB, color: gray(0.25) });
+    drawTextRight(pTot, mostrarPrecioLimpio(iva), dims.pageW - dims.mx, ctx.y, { size: 10.5, font: helvB, color: emsRgb() });
+    ctx.y -= 13;
   }
-  page.drawText("Total:", { x: mx+340, y, size: 11.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-  page.drawText(mostrarPrecioLimpio(total), { x: mx+440, y, size: 11.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-  y -= 17;
-  if (anticipo > 0) {
-    page.drawText(`Anticipo (${anticipoPorc}%):`, { x: mx+340, y, size: 10.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-    page.drawText(mostrarPrecioLimpio(anticipo), { x: mx+440, y, size: 10.5, font: helvB, color: rgb(0.97,0.54,0.11) });
-    y -= 13;
-  }
+  pTot.drawText("Total:", { x: dims.mx + 336, y: ctx.y, size: 11.5, font: helvB, color: emsRgb() });
+  drawTextRight(pTot, mostrarPrecioLimpio(total), dims.pageW - dims.mx, ctx.y, { size: 11.5, font: helvB, color: emsRgb() });
+  ctx.y -= 14;
 
-  // IMÁGENES DE COTIZACIÓN (si existen) — SIEMPRE fuera de "notas"
+  // Anexos fotográficos – galería packed
   if (Array.isArray(fotosCotizacion) && fotosCotizacion.length) {
-    const pad = 16;
-    const maxPorFila = 2;
-    const maxAncho = Math.floor((usableW - pad) / 2);
-    const maxAlto = 180;
+    const s = getSettings();
+    const pdfCfg = s?.pdf || {};
+    await drawSmartGallery(pdfDoc, ctx, fotosCotizacion.slice(0, 10), {
+      title: "Anexos fotográficos",
+      captions: false,
+      baseTargetRowH: Number(pdfCfg.galleryBase)||200,
+      minRowH: Number(pdfCfg.galleryMin)||160,
+      maxRowH: Number(pdfCfg.galleryMax)||235,
+      minImgW: 150,
+      gutter: 8,
+      rowPad: 5
+    });
+  }
 
-    if (y < 80) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
-    page.drawText("Imágenes:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
-    y -= 14;
-
-    let idx = 0;
-    while (idx < fotosCotizacion.length) {
-      const fila = fotosCotizacion.slice(idx, idx + maxPorFila);
-      if (y - maxAlto - 24 < my) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
-
-      const escalas = [];
-      let totalW = 0;
-      for (let j = 0; j < fila.length; j++) {
-        const url = fila[j];
-        let bytes, img;
-        try {
-          bytes = await fetch(url).then(r => r.arrayBuffer());
-          try { img = await pdfDoc.embedPng(bytes); } catch { img = await pdfDoc.embedJpg(bytes); }
-        } catch { continue; }
-        let w = img.width, h = img.height;
-        let scale = Math.min(maxAncho / w, maxAlto / h);
-        w = w * scale; h = h * scale;
-        escalas.push({ img, w, h });
-        totalW += w;
-      }
-
-      const gaps = (escalas.length > 1) ? pad : 0;
-      let startX = mx + (usableW - (totalW + gaps)) / 2;
-
-      let x = startX;
-      for (let j = 0; j < escalas.length; j++) {
-        const { img, w, h } = escalas[j];
-        page.drawImage(img, { x, y: y - h, width: w, height: h });
-        x += w + pad;
-      }
-
-      y -= (Math.max(...escalas.map(e => e.h)) + 16);
-      idx += maxPorFila;
+  // Observaciones
+  if ((datos.notas || "").trim()) {
+    ensureSpace(pdfDoc, ctx, 48);
+    ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, "Observaciones", fonts, { titleGap: 8, dryRun: false });
+    const itemsObs = parseObservaciones(datos.notas);
+    if (itemsObs.length) {
+      drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "•", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
     }
   }
 
-  // Notas / observaciones
-  if (datos.notas?.trim()) {
-    if (y < 80) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
-    page.drawText("Observaciones:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
-    y -= 13;
-    page.drawText(datos.notas.trim(), { x: mx+12, y, size: 10, font: helv, color: rgb(0.18,0.23,0.32), maxWidth: usableW-20 });
-    y -= 10;
-  }
+  applyFooters(pdfDoc, ctx.pages, fonts, dims);
 
-  // Pie
-  const pieArr = [
-    `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`,
-    `Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`,
-    "Vigencia de la cotización: 15 días naturales a partir de la fecha de emisión."
-  ];
-  let pieY = 56;
-  for (let linea of pieArr) {
-    page.drawText(linea, { x: mx+8, y: pieY, size: 9.2, font: helv, color: rgb(0.10,0.20,0.56), maxWidth: usableW-16 });
-    pieY -= 13;
-  }
-
-  const pdfBytes = await pdfDoc.save();
+  const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
   showSaved("PDF Listo");
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const file = new File([blob], `Cotizacion_${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
@@ -1040,8 +1746,14 @@ async function generarPDFCotizacion(share = false) {
     await navigator.share({ files: [file], title: "Cotización", text: `Cotización ${datos.numero||""} de Electromotores Santana` });
   } else {
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = file.name; a.click();
+    if (isIOS()) {
+      window.open(url, '_blank', 'noopener');
+    } else {
+      const a = document.createElement("a");
+      a.href = url; a.download = file.name; a.rel = 'noopener';
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { document.body.removeChild(a); }, 0);
+    }
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 }
@@ -1060,13 +1772,19 @@ function editarCotizacion(datos) {
     form.anticipoPorc.value = datos.anticipoPorc || "";
   }
   if (form.titulo) form.titulo.value = datos.titulo || "";
-
-  const tbody = form.querySelector("#itemsTable tbody");
-  tbody.innerHTML = "";
-  (datos.items || []).forEach(item => tbody.insertAdjacentHTML("beforeend", renderCotItemRow(item)));
   form.notas.value = datos.notas || "";
 
-  // Fotos cotización
+  const wrap = document.getElementById('cotSeccionesWrap');
+  wrap.innerHTML = '';
+  if (Array.isArray(datos.secciones) && datos.secciones.length) {
+    datos.secciones.forEach(sec => agregarCotSeccion(sec));
+  } else if (Array.isArray(datos.items) && datos.items.length) {
+    const sec = { titulo: 'General', items: datos.items.map(it=>({ concepto: it.concepto, descripcion: '', precio: it.precio })) };
+    agregarCotSeccion(sec);
+  } else {
+    agregarCotSeccion({ titulo: 'General', items: [{},{}] });
+  }
+
   fotosCotizacion = Array.isArray(datos.fotos) ? [...datos.fotos] : [];
   renderCotFotosPreview();
 
@@ -1088,12 +1806,14 @@ async function abrirReporte(numero) {
   form.fecha.value = datos.fecha;
   form.cliente.value = datos.cliente;
   form.hora.value = datos.hora;
+  form.concepto.value = datos.concepto || "";
   const tbody = form.querySelector("#repItemsTable tbody");
   tbody.innerHTML = "";
-  fotosItemsReporte = [];
-  (datos.items || []).forEach((item, idx) => {
-    fotosItemsReporte[idx] = Array.isArray(item.fotos) ? [...item.fotos] : [];
-    tbody.insertAdjacentHTML("beforeend", renderRepItemRow(item, idx, true));
+  fotosItemsReporteMap = {};
+  (datos.items || []).forEach((item) => {
+    const id = item._id || newUID();
+    fotosItemsReporteMap[id] = Array.isArray(item.fotos) ? [...item.fotos] : [];
+    tbody.insertAdjacentHTML("beforeend", renderRepItemRow({ ...item, _id:id }, id, true));
   });
   if ((datos.items || []).length === 0) agregarRepItemRow();
   form.notas.value = datos.notas || "";
@@ -1115,6 +1835,114 @@ async function abrirDetalleEMS(tipo, numero) {
   }
 }
 
+// ======= (NUEVO) Medidor de altura de tarjeta de descripción =======
+function measureCardHeight(ctx, text, fontSize = 11, pad = 10) {
+  const { fonts, dims, opts } = ctx;
+  const lines = wrapTextLines(String(text||"").trim(), fonts.reg, fontSize, dims.usableW - 2*pad);
+  const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2*pad);
+  return 22 + 6 + bodyH + (opts.cardGap || 8); // altura total de la tarjeta
+}
+
+// ======= Motor de composición con PRE-FLIGHT (Reportes) =======
+async function composeReportePDF({ datos, items, params, dryRun = false }) {
+  const { PDFDocument, StandardFonts } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
+  dims.usableW = dims.pageW - dims.mx*2;
+  const fonts = { reg: helv, bold: helvB };
+  const logoImg = await getLogoImage(pdfDoc);
+
+  const ctx = { 
+    pages: [], y: 0, dims, fonts, datos, 
+    typeLabel: "REPORTE DE SERVICIO", logoImg, _atPageStart: true,
+    opts: { 
+      dryRun,
+      titleGap: params.titleGap,
+      cardGap: params.cardGap,
+      blockGap: params.blockGap
+    },
+    state: { prevBlock: "start", inGallery: false, currentSection: null },
+    audit: { pages: 0 }
+  };
+
+  // Primera página
+  let page = pdfDoc.addPage([dims.pageW, dims.pageH]);
+  ctx.pages.push(page);
+  if (!dryRun) {
+    drawWatermark(page, dims, logoImg, WATERMARK_OP);
+  }
+  ctx.y = addHeader(pdfDoc, page, ctx.typeLabel, datos, fonts, dims, true, logoImg, { dryRun });
+  ctx._atPageStart = true;
+
+  // CONCEPTO (si existe)
+  if ((datos.concepto || "").trim()) {
+    drawLabeledCard(pdfDoc, ctx, { label: "Concepto", text: datos.concepto.trim(), fontSize: 12 });
+  }
+
+  // Lista de items
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const fotos = Array.isArray(it.fotos) ? it.fotos : [];
+
+    // Preparación: estimar altura de banda + tarjeta + primera fila de fotos
+    const descText = `• ${String(it.descripcion || "").trim()}`;
+    const cardH = measureCardHeight(ctx, descText, 11, 10);
+    const bandH = 26 + 8; // alto de la banda + respiro
+    // Reserva conservadora para la 1ª fila (pero compacta)
+    const reserveFirstRow = fotos.length > 0 ? (params.maxRowH + 2*5 + (ctx.opts.blockGap || 6) + 18) : 0;
+
+    // Garantiza que todo el bloque inicial del ítem entre junto
+    ensureSpace(pdfDoc, ctx, bandH + cardH + reserveFirstRow);
+
+    // Banda de sección
+    ctx.state.currentSection = `Sección ${i + 1}`;
+    drawSectionBand(pdfDoc, ctx, ctx.state.currentSection);
+
+    // DESCRIPCIÓN (píldora) con reserva de la primera fila de fotos
+    drawLabeledCard(pdfDoc, ctx, { label: "Descripción", text: descText, fontSize: 11, reserveBelow: reserveFirstRow });
+
+    // Fotos del ítem – galería packed
+    if (fotos.length) {
+      await drawSmartGallery(pdfDoc, ctx, fotos, {
+        title: null,
+        captions: false,
+        baseTargetRowH: params.baseRowH,
+        minRowH: params.minRowH,
+        maxRowH: params.maxRowH,
+        minImgW: 150,
+        gutter: 8,
+        rowPad: 5
+      });
+    }
+
+    // Separador suave entre items (más corto)
+    if (i < items.length - 1) {
+      const needed = 8;
+      ensureSpace(pdfDoc, ctx, needed);
+      if (!dryRun) rule(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, dims.pageW - dims.mx, gray(0.9), 0.5);
+      ctx.y -= 6;
+    }
+  }
+
+  // Observaciones como lista
+  if ((datos.notas || "").trim()) {
+    ensureSpace(pdfDoc, ctx, 48);
+    if (!dryRun) ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, "Observaciones", fonts, { titleGap: params.titleGap, dryRun });
+    else ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, "Observaciones", fonts, { titleGap: params.titleGap, dryRun: true });
+
+    const itemsObs = parseObservaciones(datos.notas);
+    if (itemsObs.length) {
+      drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "•", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+    }
+  }
+
+  ctx.audit.pages = ctx.pages.length;
+  return { pdfDoc, ctx };
+}
+
 // ======= GUARDADO Y PDF DE REPORTES ==========
 async function enviarReporte(e) {
   e.preventDefault();
@@ -1123,9 +1951,11 @@ async function enviarReporte(e) {
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
   form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+    const id = tr.getAttribute('data-rowid') || newUID();
     items.push({
+      _id: id,
       descripcion: tr.querySelector('textarea[name="descripcion"]').value,
-      fotos: fotosItemsReporte[Array.from(tr.parentNode.children).indexOf(tr)] || []
+      fotos: (fotosItemsReporteMap[id] || [])
     });
   });
   if (!datos.numero || !datos.cliente || !items.length) {
@@ -1134,6 +1964,7 @@ async function enviarReporte(e) {
     return;
   }
   savePredictEMSCloud("cliente", datos.cliente);
+  if (datos.concepto) savePredictEMSCloud("concepto", datos.concepto);
   items.forEach(it => savePredictEMSCloud("descripcion", it.descripcion));
   const reporte = {
     ...datos,
@@ -1160,9 +1991,11 @@ async function guardarReporteDraft() {
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
   form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+    const id = tr.getAttribute('data-rowid') || newUID();
     items.push({
+      _id: id,
       descripcion: tr.querySelector('textarea[name="descripcion"]').value,
-      fotos: fotosItemsReporte[Array.from(tr.parentNode.children).indexOf(tr)] || []
+      fotos: (fotosItemsReporteMap[id] || [])
     });
   });
   const reporte = {
@@ -1178,9 +2011,9 @@ async function guardarReporteDraft() {
   showSaved("Reporte guardado");
 }
 
+// === Generador de Reporte con análisis PRE-FLIGHT y auto-ajuste ===
 async function generarPDFReporte(share = false) {
-  // Progreso
-  showProgress(true, 10, "Generando PDF...");
+  showProgress(true, 10, "Analizando diseño...");
   await guardarReporteDraft();
 
   const form = document.getElementById('repForm');
@@ -1189,163 +2022,70 @@ async function generarPDFReporte(share = false) {
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
   form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
-    const idx = Array.from(tr.parentNode.children).indexOf(tr);
+    const id = tr.getAttribute('data-rowid') || newUID();
     items.push({
+      _id: id,
       descripcion: tr.querySelector('textarea[name="descripcion"]').value,
-      fotos: (fotosItemsReporte[idx] || []).slice(0, 6),
+      fotos: (fotosItemsReporteMap[id] || []).slice(0, 6),
     });
   });
 
-  const { PDFDocument, rgb, StandardFonts } = PDFLib;
-  const pdfDoc = await PDFDocument.create();
-  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  // Parámetros iniciales compactos, con ajustes desde panel
+  const s = getSettings();
+  const pdfCfg = s?.pdf || {};
+  let params = {
+    baseRowH: Number(pdfCfg.galleryBase)||200,
+    minRowH: Number(pdfCfg.galleryMin)||160,
+    maxRowH: Number(pdfCfg.galleryMax)||235,
+    titleGap: Number(pdfCfg.titleGap)||8,
+    cardGap: Number(pdfCfg.cardGap)||8,
+    blockGap: Number(pdfCfg.blockGap)||6
+  };
 
-  // Medidas A4
-  const pageW = 595.28, pageH = 841.89;
-  const mx = 32, my = 38;
-  const usableW = pageW - mx*2;
-  let y = pageH - my;
-
-  let page = pdfDoc.addPage([pageW, pageH]);
-
-  // Marca de agua + cabecera
-  try {
-    const logoBytes = await fetch(LOGO_URL).then(r => r.arrayBuffer());
-    const logoImg   = await pdfDoc.embedPng(logoBytes);
-    page.drawImage(logoImg, { x: (pageW-220)/2, y: (pageH-240)/2, width: 220, height: 220, opacity: 0.06 });
-
-    const logoH = 46;
-    page.drawImage(logoImg, { x: mx, y: y - logoH + 10, width: logoH, height: logoH });
-
-    const leftX = mx + logoH + 14;
-    page.drawText("ELECTROMOTORES SANTANA", { x: leftX, y: y + 2, size: 17, font: helvB, color: rgb(0.10,0.20,0.40) });
-    page.drawText("REPORTE DE SERVICIO", { x: leftX, y: y - 16, size: 12, font: helvB, color: rgb(0.98,0.54,0.10) });
-
-    page.drawText(`Cliente: ${datos.cliente||""}`, { x: leftX, y: y - 32, size: 10.5, font: helv, color: rgb(0.16,0.18,0.22) });
-    page.drawText(`No: ${datos.numero||""}`, { x: mx + usableW - 180, y: y + 2, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
-    page.drawText(`Fecha: ${datos.fecha||""} ${datos.hora?("• "+datos.hora):""}`, { x: mx + usableW - 180, y: y - 15, size: 10.5, font: helvB, color: rgb(0.13,0.22,0.38) });
-  } catch (e) { /* sin logo */ }
-
-  y -= (46 + 24);
-
-  // Lista de actividades
-  const bullet = "• ";
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-
-    // Nueva página si se requiere
-    if (y < 120) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
-
-    // Descripción con fondo alternado
-    if (i % 2 === 0) {
-      page.drawRectangle({ x: mx, y: y - 2, width: usableW, height: 18, color: rgb(0.98,0.91,0.75), opacity: 0.29 });
+  // --- Pre-flight con hasta 2 ajustes automáticos ---
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { ctx } = await composeReportePDF({ datos, items, params, dryRun: true });
+    if (ctx.audit.pages >= 6) {
+      // documento muy largo: compactar más
+      params.baseRowH = Math.max(180, params.baseRowH - 10);
+      params.minRowH  = Math.max(150, params.minRowH - 8);
+      params.maxRowH  = Math.max(210, params.maxRowH - 12);
+      params.cardGap  = Math.max(6, params.cardGap - 2);
+      params.blockGap = Math.max(6, params.blockGap - 2);
+      params.titleGap = Math.max(6, params.titleGap - 2);
+      continue;
     }
-    const text = bullet + String(it.descripcion || "").trim();
-    const maxWidth = usableW - 12;
-    const lines = breakTextLines(text, helv, 11, maxWidth);
-    for (let li = 0; li < lines.length; li++) {
-      page.drawText(lines[li], { x: mx + 2, y, size: 11, font: helv, color: rgb(0.13,0.18,0.38) });
-      y -= 14;
-      if (y < 120 && li < lines.length - 1) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
-    }
-    y -= 4;
-
-    // Fotos del ítem (máx 2 por fila)
-    const fotos = Array.isArray(it.fotos) ? it.fotos : [];
-    const pad = 16, maxPorFila = 2, maxAncho = Math.floor((usableW - pad) / 2), maxAlto = 180;
-
-    let idx = 0;
-    while (idx < fotos.length) {
-      if (y - maxAlto - 24 < my) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
-
-      const fila = fotos.slice(idx, idx + maxPorFila);
-      const escalas = [];
-      let totalW = 0;
-
-      for (let j = 0; j < fila.length; j++) {
-        const url = fila[j];
-        let bytes, img;
-        try {
-          bytes = await fetch(url).then(r => r.arrayBuffer());
-        } catch { bytes = null; }
-        if (!bytes) { continue; }
-
-        try {
-          img = await pdfDoc.embedPng(bytes);
-        } catch {
-          try { img = await pdfDoc.embedJpg(bytes); }
-          catch { continue; }
-        }
-
-        let w = img.width, h = img.height;
-        const scale = Math.min(maxAncho / w, maxAlto / h);
-        w *= scale; h *= scale;
-        escalas.push({ img, w, h });
-        totalW += w;
-      }
-
-      const gaps = (escalas.length > 1) ? pad : 0;
-      const startX = mx + (usableW - (totalW + gaps)) / 2;
-
-      let x = startX;
-      for (const { img, w, h } of escalas) {
-        page.drawImage(img, { x, y: y - h, width: w, height: h });
-        x += w + pad;
-      }
-
-      y -= (Math.max(0, ...escalas.map(e => e.h)) + 16);
-      idx += maxPorFila;
-    }
-
-    y -= 6;
-    page.drawLine({ start: { x: mx, y }, end: { x: pageW - mx, y }, thickness: 0.4, color: rgb(0.98,0.85,0.48) });
-    y -= 10;
+    break;
   }
 
-  // Notas / observaciones
-  if ((datos.notas || "").trim()) {
-    if (y < 100) { page = pdfDoc.addPage([pageW, pageH]); y = pageH - my; }
-    page.drawText("Observaciones:", { x: mx, y, size: 11, font: helvB, color: rgb(0.18,0.23,0.42) });
-    y -= 13;
-    page.drawText(String(datos.notas).trim(), { x: mx+12, y, size: 10, font: helv, color: rgb(0.18,0.23,0.32), maxWidth: usableW-20 });
-    y -= 10;
-  }
+  showProgress(true, 45, "Componiendo PDF...");
 
-  // Pie
-  const pieArr = [
-    `${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`,
-    `Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`
-  ];
-  let pieY = 56;
-  for (let linea of pieArr) {
-    page.drawText(linea, { x: mx+8, y: pieY, size: 9.2, font: helv, color: rgb(0.10,0.20,0.56), maxWidth: usableW-16 });
-    pieY -= 13;
-  }
+  // --- Render final (no dry run) ---
+  const { pdfDoc, ctx } = await composeReportePDF({ datos, items, params, dryRun: false });
 
-  // Salvar y compartir/descargar
-  const pdfBytes = await pdfDoc.save();
-  showProgress(false, 100, "PDF listo");
+  // Pie de página en todas
+  applyFooters(pdfDoc, ctx.pages, ctx.fonts, ctx.dims);
+
+  const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
+  showProgress(true, 90, "Exportando...");
 
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const fileName = `Reporte_${datos.numero || "reporte"}.pdf`;
 
-  // Share-first con fallback
   if (share && navigator.share && navigator.canShare) {
     try {
       const file = new File([blob], fileName, { type: "application/pdf" });
       if (navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` });
+        showProgress(false);
         return;
       }
-    } catch { /* seguimos al fallback */ }
+    } catch { /* fallback */ }
   }
 
-  // Descarga compatible (iOS/PWA incl.)
   const url = URL.createObjectURL(blob);
   try {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (isIOS) {
+    if (isIOS()) {
       window.open(url, '_blank', 'noopener');
     } else {
       const a = document.createElement("a");
@@ -1358,9 +2098,9 @@ async function generarPDFReporte(share = false) {
     }
   } finally {
     setTimeout(() => URL.revokeObjectURL(url), 3000);
+    showProgress(false);
   }
 }
-
 
 // ====== Eliminar docs ======
 async function eliminarCotizacionCompleta(numero) {
@@ -1420,4 +2160,60 @@ function agregarDictadoMicros() {
       recog.start();
     };
   });
+}
+
+// ===== Panel de Ajustes (tema/pdf) =====
+function openSettings() {
+  const s = getSettings();
+  const themeHex = s.themeColor || '#F88A1D';
+  const pdf = s.pdf || {};
+  const overlay = document.createElement('div');
+  overlay.className = 'ems-settings-overlay';
+  overlay.innerHTML = `
+    <div class="ems-settings-modal">
+      <div class="ems-settings-head">
+        <h3 style="margin:0">Ajustes de Apariencia y PDF</h3>
+        <button class="btn-mini" onclick="this.closest('.ems-settings-overlay').remove()"><i class='fa fa-times'></i></button>
+      </div>
+      <div class="ems-settings-body">
+        <div class="ems-form-row">
+          <div class="ems-form-group"><label>Color principal (PDF)</label><input type="color" id="setThemeColor" value="${themeHex}"></div>
+          <div class="ems-form-group"><label>Mostrar crédito</label><select id="setShowCredit"><option value="1" ${s.showCredit!==false?'selected':''}>Sí</option><option value="0" ${s.showCredit===false?'selected':''}>No</option></select></div>
+        </div>
+        <div class="ems-form-row">
+          <div class="ems-form-group"><label>Galería base (px)</label><input type="number" id="setGalBase" min="120" max="300" value="${pdf.galleryBase||200}"></div>
+          <div class="ems-form-group"><label>Galería min (px)</label><input type="number" id="setGalMin" min="120" max="260" value="${pdf.galleryMin||160}"></div>
+          <div class="ems-form-group"><label>Galería max (px)</label><input type="number" id="setGalMax" min="160" max="300" value="${pdf.galleryMax||235}"></div>
+        </div>
+        <div class="ems-form-row">
+          <div class="ems-form-group"><label>Espaciado título</label><input type="number" id="setTitleGap" min="4" max="20" value="${pdf.titleGap||8}"></div>
+          <div class="ems-form-group"><label>Espaciado tarjeta</label><input type="number" id="setCardGap" min="4" max="20" value="${pdf.cardGap||8}"></div>
+          <div class="ems-form-group"><label>Espaciado bloques</label><input type="number" id="setBlockGap" min="4" max="20" value="${pdf.blockGap||6}"></div>
+        </div>
+      </div>
+      <div class="ems-form-actions">
+        <button class="btn-mini" onclick="this.closest('.ems-settings-overlay').remove()">Cancelar</button>
+        <button class="btn-primary" id="btnSaveSettings">Guardar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#btnSaveSettings').onclick = () => {
+    const next = {
+      themeColor: overlay.querySelector('#setThemeColor').value,
+      showCredit: overlay.querySelector('#setShowCredit').value === '1',
+      pdf: {
+        galleryBase: Number(overlay.querySelector('#setGalBase').value)||200,
+        galleryMin: Number(overlay.querySelector('#setGalMin').value)||160,
+        galleryMax: Number(overlay.querySelector('#setGalMax').value)||235,
+        titleGap: Number(overlay.querySelector('#setTitleGap').value)||8,
+        cardGap: Number(overlay.querySelector('#setCardGap').value)||8,
+        blockGap: Number(overlay.querySelector('#setBlockGap').value)||6,
+      }
+    };
+    saveSettings(next);
+    showSaved('Ajustes guardados');
+    try { applyThemeFromSettings(); } catch {}
+    overlay.remove();
+  };
 }
