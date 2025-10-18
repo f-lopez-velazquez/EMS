@@ -20,7 +20,7 @@
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
 
-  /* Espaciado consistente */
+  /* Sistema de espaciado escalado por pantalla */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -28,11 +28,11 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
-  --space-10: 40px;
 
-  /* Bordes redondeados minimalistas */
-  --radius: 8px;
-  --radius-lg: 12px;
+  /* Bordes redondeados consistentes */
+  --radius: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
   --radius-full: 9999px;
 }
 
@@ -54,132 +54,132 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   background: var(--bg);
   color: var(--text);
-  line-height: 1.6;
+  line-height: 1.5;
   overflow-x: hidden;
+  font-size: 15px;
 }
 
-/* Container principal */
+/* Container principal con max-width optimizado */
 #root {
   max-width: 100vw;
-  padding: var(--space-4);
-  padding-bottom: calc(var(--space-10) * 2);
+  padding: var(--space-3);
+  padding-bottom: 80px;
 }
 
-/* Header minimalista */
+/* Header compacto y funcional */
 .ems-header {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-4);
-  margin: calc(var(--space-4) * -1) calc(var(--space-4) * -1) var(--space-6);
+  padding: var(--space-3) var(--space-4);
+  margin: calc(var(--space-3) * -1) calc(var(--space-3) * -1) var(--space-4);
   background: var(--azul);
   border-bottom: 1px solid var(--border);
 }
 
 .ems-logo {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
   background: white;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow);
   object-fit: cover;
   flex-shrink: 0;
 }
 
 .ems-header h1 {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   font-weight: 700;
   color: white;
   margin: 0;
 }
 
 .ems-subtitle {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: rgba(255, 255, 255, 0.9);
   font-weight: 400;
 }
 
-/* Botones principales - Grid optimizado para móviles */
+/* Botones principales - tamaño óptimo */
 .ems-main-btns {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-3);
-  margin: var(--space-6) 0;
+  margin: var(--space-4) 0;
 }
 
 .ems-main-btns button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   background: white;
-  border: 2px solid var(--border);
-  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: var(--shadow);
-  min-height: 56px;
-  text-align: center;
+  min-height: 52px;
 }
 
 .ems-main-btns button:active {
   transform: scale(0.98);
-  box-shadow: none;
 }
 
 .ems-main-btns button i {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   flex-shrink: 0;
 }
 
-/* Búsqueda y filtros */
+/* Búsqueda compacta */
 .ems-historial-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
 .ems-historial-header input {
   flex: 1;
-  padding: var(--space-3) var(--space-4);
-  border: 2px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  border: 1.5px solid var(--border);
   border-radius: var(--radius-full);
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   background: white;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
+  min-height: 40px;
 }
 
 .ems-historial-header input:focus {
   outline: none;
   border-color: var(--azul);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-/* Tarjetas de historial - Más intuitivas */
+/* Tarjetas optimizadas */
 .ems-historial-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  margin-bottom: var(--space-6);
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
 }
 
 .ems-card-ems {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-5);
+  gap: var(--space-3);
+  padding: var(--space-3);
   background: white;
-  border: 2px solid var(--border);
-  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
-  overflow: hidden;
 }
 
 .ems-card-ems::before {
@@ -188,7 +188,7 @@ body {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 4px;
+  width: 3px;
   background: var(--azul);
   transform: scaleY(0);
   transition: transform 0.2s ease;
@@ -200,7 +200,7 @@ body {
 
 .ems-card-ems:hover {
   border-color: var(--azul);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-md);
   transform: translateX(2px);
 }
 
@@ -209,20 +209,15 @@ body {
 }
 
 .ems-card-ico {
-  width: 56px;
-  height: 56px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--gris);
-  border-radius: var(--radius-lg);
-  font-size: 1.5rem;
+  border-radius: var(--radius-md);
+  font-size: 1.25rem;
   flex-shrink: 0;
-  transition: transform 0.2s ease;
-}
-
-.ems-card-ems:hover .ems-card-ico {
-  transform: scale(1.1);
 }
 
 .ems-cotizacion .ems-card-ico {
@@ -241,7 +236,7 @@ body {
 }
 
 .ems-card-tipo {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -261,12 +256,12 @@ body {
 
 .ems-card-fecha,
 .ems-card-numero {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: var(--text-light);
 }
 
 .ems-card-ir {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   color: var(--text-light);
   flex-shrink: 0;
 }
@@ -274,62 +269,64 @@ body {
 .ems-historial-cargando,
 .ems-historial-vacio {
   text-align: center;
-  padding: var(--space-8);
+  padding: var(--space-6);
   color: var(--text-muted);
   background: white;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
 }
 
-/* Formularios minimalistas */
+/* Formularios optimizados */
 .ems-form {
   background: white;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
   padding: var(--space-4);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-4);
 }
 
 .ems-form-row {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
 }
 
 .ems-form-group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .ems-form-group label {
-  font-size: 0.875rem;
-  font-weight: 700;
+  font-size: 0.8125rem;
+  font-weight: 600;
   color: var(--text);
-  margin-bottom: var(--space-1);
-  display: block;
+  margin-bottom: 2px;
 }
 
 .ems-form-input-icon {
   display: flex;
   gap: var(--space-2);
-  align-items: center;
+  align-items: stretch;
 }
 
+/* Inputs optimizados - tamaño balanceado */
 input,
 select,
 textarea {
   width: 100%;
-  padding: var(--space-4);
-  border: 2px solid var(--border);
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
   border-radius: var(--radius);
   font-size: 16px; /* Evita zoom en iOS */
   background: white;
   color: var(--text);
   font-family: inherit;
   transition: all 0.2s ease;
-  min-height: 48px; /* Altura mínima para fácil toque */
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 input:focus,
@@ -337,49 +334,70 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--azul);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-  transform: translateY(-1px);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+  /* Efecto zoom sutil al escribir */
+  transform: scale(1.01);
 }
 
-input:hover,
-select:hover,
-textarea:hover {
+input:hover:not(:focus),
+select:hover:not(:focus),
+textarea:hover:not(:focus) {
   border-color: var(--gris-oscuro);
 }
 
 textarea {
-  min-height: 120px;
+  min-height: 100px;
   resize: vertical;
   line-height: 1.5;
 }
 
-/* Inputs específicos más grandes en móvil */
+/* Altura específica para inputs */
 input[type="text"],
 input[type="number"],
 input[type="date"],
 input[type="email"],
 input[type="tel"] {
-  min-height: 52px;
+  height: 44px;
 }
 
 select {
-  min-height: 52px;
+  height: 44px;
   cursor: pointer;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
 }
 
-/* Botones minimalistas e intuitivos */
+/* Checkboxes y radios - tamaño apropiado */
+input[type="checkbox"],
+input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+input[type="checkbox"]:focus,
+input[type="radio"]:focus {
+  transform: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Botones optimizados */
 button {
-  padding: var(--space-4) var(--space-5);
-  border: 2px solid var(--border);
+  padding: 10px 16px;
+  border: 1.5px solid var(--border);
   border-radius: var(--radius);
-  font-size: 0.9375rem;
-  font-weight: 700;
+  font-size: 0.875rem;
+  font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   transition: all 0.2s ease;
   background: white;
   color: var(--text);
-  min-height: 48px;
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -440,36 +458,37 @@ button.btn-danger:hover {
 }
 
 button.btn-mini {
-  padding: var(--space-2) var(--space-3);
+  padding: 6px 10px;
   font-size: 0.8125rem;
-  min-width: 36px;
-  min-height: 36px;
+  min-height: 32px;
 }
 
 .mic-btn {
-  padding: var(--space-2);
-  min-width: 40px;
-  min-height: 40px;
+  padding: 10px;
+  min-width: 44px;
+  height: 44px;
   background: var(--azul);
   color: white;
   border-color: var(--azul);
   border-radius: var(--radius);
+  flex-shrink: 0;
 }
 
 /* Tablas optimizadas */
 .ems-items-table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
   background: white;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
   overflow: hidden;
+  font-size: 0.875rem;
 }
 
 .ems-items-table th,
 .ems-items-table td {
-  padding: var(--space-4);
+  padding: var(--space-3);
   text-align: left;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
@@ -477,7 +496,7 @@ button.btn-mini {
 
 .ems-items-table th {
   background: var(--gris);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -490,24 +509,24 @@ button.btn-mini {
 
 .ems-items-table input,
 .ems-items-table textarea {
-  font-size: 16px; /* Evita zoom */
-  padding: var(--space-3);
-  min-height: 44px;
-  border-radius: var(--radius);
+  font-size: 14px;
+  padding: 8px 10px;
+  height: 38px;
 }
 
 .ems-items-table textarea {
   min-height: 60px;
+  height: auto;
 }
 
-/* Acciones de formulario - Sticky optimizado */
+/* Acciones de formulario */
 .ems-form-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  padding-top: var(--space-4);
+  padding-top: var(--space-3);
   border-top: 1px solid var(--border);
-  margin-top: var(--space-4);
+  margin-top: var(--space-3);
 }
 
 .ems-form-actions button {
@@ -518,10 +537,10 @@ button.btn-mini {
 /* Secciones de cotización */
 .cot-seccion {
   background: white;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: var(--space-4);
-  margin: var(--space-4) 0;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin: var(--space-3) 0;
   border-left: 3px solid var(--azul);
 }
 
@@ -529,46 +548,48 @@ button.btn-mini {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-  padding-bottom: var(--space-3);
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--border);
 }
 
 .cot-sec-title {
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: var(--text);
 }
 
 .cot-sec-actions {
   display: flex;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .cot-seccion-subtotal {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
-  padding-top: var(--space-3);
+  padding-top: var(--space-2);
   border-top: 1px solid var(--border);
-  margin-top: var(--space-3);
+  margin-top: var(--space-2);
   font-weight: 700;
+  font-size: 0.9375rem;
   color: var(--text);
 }
 
 .cot-resumen {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  gap: var(--space-2);
+  padding: var(--space-3);
   background: var(--gris);
   border: 2px solid var(--azul);
-  border-radius: var(--radius);
-  margin: var(--space-4) 0;
+  border-radius: var(--radius-md);
+  margin: var(--space-3) 0;
+  font-size: 0.875rem;
 }
 
-/* Modales minimalistas */
+/* Modales */
 .ems-settings-overlay,
 .ems-confirm-overlay {
   position: fixed;
@@ -585,7 +606,7 @@ button.btn-mini {
 .ems-confirm-box {
   background: white;
   border-radius: var(--radius-lg);
-  padding: var(--space-6);
+  padding: var(--space-5);
   max-width: 500px;
   width: 100%;
   box-shadow: var(--shadow-lg);
@@ -593,9 +614,9 @@ button.btn-mini {
 
 .ems-settings-head,
 .ems-confirm-box h3 {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   font-weight: 700;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
   padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--border);
 }
@@ -609,15 +630,15 @@ button.btn-mini {
 .ems-settings-modal button {
   display: flex;
   gap: var(--space-2);
-  margin-top: var(--space-4);
+  margin-top: var(--space-3);
   justify-content: flex-end;
 }
 
 /* Galería de fotos */
 .ems-rep-fotos-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: var(--space-2);
   margin-top: var(--space-3);
 }
 
@@ -626,7 +647,7 @@ button.btn-mini {
   aspect-ratio: 1;
   border-radius: var(--radius);
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
 }
 
 .ems-rep-foto img {
@@ -637,10 +658,10 @@ button.btn-mini {
 
 .ems-rep-foto button {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 32px;
-  height: 32px;
+  top: -6px;
+  right: -6px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   background: var(--rojo);
   color: white;
@@ -655,16 +676,17 @@ button.btn-mini {
   background: var(--rojo) !important;
   color: white !important;
   border: none !important;
-  width: 36px !important;
-  height: 36px !important;
-  min-width: 36px !important;
-  min-height: 36px !important;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
   padding: 0 !important;
   border-radius: 50% !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   flex-shrink: 0 !important;
+  font-size: 14px !important;
 }
 
 .ems-btn-delrow {
@@ -695,8 +717,8 @@ button.btn-mini {
   background: #fee2e2;
   color: var(--rojo);
   text-align: center;
-  padding: var(--space-3);
-  font-size: 0.875rem;
+  padding: var(--space-2);
+  font-size: 0.8125rem;
   font-weight: 600;
   border-bottom: 2px solid var(--rojo);
 }
@@ -705,8 +727,8 @@ button.btn-mini {
 .ems-credit {
   text-align: center;
   color: var(--text-light);
-  font-size: 0.75rem;
-  margin: var(--space-8) 0;
+  font-size: 0.6875rem;
+  margin: var(--space-6) 0;
 }
 
 /* Fallback de iconos */
@@ -728,10 +750,69 @@ i.fa-gear::before { content: '⚙'; }
 i.fa-plus::before { content: '+'; }
 i.fa-times::before { content: '×'; }
 
-/* ===== RESPONSIVE MÓVIL ===== */
+/* ===== RESPONSIVE OPTIMIZADO POR PANTALLA ===== */
 
-/* Tablet */
+/* Móviles pequeños: 320px - 374px (iPhone SE, Galaxy Fold) */
+@media (max-width: 374px) {
+  body { font-size: 14px; }
+
+  #root { padding: var(--space-2); }
+
+  .ems-header {
+    padding: var(--space-2) var(--space-3);
+    margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) var(--space-3);
+  }
+
+  .ems-logo { width: 36px; height: 36px; }
+  .ems-header h1 { font-size: 1rem; }
+  .ems-subtitle { font-size: 0.75rem; }
+
+  .ems-main-btns button { min-height: 48px; font-size: 0.875rem; }
+  .ems-card-ico { width: 40px; height: 40px; font-size: 1.125rem; }
+  .ems-form { padding: var(--space-3); }
+
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  input[type="email"],
+  input[type="tel"],
+  select { height: 42px; }
+
+  .ems-items-table th,
+  .ems-items-table td { padding: var(--space-2); font-size: 0.8125rem; }
+}
+
+/* Móviles estándar: 375px - 479px (iPhone 12/13/14, Pixel) */
+@media (min-width: 375px) and (max-width: 479px) {
+  .ems-rep-fotos-row {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
+}
+
+/* Móviles grandes: 480px - 639px (iPhone Pro Max, Pixel XL) */
+@media (min-width: 480px) and (max-width: 639px) {
+  .ems-main-btns {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .ems-rep-fotos-row {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  }
+}
+
+/* Tablets pequeñas: 640px - 767px (iPad Mini) */
 @media (min-width: 640px) {
+  #root {
+    padding: var(--space-4);
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  .ems-header {
+    margin: calc(var(--space-4) * -1) calc(var(--space-4) * -1) var(--space-5);
+    padding: var(--space-4);
+  }
+
   .ems-main-btns {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -749,52 +830,37 @@ i.fa-times::before { content: '×'; }
   }
 }
 
+/* Tablets: 768px - 1023px (iPad) */
 @media (min-width: 768px) {
   #root {
-    max-width: 768px;
-    margin: 0 auto;
+    max-width: 720px;
   }
+
+  .ems-logo { width: 44px; height: 44px; }
+  .ems-header h1 { font-size: 1.25rem; }
 
   .ems-rep-fotos-row {
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   }
+
+  .ems-items-table {
+    font-size: 0.9375rem;
+  }
 }
 
-/* Móviles pequeños - Optimización crítica */
-@media (max-width: 640px) {
+/* Desktop pequeño: 1024px+ */
+@media (min-width: 1024px) {
   #root {
-    padding: var(--space-2);
-    padding-bottom: calc(var(--space-10) * 1.5);
+    max-width: 800px;
   }
 
-  .ems-header {
-    margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) var(--space-4);
-    padding: var(--space-3);
+  .ems-main-btns {
+    grid-template-columns: repeat(3, 1fr);
   }
+}
 
-  .ems-logo {
-    width: 40px;
-    height: 40px;
-  }
-
-  .ems-header h1 {
-    font-size: 1.125rem;
-  }
-
-  .ems-subtitle {
-    font-size: 0.8125rem;
-  }
-
-  .ems-main-btns button {
-    padding: var(--space-3);
-    min-height: 52px;
-    font-size: 0.875rem;
-  }
-
-  .ems-form {
-    padding: var(--space-3);
-  }
-
+/* Sticky actions en móvil */
+@media (max-width: 639px) {
   .ems-form-actions {
     position: sticky;
     bottom: 0;
@@ -803,39 +869,22 @@ i.fa-times::before { content: '×'; }
     margin: 0 calc(var(--space-3) * -1);
     border-top: 2px solid var(--border);
     box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
-  }
-
-  .ems-form-actions button {
-    flex: 1;
-    font-size: 0.8125rem;
-    padding: var(--space-3);
-  }
-
-  .ems-items-table {
-    font-size: 0.8125rem;
-  }
-
-  .ems-items-table th,
-  .ems-items-table td {
-    padding: var(--space-2);
-  }
-
-  .cot-seccion {
-    padding: var(--space-3);
-  }
-
-  button {
-    font-size: 0.8125rem;
+    z-index: 10;
   }
 }
 
-/* Ajustes para pantallas muy pequeñas */
-@media (max-width: 375px) {
-  .ems-card-cliente {
-    font-size: 0.875rem;
-  }
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
 
-  .ems-form-group label {
-    font-size: 0.75rem;
+/* Accesibilidad */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
