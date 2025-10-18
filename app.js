@@ -723,6 +723,7 @@ window.onload = () => {
   try { applyThemeFromSettings(); } catch {}
   try { typeof showOffline === "function" && showOffline(true); } catch {}
   try { installUndoHandlers(); } catch {}
+  try { observeSettingsPanel(); } catch {}
 };
 
 let ASYNC_ERR_GUARD = false;
@@ -898,6 +899,16 @@ function recalcTotalesCotizacion() {
   let subtotal = 0;
   sections.forEach(sec => subtotal += recalcSeccionSubtotal(sec) || 0);
   const form = document.getElementById('cotForm');
+  // Inyecta checkbox de términos si no existe (evita depender del HTML exacto)
+  try {
+    const sup = form.querySelector('input[name="titulo"]')?.closest('.ems-form-group');
+    if (sup && !form.querySelector('input[name="incluyeTerminos"]')) {
+      const g = document.createElement('div');
+      g.className = 'ems-form-group';
+      g.innerHTML = '<label><input type="checkbox" name="incluyeTerminos"> Incluir términos y condiciones</label>';
+      sup.parentNode.insertBefore(g, sup);
+    }
+  } catch {}
   if (!form) return;
   const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
   const iva = incluyeIVA ? subtotal * 0.16 : 0;
@@ -1099,9 +1110,21 @@ function nuevaCotizacion() {
       form.anticipoPorc.value = draft.anticipoPorc || "";
     }
     if (Array.isArray(draft.fotos)) fotosCotizacion = [...draft.fotos];
+    // Términos desde borrador o ajustes por defecto
+    try {
+      const s = getSettings();
+      const def = !!(s.pdf && s.pdf.termsDefault);
+      if (form.incluyeTerminos) {
+        form.incluyeTerminos.checked = (draft.incluyeTerminos === 'on') || (draft.incluyeTerminos === true) || (draft.incluyeTerminos === 'true') || (draft.incluyeTerminos === 1) || (draft.incluyeTerminos === '1') || (draft.incluyeTerminos === undefined && def);
+      }
+    } catch {}
   } else {
     // Inicial con una sección
     agregarCotSeccion({ titulo: 'General', items: [{},{}] });
+    try {
+      const s = getSettings();
+      if (form.incluyeTerminos) form.incluyeTerminos.checked = !!(s.pdf && s.pdf.termsDefault);
+    } catch {}
   }
 
   renderCotFotosPreview();
@@ -1324,6 +1347,16 @@ function nuevoReporte() {
     <div class="ems-credit">Programado por: Francisco López Velázquez.</div>
   `;
   const form = document.getElementById('repForm');
+  // Inyecta checkbox de términos en Reporte si no existe
+  try {
+    const notas = form.querySelector('textarea[name="notas"]')?.closest('.ems-form-group');
+    if (notas && !form.querySelector('input[name="incluyeTerminos"]')) {
+      const g = document.createElement('div');
+      g.className = 'ems-form-group';
+      g.innerHTML = '<label><input type="checkbox" name="incluyeTerminos"> Incluir términos y condiciones</label>';
+      notas.parentNode.insertBefore(g, notas);
+    }
+  } catch {}
   let draft = localStorage.getItem('EMS_REP_BORRADOR');
   if (draft) {
     draft = JSON.parse(draft);
@@ -1342,6 +1375,14 @@ function nuevoReporte() {
   } else {
     agregarRepItemRow();
   }
+  // Default de términos desde ajustes si no hay borrador
+  try {
+    const s = getSettings();
+    if (form.incluyeTerminos && (!draft || draft.incluyeTerminos === undefined)) form.incluyeTerminos.checked = !!(s.pdf && s.pdf.termsDefault);
+    if (draft && form.incluyeTerminos) {
+      form.incluyeTerminos.checked = (draft.incluyeTerminos === 'on') || (draft.incluyeTerminos === true) || (draft.incluyeTerminos === 'true') || (draft.incluyeTerminos === 1) || (draft.incluyeTerminos === '1');
+    }
+  } catch {}
   setTimeout(() => {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
@@ -2136,6 +2177,21 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     }
   }
 
+  // Términos y condiciones (opcional)
+  try {
+    const incluirTerminos = form.incluyeTerminos && form.incluyeTerminos.checked;
+    const s = getSettings();
+    const termsText = (s.pdf && s.pdf.termsText) ? s.pdf.termsText : 'Cotización válida por 15 días naturales.\nPrecios sujetos a cambio sin previo aviso.\nTiempo de entrega estimado sujeto a disponibilidad.\nGarantía por defectos de mano de obra.\nNo incluye IVA salvo indicado.';
+    if (incluirTerminos && (termsText||'').trim()) {
+      ensureSpace(pdfDoc, ctx, 48);
+      ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, 'Términos y condiciones', fonts, { titleGap: 8, dryRun: false });
+      const itemsTerms = parseObservaciones(termsText);
+      if (itemsTerms.length) {
+        drawBulletList(pdfDoc, ctx, itemsTerms, { bullet: '•', fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+      }
+    }
+  } catch {}
+
   applyFooters(pdfDoc, ctx.pages, fonts, dims);
 
   const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
@@ -2348,6 +2404,17 @@ async function composeReportePDF({ datos, items, params, dryRun = false }) {
     }
   }
 
+  // Términos y condiciones (si se activó)
+  if (params.includeTerms && (params.termsText||'').trim()) {
+    ensureSpace(pdfDoc, ctx, 48);
+    if (!dryRun) ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, 'Términos y condiciones', fonts, { titleGap: params.titleGap, dryRun });
+    else ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, 'Términos y condiciones', fonts, { titleGap: params.titleGap, dryRun: true });
+    const itemsTerms = parseObservaciones(params.termsText);
+    if (itemsTerms.length) {
+      drawBulletList(pdfDoc, ctx, itemsTerms, { bullet: '•', fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+    }
+  }
+
   ctx.audit.pages = ctx.pages.length;
   return { pdfDoc, ctx };
 }
@@ -2455,6 +2522,12 @@ async function generarPDFReporte(share = false, isPreview = false) {
     cardGap: Number(pdfCfg.cardGap)||8,
     blockGap: Number(pdfCfg.blockGap)||6
   };
+  // Términos y condiciones en Reporte (opcional)
+  try {
+    params.includeTerms = (form.incluyeTerminos && form.incluyeTerminos.checked) ? true : false;
+    const s2 = getSettings();
+    params.termsText = (s2.pdf && s2.pdf.termsText) ? s2.pdf.termsText : 'Cotización válida por 15 días naturales.\nPrecios sujetos a cambio sin previo aviso.';
+  } catch {}
 
   // --- Pre-flight con hasta 2 ajustes automáticos ---
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -2585,6 +2658,66 @@ function agregarDictadoMicros() {
       recog.start();
     };
   });
+}
+
+// Observa la apertura del panel de ajustes y añade controles de términos + guardado simplificado
+function observeSettingsPanel() {
+  const defaultTerms = 'Cotización válida por 15 días naturales.\nPrecios sujetos a cambio sin previo aviso.\nTiempo de entrega estimado sujeto a disponibilidad.\nGarantía por defectos de mano de obra.\nNo incluye IVA salvo indicado.';
+  const enhance = (overlay) => {
+    try {
+      const s = getSettings();
+      const pdf = s.pdf || {};
+      const body = overlay.querySelector('.ems-settings-body');
+      if (body && !body.querySelector('#setTermsText')) {
+        body.insertAdjacentHTML('beforeend', `
+          <div class="ems-form-row">
+            <div class="ems-form-group"><label>Usar términos por defecto</label>
+              <select id="setTermsDefault"><option value="1" ${(pdf.termsDefault? 'selected':'')}>Sí</option><option value="0" ${(!pdf.termsDefault? 'selected':'')}>No</option></select>
+            </div>
+          </div>
+          <div class="ems-form-row">
+            <div class="ems-form-group" style="flex:1 1 100%">
+              <label>Términos y condiciones (para PDF)</label>
+              <textarea id="setTermsText" rows="5" placeholder="Ej: Cotización válida por 15 días naturales...">${pdf.termsText||defaultTerms}</textarea>
+            </div>
+          </div>
+        `);
+      }
+      const saveBtn = overlay.querySelector('#btnSaveSettings');
+      if (saveBtn && !saveBtn.__emsEnhanced) {
+        saveBtn.__emsEnhanced = true;
+        saveBtn.onclick = () => {
+          const next = {
+            themeColor: overlay.querySelector('#setThemeColor')?.value || '#2563eb',
+            showCredit: (overlay.querySelector('#setShowCredit')?.value === '1'),
+            pdf: {
+              galleryBase: Number(overlay.querySelector('#setGalBase')?.value)||200,
+              galleryMin: Number(overlay.querySelector('#setGalMin')?.value)||160,
+              galleryMax: Number(overlay.querySelector('#setGalMax')?.value)||235,
+              titleGap: Number(overlay.querySelector('#setTitleGap')?.value)||8,
+              cardGap: Number(overlay.querySelector('#setCardGap')?.value)||8,
+              blockGap: Number(overlay.querySelector('#setBlockGap')?.value)||6,
+              termsDefault: overlay.querySelector('#setTermsDefault')?.value === '1',
+              termsText: overlay.querySelector('#setTermsText')?.value || ''
+            }
+          };
+          saveSettings(next);
+          showSaved('Ajustes guardados');
+          overlay.remove();
+        };
+      }
+    } catch {}
+  };
+  const obs = new MutationObserver((muts) => {
+    for (const m of muts) {
+      (m.addedNodes||[]).forEach(node => {
+        if (node && node.nodeType === 1 && node.classList && node.classList.contains('ems-settings-overlay')) {
+          enhance(node);
+        }
+      });
+    }
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
 }
 
 // ====== Sobrescrituras de confirmación por palabra en acciones destructivas ======

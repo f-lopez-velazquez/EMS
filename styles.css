@@ -50,6 +50,8 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Checkboxes visibles y con buen contraste */
+input[type=checkbox]{appearance:auto;-webkit-appearance:checkbox;width:18px;height:18px;accent-color:var(--azul);}
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   background: var(--bg);
