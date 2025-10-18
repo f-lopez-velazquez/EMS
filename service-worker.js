@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ems-cache-v38';
+const CACHE_NAME = 'ems-cache-v39';
 const toCache = [
   './',
   './index.html',
@@ -15,7 +15,12 @@ const toCache = [
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(toCache))
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(toCache))
+      .catch(err => {
+        console.error('Error during SW install:', err);
+        // Continue installation even if some assets fail
+      })
   );
   self.skipWaiting();
 });
@@ -53,11 +58,22 @@ self.addEventListener('fetch', event => {
   // Navegación: network-first, fallback a cache
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req).then(r => {
-        const copy = r.clone();
-        caches.open(CACHE_NAME).then(c => c.put('./', copy));
-        return r;
-      }).catch(() => caches.match('./index.html'))
+      fetch(req)
+        .then(r => {
+          if (r && r.ok) {
+            const copy = r.clone();
+            caches.open(CACHE_NAME).then(c => c.put('./', copy)).catch(() => {});
+          }
+          return r;
+        })
+        .catch(() => {
+          return caches.match('./index.html')
+            .then(cached => cached || new Response('Offline - No cached version available', {
+              status: 503,
+              statusText: 'Service Unavailable',
+              headers: new Headers({ 'Content-Type': 'text/plain' })
+            }));
+        })
     );
     return;
   }
@@ -66,15 +82,32 @@ self.addEventListener('fetch', event => {
   if (url.origin === self.location.origin) {
     event.respondWith(
       caches.match(req).then(cached => {
-        const fetchPromise = fetch(req).then(networkResp => {
-          if (networkResp && networkResp.ok) {
-            const clone = networkResp.clone();
-            caches.open(CACHE_NAME).then(c => c.put(req, clone));
-          }
-          return networkResp;
-        }).catch(() => cached);
+        const fetchPromise = fetch(req)
+          .then(networkResp => {
+            if (networkResp && networkResp.ok) {
+              const clone = networkResp.clone();
+              caches.open(CACHE_NAME)
+                .then(c => c.put(req, clone))
+                .catch(() => {}); // Silently fail cache update
+            }
+            return networkResp;
+          })
+          .catch(err => {
+            console.warn('Fetch failed, serving from cache:', req.url, err);
+            return cached || new Response('Offline', {
+              status: 503,
+              statusText: 'Service Unavailable'
+            });
+          });
         return cached || fetchPromise;
       })
     );
+  }
+});
+
+// Mensaje de consola para debugging
+self.addEventListener('message', event => {
+  if (event.data === 'skipWaiting') {
+    self.skipWaiting();
   }
 });

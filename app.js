@@ -172,6 +172,243 @@ function showSaved(msg = "Guardado") {
   el._timer = setTimeout(() => { el.style.display = "none"; }, 1800);
 }
 
+// ===== SISTEMA PROFESIONAL DE UI =====
+
+/**
+ * Muestra un modal profesional (reemplaza alert)
+ * @param {string} message - Mensaje a mostrar
+ * @param {string} type - Tipo: 'info', 'success', 'warning', 'error'
+ * @param {string} title - Título del modal (opcional)
+ */
+function showModal(message, type = 'info', title = '') {
+  return new Promise((resolve) => {
+    // Remover modal existente si hay
+    const existing = document.querySelector('.ems-modal-overlay');
+    if (existing) existing.remove();
+
+    // Íconos por tipo
+    const icons = {
+      info: 'ℹ️',
+      success: '✓',
+      warning: '⚠️',
+      error: '✕'
+    };
+
+    // Títulos por defecto
+    const titles = {
+      info: 'Información',
+      success: 'Éxito',
+      warning: 'Advertencia',
+      error: 'Error'
+    };
+
+    const overlay = document.createElement('div');
+    overlay.className = 'ems-modal-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'modal-title');
+
+    overlay.innerHTML = `
+      <div class="ems-modal">
+        <div class="ems-modal-header">
+          <div class="ems-modal-icon ${type}">${icons[type]}</div>
+          <h3 class="ems-modal-title" id="modal-title">${title || titles[type]}</h3>
+        </div>
+        <div class="ems-modal-body">${message}</div>
+        <div class="ems-modal-footer">
+          <button class="ems-modal-btn primary" autofocus>Aceptar</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const closeModal = () => {
+      overlay.style.opacity = '0';
+      setTimeout(() => {
+        overlay.remove();
+        resolve(true);
+      }, 200);
+    };
+
+    overlay.querySelector('.ems-modal-btn').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeModal();
+    });
+
+    // ESC para cerrar
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+        document.removeEventListener('keydown', handleEsc);
+      }
+    };
+    document.addEventListener('keydown', handleEsc);
+  });
+}
+
+/**
+ * Muestra un modal de confirmación (reemplaza confirm)
+ * @param {string} message - Mensaje a mostrar
+ * @param {string} title - Título del modal
+ */
+function showConfirm(message, title = 'Confirmar') {
+  return new Promise((resolve) => {
+    const existing = document.querySelector('.ems-modal-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'ems-modal-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+
+    overlay.innerHTML = `
+      <div class="ems-modal">
+        <div class="ems-modal-header">
+          <div class="ems-modal-icon warning">⚠️</div>
+          <h3 class="ems-modal-title">${title}</h3>
+        </div>
+        <div class="ems-modal-body">${message}</div>
+        <div class="ems-modal-footer">
+          <button class="ems-modal-btn secondary">Cancelar</button>
+          <button class="ems-modal-btn primary" autofocus>Confirmar</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const closeModal = (result) => {
+      overlay.style.opacity = '0';
+      setTimeout(() => {
+        overlay.remove();
+        resolve(result);
+      }, 200);
+    };
+
+    const btns = overlay.querySelectorAll('.ems-modal-btn');
+    btns[0].addEventListener('click', () => closeModal(false)); // Cancelar
+    btns[1].addEventListener('click', () => closeModal(true));  // Confirmar
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeModal(false);
+    });
+
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        closeModal(false);
+        document.removeEventListener('keydown', handleEsc);
+      }
+    };
+    document.addEventListener('keydown', handleEsc);
+  });
+}
+
+/**
+ * Muestra una notificación toast (no bloqueante)
+ * @param {string} message - Mensaje
+ * @param {string} type - 'success', 'error', 'info', 'warning'
+ * @param {number} duration - Duración en ms (default 3000)
+ */
+function showToast(message, type = 'info', duration = 3000) {
+  const toast = document.createElement('div');
+  toast.className = `ems-toast ${type}`;
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
+
+  const icons = {
+    success: '✓',
+    error: '✕',
+    info: 'ℹ️',
+    warning: '⚠️'
+  };
+
+  toast.innerHTML = `<span style="font-size:1.2em;">${icons[type]}</span> ${message}`;
+  document.body.appendChild(toast);
+
+  // Trigger animation
+  setTimeout(() => toast.classList.add('show'), 10);
+
+  // Auto remove
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+/**
+ * Inicializa el indicador de estado de red
+ */
+function initNetworkStatus() {
+  const statusBar = document.getElementById('network-status');
+  if (!statusBar) return;
+
+  const statusText = statusBar.querySelector('.status-text');
+
+  const updateStatus = () => {
+    const online = navigator.onLine;
+    if (online) {
+      statusBar.classList.add('online');
+      statusBar.classList.remove('show');
+      statusText.textContent = '✓ Conexión restaurada';
+      setTimeout(() => statusBar.classList.remove('show'), 2000);
+    } else {
+      statusBar.classList.remove('online');
+      statusBar.classList.add('show');
+      statusText.textContent = '⚠️ Sin conexión a Internet';
+    }
+  };
+
+  window.addEventListener('online', () => {
+    updateStatus();
+    showToast('Conexión a Internet restaurada', 'success');
+  });
+
+  window.addEventListener('offline', () => {
+    updateStatus();
+    showToast('Sin conexión a Internet', 'error', 5000);
+  });
+
+  // Check initial status
+  updateStatus();
+}
+
+/**
+ * Valida un input y muestra estado visual
+ * @param {HTMLElement} input - El input a validar
+ * @param {boolean} isValid - Si es válido
+ * @param {string} errorMsg - Mensaje de error (opcional)
+ */
+function validateInput(input, isValid, errorMsg = '') {
+  if (!input) return;
+
+  // Remover estado previo
+  input.classList.remove('error', 'success');
+  const prevError = input.parentElement?.querySelector('.error-message');
+  if (prevError) prevError.remove();
+
+  if (isValid) {
+    input.classList.add('success');
+    setTimeout(() => input.classList.remove('success'), 2000);
+  } else {
+    input.classList.add('error');
+    if (errorMsg) {
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'error-message';
+      errorDiv.innerHTML = `<span>✕</span> ${errorMsg}`;
+      errorDiv.setAttribute('role', 'alert');
+      input.parentElement?.appendChild(errorDiv);
+    }
+  }
+}
+
+// Inicializar cuando el DOM esté listo
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initNetworkStatus);
+} else {
+  initNetworkStatus();
+}
+
 // --- Envoltura de texto por palabras (más estética que por caracteres)
 function wrapTextLines(text = "", font, fontSize, maxWidth) {
   const words = String(text || "").replace(/\s+/g, " ").trim().split(" ");
@@ -527,7 +764,7 @@ function recalcTotalesCotizacion() {
 async function subirFotosCot(input) {
   if (!input.files || input.files.length === 0) return;
   const cupo = 5 - (fotosCotizacion?.length || 0);
-  if (cupo <= 0) { alert("Máximo 5 imágenes."); input.value = ""; return; }
+  if (cupo <= 0) { showModal("Máximo 5 imágenes permitidas.", "warning"); input.value = ""; return; }
 
   const files = Array.from(input.files).slice(0, cupo);
   input.disabled = true;
@@ -550,10 +787,10 @@ async function subirFotosCot(input) {
       if (data.secure_url) {
         if (fotosCotizacion.length < 5) fotosCotizacion.push(data.secure_url);
       } else {
-        alert("No se pudo subir la imagen a Cloudinary");
+        showModal("No se pudo subir la imagen a Cloudinary. Intenta nuevamente.", "error");
       }
     } catch (e) {
-      alert("Error al subir la imagen");
+      showModal("Error al subir la imagen: " + (e.message || "Error desconocido"), "error");
     }
   }
 
@@ -826,10 +1063,10 @@ async function subirFotoRepItem(input, id) {
       if (data.secure_url) {
         if (list.length < 6) list.push(data.secure_url);
       } else {
-        alert("No se pudo subir la imagen a Cloudinary");
+        showModal("No se pudo subir la imagen a Cloudinary. Intenta nuevamente.", "error");
       }
     } catch (err) {
-      alert("Error al subir la imagen");
+      showModal("Error al subir la imagen: " + (err.message || "Error desconocido"), "error");
     }
   }
   // Re-renderiza la fila
@@ -1005,7 +1242,7 @@ async function enviarCotizacion(e) {
   });
   if (!datos.numero || !datos.cliente || !secciones.length) {
     showSaved("Faltan datos");
-    alert("Completa todos los campos requeridos.");
+    showModal("Por favor completa todos los campos requeridos: número, cliente y al menos una sección.", "warning");
     return;
   }
   savePredictEMSCloud("cliente", datos.cliente);
@@ -1028,7 +1265,7 @@ async function enviarCotizacion(e) {
     creada: new Date().toISOString()
   };
   if (!navigator.onLine) {
-    alert("Sin conexión. Guarda localmente o espera a tener Internet.");
+    showModal("Sin conexión a Internet. Los datos se guardarán localmente. Intenta guardar cuando tengas conexión.", "warning");
     showSaved("Offline");
     return;
   }
@@ -1805,7 +2042,7 @@ function editarCotizacion(datos) {
 // ----- Abrir detalle desde Historial -----
 async function abrirReporte(numero) {
   let doc = await db.collection("reportes").doc(numero).get();
-  if (!doc.exists) return alert("No se encontró el reporte.");
+  if (!doc.exists) return showModal("No se encontró el reporte con el número especificado.", "error");
   const datos = doc.data();
   nuevoReporte();
   const form = document.getElementById("repForm");
@@ -1834,7 +2071,7 @@ async function abrirReporte(numero) {
 async function abrirDetalleEMS(tipo, numero) {
   if (tipo === "cotizacion") {
     let doc = await db.collection("cotizaciones").doc(numero).get();
-    if (!doc.exists) return alert("No se encontró la cotización.");
+    if (!doc.exists) return showModal("No se encontró la cotización con el número especificado.", "error");
     editarCotizacion(doc.data());
   } else if (tipo === "reporte") {
     window.editandoReporte = true;
@@ -1967,7 +2204,7 @@ async function enviarReporte(e) {
   });
   if (!datos.numero || !datos.cliente || !items.length) {
     showSaved("Faltan datos");
-    alert("Completa todos los campos requeridos.");
+    showModal("Por favor completa todos los campos requeridos: número, cliente y al menos un item.", "warning");
     return;
   }
   savePredictEMSCloud("cliente", datos.cliente);
@@ -1982,7 +2219,7 @@ async function enviarReporte(e) {
     creada: new Date().toISOString()
   };
   if (!navigator.onLine) {
-    alert("Sin conexión. Guarda localmente o espera a tener Internet.");
+    showModal("Sin conexión a Internet. Los datos se guardarán localmente. Intenta guardar cuando tengas conexión.", "warning");
     showSaved("Offline");
     return;
   }
@@ -2024,7 +2261,7 @@ async function generarPDFReporte(share = false) {
   await guardarReporteDraft();
 
   const form = document.getElementById('repForm');
-  if (!form) { showProgress(false); alert("No hay formulario de reporte activo."); return; }
+  if (!form) { showProgress(false); showModal("No hay formulario de reporte activo.", "error"); return; }
 
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
@@ -2115,15 +2352,16 @@ async function eliminarCotizacionCompleta(numero) {
     const form = document.getElementById('cotForm');
     if (form && form.numero && form.numero.value) numero = form.numero.value;
   }
-  if (!numero) return alert("No se encontró el número de cotización.");
-  if (!confirm("¿Estás seguro que deseas eliminar esta cotización? Esta acción no se puede deshacer.")) return;
+  if (!numero) return showModal("No se encontró el número de cotización.", "error");
+  const confirmed = await showConfirm("¿Estás seguro que deseas eliminar esta cotización? Esta acción no se puede deshacer.", "Confirmar eliminación");
+  if (!confirmed) return;
   try {
     await db.collection("cotizaciones").doc(numero).delete();
     showSaved("Cotización eliminada");
     localStorage.removeItem('EMS_COT_BORRADOR');
     renderInicio();
   } catch (e) {
-    alert("Error eliminando cotización: " + (e.message || e));
+    showModal("Error eliminando cotización: " + (e.message || e), "error");
   }
 }
 async function eliminarReporteCompleto(numero) {
@@ -2131,15 +2369,16 @@ async function eliminarReporteCompleto(numero) {
     const form = document.getElementById('repForm');
     if (form && form.numero && form.numero.value) numero = form.numero.value;
   }
-  if (!numero) return alert("No se encontró el número de reporte.");
-  if (!confirm("¿Estás seguro que deseas eliminar este reporte? Esta acción no se puede deshacer.")) return;
+  if (!numero) return showModal("No se encontró el número de reporte.", "error");
+  const confirmed = await showConfirm("¿Estás seguro que deseas eliminar este reporte? Esta acción no se puede deshacer.", "Confirmar eliminación");
+  if (!confirmed) return;
   try {
     await db.collection("reportes").doc(numero).delete();
     showSaved("Reporte eliminado");
     localStorage.removeItem('EMS_REP_BORRADOR');
     renderInicio();
   } catch (e) {
-    alert("Error eliminando reporte: " + (e.message || e));
+    showModal("Error eliminando reporte: " + (e.message || e), "error");
   }
 }
 
@@ -2149,7 +2388,7 @@ function agregarDictadoMicros() {
     btn.classList.add("ems-mic-init");
     btn.onclick = function() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition;
-      if (!SpeechRecognition) { alert("Tu navegador no soporta dictado por voz."); return; }
+      if (!SpeechRecognition) { showModal("Tu navegador no soporta dictado por voz.", "warning"); return; }
       const recog = new SpeechRecognition();
       recog.lang = "es-MX";
       recog.interimResults = false;
@@ -2163,7 +2402,7 @@ function agregarDictadoMicros() {
           input.dispatchEvent(new Event("input"));
         }
       };
-      recog.onerror = () => alert("No se pudo reconocer audio.");
+      recog.onerror = () => showToast("No se pudo reconocer el audio. Intenta nuevamente.", "error");
       recog.start();
     };
   });
@@ -2191,7 +2430,7 @@ function confirmByTyping(seed = 'eliminar', title = 'Confirmar acción', onConfi
   overlay.querySelector('#emsConfirmOk').onclick = ()=>{
     const val = overlay.querySelector('#emsConfirmInput').value.trim().toLowerCase();
     if (val === w) { try { onConfirm(); } finally { close(); } }
-    else { alert('Palabra incorrecta'); }
+    else { showToast('Palabra incorrecta. Intenta nuevamente.', 'error'); }
   };
 }
 
@@ -2239,20 +2478,20 @@ function eliminarFotoCot(index){
 const __orig_eliminarCotizacionCompleta = typeof eliminarCotizacionCompleta === 'function' ? eliminarCotizacionCompleta : null;
 async function eliminarCotizacionCompleta(numero){
   if (!numero){ const form = document.getElementById('cotForm'); if (form && form.numero && form.numero.value) numero=form.numero.value; }
-  if (!numero) return alert('No se encontró el número de cotización.');
+  if (!numero) return showModal('No se encontró el número de cotización.', 'error');
   confirmByTyping('eliminar','Para confirmar escribe la palabra indicada', async ()=>{
     try{ await db.collection('cotizaciones').doc(numero).delete(); showSaved('Cotización eliminada'); localStorage.removeItem('EMS_COT_BORRADOR'); renderInicio(); }
-    catch(e){ alert('Error eliminando cotización: '+(e?.message||e)); }
+    catch(e){ showModal('Error eliminando cotización: '+(e?.message||e), 'error'); }
   });
 }
 
 const __orig_eliminarReporteCompleto = typeof eliminarReporteCompleto === 'function' ? eliminarReporteCompleto : null;
 async function eliminarReporteCompleto(numero){
   if (!numero){ const form = document.getElementById('repForm'); if (form && form.numero && form.numero.value) numero=form.numero.value; }
-  if (!numero) return alert('No se encontró el número de reporte.');
+  if (!numero) return showModal('No se encontró el número de reporte.', 'error');
   confirmByTyping('eliminar','Para confirmar escribe la palabra indicada', async ()=>{
     try{ await db.collection('reportes').doc(numero).delete(); showSaved('Reporte eliminado'); localStorage.removeItem('EMS_REP_BORRADOR'); renderInicio(); }
-    catch(e){ alert('Error eliminando reporte: '+(e?.message||e)); }
+    catch(e){ showModal('Error eliminando reporte: '+(e?.message||e), 'error'); }
   });
 }
 // ===== Panel de Ajustes (tema/pdf) =====

@@ -117,6 +117,12 @@ Este documento orienta a cualquier CLI/IA que intervenga en este proyecto. Mante
 - Reporte: `nuevoReporte()`, `enviarReporte()`, `generarPDFReporte()`.
 - Undo: `pushUndoCotSnapshot()`, `undoCot()`, `pushUndoRepSnapshot()`, `undoRep()`.
 - SW: evento `fetch` con bypass para Firestore/Cloudinary.
+- UI Profesional:
+  - `showModal(message, type, title)` - Modales profesionales (reemplaza alert)
+  - `showConfirm(message, title)` - Confirmaciones profesionales (reemplaza confirm)
+  - `showToast(message, type, duration)` - Notificaciones no bloqueantes
+  - `initNetworkStatus()` - Monitor de estado de red online/offline
+  - `validateInput(input, isValid, errorMsg)` - Validación visual de inputs
 
 ## Notas para futuras IA/CLI
 - Si cambias contratos (forma de `secciones`, PDFs o SW), actualiza este AGENTS.md.
@@ -138,6 +144,12 @@ Plantilla sugerida:
 - Notas: validaciones, impactos, acciones pendientes
 
 Entradas:
+- Fecha: 2025-10-18 (Optimización Profesional Total - Sistema UI/UX Enterprise)
+  - Agente: Claude Code
+  - Resumen: TRANSFORMACIÓN PROFESIONAL COMPLETA de la webapp. Sistema de modales profesionales reemplazando todos los alert() nativos (25+ instancias) con modales animados con tipos (info/success/warning/error), atributos ARIA y soporte de teclado (ESC). Sistema de confirmación profesional reemplazando confirm() nativos con showConfirm(). Toast notifications no bloqueantes con animaciones. Indicador de estado de red online/offline persistente. Validación visual de inputs con estados error/success. Service Worker v39 con manejo robusto de errores, fallbacks offline, detección automática de actualizaciones cada 60s y notificación al usuario. Meta tags de seguridad (referrer policy, X-UA-Compatible) y performance (preconnect, dns-prefetch para Firebase/Cloudinary). CSS profesional con +240 líneas de nuevos componentes (modales, toasts, spinners, estados de validación). Funciones helper documentadas: showModal(), showConfirm(), showToast(), initNetworkStatus(), validateInput(). Experiencia de usuario nivel enterprise.
+  - Archivos clave: `app.js` (+250 líneas de sistema UI profesional, reemplazo de 25+ alerts/confirms), `styles.css` (+240 líneas de componentes UI), `index.html` (meta tags seguridad/performance, SW update detection), `service-worker.js` (v39, error handling robusto)
+  - Notas: UX/UI completamente profesional. Sin alerts/confirms nativos. Modales accesibles (ARIA). Detección de updates automática. Estado de red visible. Inputs con validación visual. Manejo de errores robusto en SW. Mejor performance con preconnect. Sistema listo para producción enterprise.
+
 - Fecha: 2025-10-18 (Optimización Total por Pantalla + Zoom)
   - Agente: Claude Code
   - Resumen: REESCRITURA CSS completa con análisis profundo por tamaño de pantalla. Breakpoints específicos: 320-374px (SE), 375-479px (iPhone), 480-639px (Pro Max), 640-767px (iPad Mini), 768-1023px (iPad), 1024px+ (Desktop). Elementos balanceados: checkboxes 18px, inputs 44px altura, botones 40px, iconos 44px, labels 13px, espaciado proporcional. Zoom sutil (1.01) al escribir en inputs. Distribución responsive perfecta. Max-width por pantalla. Sin elementos muy grandes ni muy pequeños.
