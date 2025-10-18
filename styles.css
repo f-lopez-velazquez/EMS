@@ -8,6 +8,11 @@
   --verde: #27ae60;
   --bg: #f5f7fb;
   --bordes: #d2dbe7;
+  /* Texto accesible */
+  --text: #1b2540;
+  --text-muted: #46526b;
+  --text-subtle: #6f7b93;
+  --on-primary: #ffffff;
 }
 
 /* Reset y base */
@@ -17,7 +22,7 @@ html, body {
   padding: 0;
   background: var(--bg);
   font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
-  color: #222;
+  color: var(--text);
 }
 body {
   min-height: 100vh;
@@ -52,7 +57,7 @@ button {
 }
 button.btn-primary {
   background: linear-gradient(180deg, var(--azul), #1f3f6b);
-  color: #fff;
+  color: var(--on-primary);
 }
 button.btn-primary:hover { filter: brightness(1.04);} 
 button.btn-secondary {
@@ -99,10 +104,10 @@ button.btn-mini:hover {
   margin: 0 0 2px 0;
   font-size: 1.35em;
   font-weight: 800;
-  color: #1f2a44;
+  color: var(--text);
   letter-spacing: 0.01em;
 }
-.ems-subtitle { color: var(--azul); font-size: 1.02em; letter-spacing: 0.01em; }
+.ems-subtitle { color: var(--text-muted); font-size: 1.02em; letter-spacing: 0.01em; }
 
 .ems-main-btns {
   display: flex;
@@ -157,23 +162,10 @@ button.btn-mini:hover {
   flex: 1;
   min-width: 0;
 }
-.ems-card-tipo {
-  font-size: 1em; color: var(--azul-claro); font-weight: 700;
-  margin-bottom: 1px;
-}
-.ems-card-cliente {
-  font-size: 1.06em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ems-card-fecha {
-  font-size: 0.95em; color: #757c87;
-}
-.ems-card-numero {
-  font-size: 0.97em; color: #b7b8c0;
-  margin-top: 2px;
-}
+.ems-card-tipo { font-size: 1em; color: var(--azul); font-weight: 700; margin-bottom: 1px; }
+.ems-card-cliente { font-size: 1.06em; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ems-card-fecha { font-size: 0.95em; color: var(--text-subtle); }
+.ems-card-numero { font-size: 0.97em; color: var(--text-subtle); margin-top: 2px; }
 .ems-card-ir {
   color: var(--gris-oscuro);
   font-size: 1.13em;
@@ -296,6 +288,12 @@ button.btn-mini:hover {
 .ems-settings-modal { background:#fff; border-radius:14px; width: 680px; max-width: 96vw; box-shadow: 0 8px 30px #0003; padding: 14px; }
 .ems-settings-head { display:flex; align-items:center; justify-content: space-between; border-bottom: 1px solid var(--bordes); padding-bottom: 8px; margin-bottom: 10px; }
 .ems-settings-body { max-height: 60vh; overflow:auto; padding-right: 6px; }
+/* Accesibilidad: placeholders y foco visibles */
+::placeholder { color: var(--text-subtle); opacity: 1; }
+input:focus, textarea:focus, select:focus, button:focus {
+  outline: 2px solid var(--azul-claro);
+  outline-offset: 1px;
+}
 
 /* Confirmación por palabra */
 .ems-confirm-overlay { position: fixed; inset: 0; background: rgba(16,24,40,.45); z-index: 3000; display:flex; align-items:center; justify-content:center; padding: 14px; }
