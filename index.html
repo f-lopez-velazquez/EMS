@@ -101,23 +101,24 @@
     // Service Worker Registration with Update Detection
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./service-worker.js?v=40&ts=' + Date.now())
+        // Solo usar versión, NO timestamp (evita updates falsos)
+        navigator.serviceWorker.register('./service-worker.js?v=41')
           .then(function(registration) {
             console.log('SW registered:', registration.scope);
 
-            // Check for updates every 60 seconds
-            setInterval(() => {
-              registration.update().catch(() => {});
-            }, 60000);
+            // Check for updates solo una vez al cargar
+            registration.update().catch(() => {});
 
-            // Notify on SW update
+            // Notify on SW update (solo cuando realmente hay uno nuevo)
             registration.addEventListener('updatefound', () => {
               const newWorker = registration.installing;
+              if (!newWorker) return;
+
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // New SW is ready, notify user
+                  // Verificar que realmente es un update (no la primera instalación)
                   if (typeof showToast === 'function') {
-                    showToast('Nueva versión disponible. Recarga para actualizar.', 'info', 5000);
+                    showToast('Nueva versión disponible. Recarga para actualizar.', 'info', 8000);
                   }
                 }
               });

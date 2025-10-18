@@ -426,9 +426,9 @@ function mostrarVisorPDF(pdfBytes, title, onRefresh) {
     currentPDFPreviewOverlay.remove();
   }
 
-  // Crear blob y URL del PDF
+  // Crear blob y URL del PDF con parámetro #view=FitH para forzar vista inline
   const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob) + '#view=FitH&toolbar=1&navpanes=0';
 
   // Crear overlay
   const overlay = document.createElement('div');
@@ -437,6 +437,7 @@ function mostrarVisorPDF(pdfBytes, title, onRefresh) {
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-label', 'Vista previa del PDF');
 
+  // Usar object en lugar de iframe para mejor soporte en móviles
   overlay.innerHTML = `
     <div class="ems-pdf-preview-header">
       <div class="ems-pdf-preview-title">
@@ -454,23 +455,20 @@ function mostrarVisorPDF(pdfBytes, title, onRefresh) {
       </div>
     </div>
     <div class="ems-pdf-preview-container" style="position: relative;">
-      <div class="ems-pdf-preview-loading" id="pdf-preview-loading">
+      <div class="ems-pdf-preview-loading" id="pdf-preview-loading" style="display:none;">
         <div class="ems-pdf-preview-spinner"></div>
-        <div class="ems-pdf-preview-loading-text">Generando vista previa...</div>
+        <div class="ems-pdf-preview-loading-text">Actualizando...</div>
       </div>
-      <iframe class="ems-pdf-preview-iframe" id="pdf-preview-iframe" src="${url}" title="Vista previa del PDF"></iframe>
+      <object class="ems-pdf-preview-iframe" id="pdf-preview-iframe" data="${url}" type="application/pdf" title="Vista previa del PDF">
+        <iframe src="${url}" class="ems-pdf-preview-iframe" title="Vista previa del PDF"></iframe>
+      </object>
     </div>
   `;
 
   document.body.appendChild(overlay);
   currentPDFPreviewOverlay = overlay;
 
-  // Ocultar loading cuando el iframe cargue
-  const iframe = overlay.querySelector('#pdf-preview-iframe');
   const loading = overlay.querySelector('#pdf-preview-loading');
-  iframe.addEventListener('load', () => {
-    loading.style.display = 'none';
-  });
 
   // Botón cerrar
   const closeBtn = overlay.querySelector('#pdf-preview-close');
@@ -515,12 +513,21 @@ function mostrarVisorPDF(pdfBytes, title, onRefresh) {
  */
 async function previsualizarPDFCotizacion() {
   try {
+    // Mostrar indicador de carga
+    showProgress(true, 20, "Generando vista previa rápida...");
+
     const pdfBytes = await generarPDFCotizacion(false, true); // false = no compartir, true = preview
+
+    showProgress(false);
+
     if (pdfBytes) {
       mostrarVisorPDF(pdfBytes, 'Cotización - Vista Previa', previsualizarPDFCotizacion);
-      showToast('Vista previa generada correctamente', 'success');
+      showToast('Vista previa generada', 'success', 2000);
+    } else {
+      showModal('No se pudo generar la vista previa', 'error');
     }
   } catch (e) {
+    showProgress(false);
     showModal('Error al generar vista previa: ' + (e.message || e), 'error');
     console.error('Error en vista previa:', e);
   }
@@ -532,12 +539,21 @@ async function previsualizarPDFCotizacion() {
  */
 async function previsualizarPDFReporte() {
   try {
+    // Mostrar indicador de carga
+    showProgress(true, 20, "Generando vista previa rápida...");
+
     const pdfBytes = await generarPDFReporte(false, true); // false = no compartir, true = preview
+
+    showProgress(false);
+
     if (pdfBytes) {
       mostrarVisorPDF(pdfBytes, 'Reporte - Vista Previa', previsualizarPDFReporte);
-      showToast('Vista previa generada correctamente', 'success');
+      showToast('Vista previa generada', 'success', 2000);
+    } else {
+      showModal('No se pudo generar la vista previa', 'error');
     }
   } catch (e) {
+    showProgress(false);
     showModal('Error al generar vista previa: ' + (e.message || e), 'error');
     console.error('Error en vista previa:', e);
   }
