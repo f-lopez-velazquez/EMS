@@ -2706,3 +2706,61 @@ function installUndoHandlers() {
     }, 400);
   }, true);
 }
+
+// === Sidebar de opciones (sustituye checkboxes inline) ===
+function openSideOptions(type){
+  const form = document.getElementById(type==='cot'?'cotForm':'repForm');
+  if (!form) return;
+  let ov = document.getElementById('ems-side-overlay');
+  if (!ov){
+    ov = document.createElement('div'); ov.id='ems-side-overlay'; ov.className='ems-side-overlay';
+    ov.innerHTML = '<div id="ems-sidebar" class="ems-sidebar"><div class="ems-sidebar-header"><div class="ems-sidebar-title">Opciones</div><button class="btn-mini" id="emsSideClose">×</button></div><div class="ems-sidebar-body"></div><div class="ems-side-actions"><button class="btn-mini" id="emsSideCancel">Cerrar</button></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', (e)=>{ if(e.target===ov) closeSideOptions(); });
+    ov.querySelector('#emsSideClose').onclick = closeSideOptions;
+    ov.querySelector('#emsSideCancel').onclick = closeSideOptions;
+  }
+  const body = ov.querySelector('.ems-sidebar-body');
+  body.innerHTML='';
+  function addSwitch(labelText, el){
+    const row = document.createElement('div'); row.className='ems-switch';
+    const lab = document.createElement('div'); lab.className='label'; lab.textContent = labelText;
+    const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!(el && el.checked);
+    cb.addEventListener('change', ()=>{ if(el){ el.checked = cb.checked; el.dispatchEvent(new Event('input',{bubbles:true})); if(el.name==='incluyeIVA'){ try{ recalcTotalesCotizacion(); }catch(e){} } if(el.name==='anticipo'){ try{ el.form.anticipoPorc.parentElement.style.display=cb.checked?'':'' }catch(e){} } } });
+    row.appendChild(lab); row.appendChild(cb); body.appendChild(row);
+  }
+  const iva = form.querySelector('input[name="incluyeIVA"]'); if (iva) addSwitch('Incluir IVA (16%)', iva);
+  const antic = form.querySelector('input[name="anticipo"]'); if (antic) addSwitch('Con anticipo', antic);
+  const terms = form.querySelector('input[name="incluyeTerminos"]'); if (terms) addSwitch('Incluir términos y condiciones', terms);
+  const ai = form.querySelector('input[name="corrigeIA"]'); if (ai) addSwitch('Mejorar redacción con IA', ai);
+  if (antic && form.anticipoPorc){
+    const row = document.createElement('div'); row.className='ems-switch';
+    const lab = document.createElement('div'); lab.className='label'; lab.textContent = '% Anticipo';
+    const inp = document.createElement('input'); inp.type='number'; inp.min='0'; inp.max='100'; inp.value = form.anticipoPorc.value||''; inp.style.width='90px';
+    inp.addEventListener('input', ()=>{ form.anticipoPorc.value = inp.value; });
+    row.appendChild(lab); row.appendChild(inp); body.appendChild(row);
+  }
+  ov.classList.add('open'); ov.querySelector('#ems-sidebar').classList.add('open');
+}
+function closeSideOptions(){ const ov=document.getElementById('ems-side-overlay'); if(!ov) return; ov.classList.remove('open'); const sb=ov.querySelector('#ems-sidebar'); if(sb) sb.classList.remove('open'); }
+
+function ensureSideOptionButtons(){
+  ['cotForm','repForm'].forEach(function(fid){
+    const f = document.getElementById(fid); if(!f) return;
+    const act = f.querySelector('.ems-form-actions');
+    if (act && !document.getElementById('btnOpts_'+fid)){
+      const b = document.createElement('button'); b.type='button'; b.className='btn-secondary'; b.id='btnOpts_'+fid; b.innerHTML='<i class="fa fa-sliders"></i> Opciones';
+      b.onclick = function(){ openSideOptions(fid==='cotForm'?'cot':'rep'); };
+      act.insertBefore(b, act.firstChild);
+    }
+    const iva = f.querySelector('input[name="incluyeIVA"]'); if (iva){ const row = iva.closest('.ems-form-row'); if(row) row.style.display='none'; }
+  });
+}
+
+// Activar inserción de botones en cargas y DOM dinámico
+(function(){ try{ ensureSideOptionButtons(); }catch(e){}
+  try{
+    const mo = new MutationObserver(()=>{ try{ ensureSideOptionButtons(); }catch(e){} });
+    mo.observe(document.body, { childList:true, subtree:true });
+  }catch(e){}
+})();

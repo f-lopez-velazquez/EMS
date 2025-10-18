@@ -83,6 +83,19 @@ input[type=file]::file-selector-button {
   cursor: pointer;
 }
 input[type=file]::file-selector-button:hover { background: var(--azul-hover); }
+
+/* Sidebar de opciones */
+.ems-side-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.25); z-index: 3000; display:none; }
+.ems-side-overlay.open { display:block; }
+.ems-sidebar { position: fixed; right: 0; top: 0; height: 100vh; width: 340px; max-width: 92vw; background: #fff; box-shadow: var(--shadow-lg); z-index: 3001; transform: translateX(100%); transition: transform .25s ease; display:flex; flex-direction:column; }
+.ems-sidebar.open { transform: translateX(0); }
+.ems-sidebar-header { display:flex; align-items:center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
+.ems-sidebar-title { font-weight: 700; color: var(--text); }
+.ems-sidebar-body { padding: 12px 16px; overflow:auto; gap: 12px; display:flex; flex-direction:column; }
+.ems-switch { display:flex; align-items:center; justify-content: space-between; padding: 8px 10px; border:1px solid var(--border); border-radius: var(--radius-md); background: #fff; }
+.ems-switch .label { color: var(--text); font-size: .95rem; }
+.ems-switch input[type=checkbox]{ width: 20px; height: 20px; }
+.ems-side-actions { padding: 12px 16px; border-top: 1px solid var(--border); display:flex; gap: 8px; justify-content:flex-end; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   background: var(--bg);
