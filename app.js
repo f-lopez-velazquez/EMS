@@ -2686,6 +2686,37 @@ function observeSettingsPanel() {
       const s = getSettings();
       const pdf = s.pdf || {};
       const body = overlay.querySelector('.ems-settings-body');
+      // Tamaño de fotos amigable (compacto/medio/grande/personalizado)
+      try {
+        const baseInp = overlay.querySelector('#setGalBase');
+        const minInp  = overlay.querySelector('#setGalMin');
+        const maxInp  = overlay.querySelector('#setGalMax');
+        const rowNums = minInp ? minInp.closest('.ems-form-row') : null;
+        if (baseInp && !overlay.querySelector('#setSizePreset')) {
+          const presetRow = document.createElement('div');
+          presetRow.className='ems-form-row';
+          presetRow.innerHTML = '<div class="ems-form-group"><label>Tamaño de fotos</label><select id="setSizePreset"><option value="compacto">Compacto</option><option value="medio">Medio</option><option value="grande">Grande</option><option value="personalizado">Personalizado</option></select></div>';
+          (rowNums ? rowNums.parentNode.insertBefore(presetRow, rowNums) : body.appendChild(presetRow));
+          const presetSel = overlay.querySelector('#setSizePreset');
+          function applyPreset(val){
+            if (!baseInp||!minInp||!maxInp) return;
+            if (val==='compacto'){ baseInp.value=160; minInp.value=140; maxInp.value=200; if(rowNums) rowNums.style.display='none'; }
+            else if (val==='medio'){ baseInp.value=200; minInp.value=160; maxInp.value=235; if(rowNums) rowNums.style.display='none'; }
+            else if (val==='grande'){ baseInp.value=235; minInp.value=180; maxInp.value=260; if(rowNums) rowNums.style.display='none'; }
+            else { if(rowNums) rowNums.style.display=''; }
+          }
+          // Inicializar según valores actuales
+          (function(){
+            let preset='personalizado';
+            const b=Number(baseInp.value||0), mn=Number(minInp.value||0), mx=Number(maxInp.value||0);
+            if (b===160 && mn===140 && mx===200) preset='compacto';
+            else if (b===200 && mn===160 && mx===235) preset='medio';
+            else if (b===235 && mn===180 && mx===260) preset='grande';
+            presetSel.value=preset; applyPreset(preset);
+          })();
+          presetSel.addEventListener('change', function(){ applyPreset(this.value); });
+        }
+      } catch {}
       if (body && !body.querySelector('#setTermsText')) {
         body.insertAdjacentHTML('beforeend', `
           <div class="ems-form-row">
@@ -2704,7 +2735,15 @@ function observeSettingsPanel() {
       const saveBtn = overlay.querySelector('#btnSaveSettings');
       if (saveBtn && !saveBtn.__emsEnhanced) {
         saveBtn.__emsEnhanced = true;
-        saveBtn.onclick = () => {
+              // Ajustar valores numéricos según preset si no es personalizado
+      try {
+        const preset = next.pdf.sizePreset;
+        if (preset && preset !== 'personalizado'){
+          if (preset==='compacto'){ next.pdf.galleryBase=160; next.pdf.galleryMin=140; next.pdf.galleryMax=200; }
+          else if (preset==='medio'){ next.pdf.galleryBase=200; next.pdf.galleryMin=160; next.pdf.galleryMax=235; }
+          else if (preset==='grande'){ next.pdf.galleryBase=235; next.pdf.galleryMin=180; next.pdf.galleryMax=260; }
+        }
+      } catch{}
           const next = {
             themeColor: overlay.querySelector('#setThemeColor')?.value || '#2563eb',
             showCredit: (overlay.querySelector('#setShowCredit')?.value === '1'),
@@ -2717,8 +2756,8 @@ function observeSettingsPanel() {
               blockGap: Number(overlay.querySelector('#setBlockGap')?.value)||6,
               termsDefault: overlay.querySelector('#setTermsDefault')?.value === '1',
               termsText: overlay.querySelector('#setTermsText')?.value || ''
-            }
-          };
+            , termsDefault: overlay.querySelector(\
+          
           saveSettings(next);
           showSaved('Ajustes guardados');
           overlay.remove();
