@@ -148,6 +148,11 @@ Plantilla sugerida:
 - Notas: validaciones, impactos, acciones pendientes
 
 Entradas:
+- Fecha: 2025-10-19 (Fix app.js SyntaxError + Compatibilidad ES)
+  - Agente: Codex CLI
+  - Resumen: Corregido bloqueo de pantalla en blanco por SyntaxError en app.js (bloque de ajustes con línea corrupta y uso de sintaxis moderna no soportada en algunos navegadores). Eliminado fragmento roto en observeSettingsPanel y ajustados patrones modernos (catch sin binding, nullish coalescing ?? y optional chaining ?.) a equivalentes seguros. Ahora la app carga sin errores de sintaxis.
+  - Archivos clave: `app.js`, `AGENTS.md`
+  - Notas: Se mantuvo la lógica base del panel de ajustes usando openSettings(). Podemos reintroducir presets/términos después, pero sin romper compatibilidad. No fue necesario tocar el Service Worker.
 - Fecha: 2025-10-18 (Vista Previa PDF en Tiempo Real)
   - Agente: Claude Code
   - Resumen: Sistema completo de vista previa de PDFs antes de generarlos. Visor profesional en overlay con iframe, barra de acciones (actualizar/cerrar), spinner de carga, soporte ESC y accesibilidad (ARIA). Funciones generarPDFCotizacion() y generarPDFReporte() ahora aceptan parámetro isPreview que usa menor calidad de imagen (640x640, quality 0.5 vs 1280x1280, quality 0.72) para generación rápida. Retornan pdfBytes cuando isPreview=true en lugar de descargar. Botones "Vista Previa" agregados en UI de cotización y reporte con icono ojo. Función mostrarVisorPDF() crea overlay con backdrop blur, iframe para mostrar PDF, botón de actualizar que regenera en tiempo real, botón cerrar con cleanup de URLs. Funciones previsualizarPDFCotizacion() y previsualizarPDFReporte() orquestan el flujo completo. CSS profesional con +140 líneas de estilos responsivos. Usuario puede ver estructura y distribución antes de generar PDF final de alta calidad.

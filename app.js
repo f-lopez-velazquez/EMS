@@ -13,10 +13,10 @@ function getSettings() {
     const raw = localStorage.getItem('EMS_SETTINGS');
     if (!raw) return {};
     return JSON.parse(raw) || {};
-  } catch { return {}; }
+  } catch (e) { return {}; }
 }
 function saveSettings(conf) {
-  try { localStorage.setItem('EMS_SETTINGS', JSON.stringify(conf||{})); } catch {}
+  try { localStorage.setItem('EMS_SETTINGS', JSON.stringify(conf||{})); } catch (e) {}
 }
 function hexToRgbArray(hex) {
   if (!hex || typeof hex !== 'string') return EMS_COLOR;
@@ -27,14 +27,14 @@ function hexToRgbArray(hex) {
 }
 function getThemeRgbArray() {
   const s = getSettings();
-  const hex = s?.themeColor;
+  const hex = (s && s.themeColor);
   if (hex) return hexToRgbArray(hex);
   return EMS_COLOR;
 }
 
 // Aplicar tema (CSS vars y meta theme-color)
 function setCssVar(name, value) {
-  try { document.documentElement.style.setProperty(name, value); } catch {}
+  try { document.documentElement.style.setProperty(name, value); } catch (e) {}
 }
 function shadeHex(hex, percent) {
   // percent: -1..1 (negro..blanco)
@@ -384,7 +384,8 @@ function validateInput(input, isValid, errorMsg = '') {
 
   // Remover estado previo
   input.classList.remove('error', 'success');
-  const prevError = input.parentElement?.querySelector('.error-message');
+  const parentEl = input.parentElement;
+  const prevError = parentEl ? parentEl.querySelector('.error-message') : null;
   if (prevError) prevError.remove();
 
   if (isValid) {
@@ -397,7 +398,7 @@ function validateInput(input, isValid, errorMsg = '') {
       errorDiv.className = 'error-message';
       errorDiv.innerHTML = `<span>✕</span> ${errorMsg}`;
       errorDiv.setAttribute('role', 'alert');
-      input.parentElement?.appendChild(errorDiv);
+      if (parentEl) parentEl.appendChild(errorDiv);
     }
   }
 }
@@ -733,10 +734,10 @@ function renderInicio() {
 
 window.onload = () => {
   renderInicio();
-  try { applyThemeFromSettings(); } catch {}
-  try { typeof showOffline === "function" && showOffline(true); } catch {}
-  try { installUndoHandlers(); } catch {}
-  try { observeSettingsPanel(); } catch {}
+  try { applyThemeFromSettings(); } catch (e) {}
+  try { typeof showOffline === "function" && showOffline(true); } catch (e) {}
+  try { installUndoHandlers(); } catch (e) {}
+  try { observeSettingsPanel(); } catch (e) {}
 };
 
 let ASYNC_ERR_GUARD = false;
@@ -750,7 +751,7 @@ async function cargarHistorialEMS(filtro = "") {
   try {
     cotSnap = await db.collection("cotizaciones").orderBy("creada", "desc").limit(20).get();
     repSnap = await db.collection("reportes").orderBy("creada", "desc").limit(20).get();
-  } catch {
+  } catch (e) {
     cont.innerHTML = "<div class='ems-historial-vacio'>No se pudo cargar historial (offline)</div>";
     return;
   }
@@ -914,14 +915,15 @@ function recalcTotalesCotizacion() {
   const form = document.getElementById('cotForm');
   // Inyecta checkbox de términos si no existe (evita depender del HTML exacto)
   try {
-    const sup = form.querySelector('input[name="titulo"]')?.closest('.ems-form-group');
+    const tituloEl = form.querySelector('input[name="titulo"]');
+    const sup = tituloEl ? tituloEl.closest('.ems-form-group') : null;
     if (sup && !form.querySelector('input[name="incluyeTerminos"]')) {
       const g = document.createElement('div');
       g.className = 'ems-form-group';
       g.innerHTML = '<label><input type="checkbox" name="incluyeTerminos"> Incluir términos y condiciones</label>';
       sup.parentNode.insertBefore(g, sup);
     }
-  } catch {}
+  } catch (e) {}
   if (!form) return;
   const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
   const iva = incluyeIVA ? subtotal * 0.16 : 0;
@@ -937,7 +939,7 @@ function recalcTotalesCotizacion() {
 // === Fotos de COTIZACIÓN (Cloudinary, máx 5) ===
 async function subirFotosCot(input) {
   if (!input.files || input.files.length === 0) return;
-  const cupo = 5 - (fotosCotizacion?.length || 0);
+  const cupo = 5 - ((Array.isArray(fotosCotizacion) ? fotosCotizacion.length : 0));
   if (cupo <= 0) { showModal("Máximo 5 imágenes permitidas.", "warning"); input.value = ""; return; }
 
   const files = Array.from(input.files).slice(0, cupo);
@@ -1130,14 +1132,14 @@ function nuevaCotizacion() {
       if (form.incluyeTerminos) {
         form.incluyeTerminos.checked = (draft.incluyeTerminos === 'on') || (draft.incluyeTerminos === true) || (draft.incluyeTerminos === 'true') || (draft.incluyeTerminos === 1) || (draft.incluyeTerminos === '1') || (draft.incluyeTerminos === undefined && def);
       }
-    } catch {}
+    } catch (e) {}
   } else {
     // Inicial con una sección
     agregarCotSeccion({ titulo: 'General', items: [{},{}] });
     try {
       const s = getSettings();
       if (form.incluyeTerminos) form.incluyeTerminos.checked = !!(s.pdf && s.pdf.termsDefault);
-    } catch {}
+    } catch (e) {}
   }
 
   renderCotFotosPreview();
@@ -1146,7 +1148,7 @@ function nuevaCotizacion() {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
-    try { pushUndoCotSnapshot(); } catch {}
+    try { pushUndoCotSnapshot(); } catch (e) {}
   }, 100);
 
   form.onsubmit = async (e) => {
@@ -1258,7 +1260,7 @@ async function subirFotoRepItem(input, id) {
   }
   // Re-renderiza la fila
   const tr = document.querySelector(`#repItemsTable tbody tr[data-rowid="${id}"]`);
-  const desc = tr?.querySelector("textarea")?.value || "";
+  const desc = (tr && tr.querySelector("textarea")) ? tr.querySelector("textarea").value : "";
   if (tr) tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
@@ -1270,7 +1272,7 @@ function eliminarFotoRepItem(btn, id, fidx) {
   if (!fotosItemsReporteMap[id]) return;
   fotosItemsReporteMap[id].splice(fidx, 1);
   const tr = btn.closest('tr');
-  const desc = tr?.querySelector("textarea")?.value || "";
+  const desc = (tr && tr.querySelector("textarea")) ? tr.querySelector("textarea").value : "";
   tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
@@ -1362,14 +1364,15 @@ function nuevoReporte() {
   const form = document.getElementById('repForm');
   // Inyecta checkbox de términos en Reporte si no existe
   try {
-    const notas = form.querySelector('textarea[name="notas"]')?.closest('.ems-form-group');
+    const notasEl = form.querySelector('textarea[name="notas"]');
+    const notas = notasEl ? notasEl.closest('.ems-form-group') : null;
     if (notas && !form.querySelector('input[name="incluyeTerminos"]')) {
       const g = document.createElement('div');
       g.className = 'ems-form-group';
       g.innerHTML = '<label><input type="checkbox" name="incluyeTerminos"> Incluir términos y condiciones</label>';
       notas.parentNode.insertBefore(g, notas);
     }
-  } catch {}
+  } catch (e) {}
   let draft = localStorage.getItem('EMS_REP_BORRADOR');
   if (draft) {
     draft = JSON.parse(draft);
@@ -1395,12 +1398,12 @@ function nuevoReporte() {
     if (draft && form.incluyeTerminos) {
       form.incluyeTerminos.checked = (draft.incluyeTerminos === 'on') || (draft.incluyeTerminos === true) || (draft.incluyeTerminos === 'true') || (draft.incluyeTerminos === 1) || (draft.incluyeTerminos === '1');
     }
-  } catch {}
+  } catch (e) {}
   setTimeout(() => {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
-    try { pushUndoRepSnapshot(); } catch {}
+    try { pushUndoRepSnapshot(); } catch (e) {}
   }, 100);
   form.onsubmit = async (e) => {
     e.preventDefault();
@@ -1526,13 +1529,16 @@ function gray(v) {
   const { rgb } = PDFLib;
   return rgb(v, v, v);
 }
-function drawTextRight(page, text, xRight, y, opts) {`n  const t = pdfSafe(text);`n  const width = opts.font.widthOfTextAtSize(t, opts.size);`n  page.drawText(t, { x: xRight - width, y, ...opts });
+function drawTextRight(page, text, xRight, y, opts) {
+  const t = pdfSafe(text);
+  const width = opts.font.widthOfTextAtSize(t, opts.size);
+  page.drawText(t, { x: xRight - width, y, ...opts });
 }
 function rule(page, x1, y, x2, color = gray(0.85), thickness = 0.6) {
   page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, thickness, color });
 }
 function drawSectionTitle(page, x, y, text, fonts, opts = {}) {
-  const gap = opts.titleGap ?? 10; // gap extra bajo el título
+  const gap = (opts.titleGap != null ? opts.titleGap : 10); // gap extra bajo el título
   if (!opts.dryRun) page.drawRectangle({ x, y: y - 10, width: 4, height: 14, color: emsRgb(), opacity: 0.9 });
   if (!opts.dryRun) page.drawText(pdfSafe(String(text || "").toUpperCase()), { x: x + 10, y: y - 6, size: 11.5, font: fonts.bold, color: gray(0.18) });
   return y - 20 - gap;
@@ -1582,7 +1588,7 @@ async function getLogoImage(pdfDoc) {
         return r.arrayBuffer();
       });
       try { pdfDoc.__EMS_LOGO_IMG = await pdfDoc.embedPng(bytes); }
-      catch { pdfDoc.__EMS_LOGO_IMG = await pdfDoc.embedJpg(bytes); }
+      catch (e) { pdfDoc.__EMS_LOGO_IMG = await pdfDoc.embedJpg(bytes); }
     } catch (e) {
       console.warn('No se pudo cargar el logo para watermark/header:', e);
       pdfDoc.__EMS_LOGO_IMG = null; // seguimos sin logo
@@ -1628,7 +1634,7 @@ function applyFooters(pdfDoc, pages, fonts, dims) {
       if (s.showCredit !== false) {
         page.drawText('Programado por: Francisco López Velázquez.', { x: dims.mx + 8, y: y - 24, size: 8.8, font: fonts.reg, color: gray(0.55) });
       }
-    } catch {}
+    } catch (e) {}
   }
 }
 
@@ -1644,8 +1650,8 @@ async function embedSmart(pdfDoc, url) {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.arrayBuffer();
       });
-      try { return await pdfDoc.embedJpg(orig); } catch { return await pdfDoc.embedPng(orig); }
-    } catch {
+      try { return await pdfDoc.embedJpg(orig); } catch (e) { return await pdfDoc.embedPng(orig); }
+    } catch (e) {
       // 3) Si todo falla (403/CORS), devolvemos null para que el flujo siga sin imagen
       return null;
     }
@@ -1654,7 +1660,7 @@ async function embedSmart(pdfDoc, url) {
 
 // === Watermark tenue
 function drawWatermark(page, dims, logoImg, op = WATERMARK_OP) {
-  try { page.drawImage(logoImg, { x: (dims.pageW - WATERMARK_W) / 2, y: (dims.pageH - WATERMARK_H) / 2, width: WATERMARK_W, height: WATERMARK_H, opacity: op }); } catch {}
+  try { page.drawImage(logoImg, { x: (dims.pageW - WATERMARK_W) / 2, y: (dims.pageH - WATERMARK_H) / 2, width: WATERMARK_W, height: WATERMARK_H, opacity: op }); } catch (e) {}
 }
 
 // === Control de salto de página (sin encabezado en páginas siguientes)
@@ -1682,7 +1688,8 @@ function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10, re
   if (ctx.state.prevBlock === "section-band") ctx.y -= 2;
 
   const page = ctx.pages[ctx.pages.length - 1];
-  const labelTxt = pdfSafe(String(label || "").toUpperCase());`n  const bodyTxt  = pdfSafe(String(text || "").trim());
+  const labelTxt = pdfSafe(String(label || "").toUpperCase());
+  const bodyTxt  = pdfSafe(String(text || "").trim());
   const lines = wrapTextLines(bodyTxt, fonts.reg, fontSize, dims.usableW - 2*pad);
   const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2*pad);
   const cardSelfHeight = 22 + 6 + bodyH + (opts.cardGap || 8);
@@ -1924,8 +1931,8 @@ async function drawSmartGallery(
 
   // Título opcional
   if (title) {
-    ensureSpace(pdfDoc, ctx, 24 + (opts.titleGap ?? 8));
-    ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts, { titleGap: opts.titleGap ?? 8, dryRun: opts.dryRun });
+    ensureSpace(pdfDoc, ctx, 24 + ((opts.titleGap != null ? opts.titleGap : 8)));
+    ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts, { titleGap: (opts.titleGap != null ? opts.titleGap : 8), dryRun: opts.dryRun });
     ctx._atPageStart = false;
     ctx.state.prevBlock = "title";
   }
@@ -2164,7 +2171,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   // Anexos fotogr�ficos – galería packed
   if (Array.isArray(fotosCotizacion) && fotosCotizacion.length) {
     const s = getSettings();
-    const pdfCfg = s?.pdf || {};
+    const pdfCfg = (s && s.pdf) || {};
     await drawSmartGallery(pdfDoc, ctx, fotosCotizacion.slice(0, 10), {
       title: "Anexos fotogr�ficos",
       captions: false,
@@ -2200,7 +2207,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
         drawBulletList(pdfDoc, ctx, itemsTerms, { fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
       }
     }
-  } catch {}
+  } catch (e) {}
 
   applyFooters(pdfDoc, ctx.pages, fonts, dims);
 
@@ -2217,7 +2224,21 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const file = new File([blob], `Cotizacion_${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
   // Descargar siempre y compartir si procede
-  const url = URL.createObjectURL(blob);`n  try {`n    if (isIOS()) {`n      window.open(url, "_blank", "noopener");`n    } else {`n      const a = document.createElement("a");`n      a.href = url; a.download = fileName; a.rel = "noopener";`n      document.body.appendChild(a); a.click();`n      try{ document.body.removeChild(a);}catch{}`n    }`n  } finally { setTimeout(()=>URL.revokeObjectURL(url),3000); }`n  if (share && navigator.share) {`n    try { if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` }); } catch {}`n  }`n  showProgress(false); showModal("No hay formulario de reporte activo.", "error"); return; }
+  const url = URL.createObjectURL(blob);
+  try {
+    if (isIOS()) {
+      window.open(url, "_blank", "noopener");
+    } else {
+      const a = document.createElement("a");
+      a.href = url; a.download = fileName; a.rel = "noopener";
+      document.body.appendChild(a); a.click();
+      try{ document.body.removeChild(a);}catch(e){}
+    }
+  } finally { setTimeout(()=>URL.revokeObjectURL(url),3000); }
+  if (share && navigator.share) {
+    try { if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` }); } catch (e) {}
+  }
+  showProgress(false); showModal("No hay formulario de reporte activo.", "error"); return; }
 
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
@@ -2232,7 +2253,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
 
   // Parámetros iniciales compactos, con ajustes desde panel
   const s = getSettings();
-  const pdfCfg = s?.pdf || {};
+  const pdfCfg = (s && s.pdf) || {};
   let params = {
     baseRowH: Number(pdfCfg.galleryBase)||200,
     minRowH: Number(pdfCfg.galleryMin)||160,
@@ -2246,7 +2267,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     params.includeTerms = (form.incluyeTerminos && form.incluyeTerminos.checked) ? true : false;
     const s2 = getSettings();
     params.termsText = (s2.pdf && s2.pdf.termsText) ? s2.pdf.termsText : 'Cotización válida por 15 días naturales.\nPrecios sujetos a cambio sin previo aviso.';
-  } catch {}
+  } catch (e) {}
 
   // --- Pre-flight con hasta 2 ajustes automáticos ---
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -2295,10 +2316,24 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
         showProgress(false);
         return;
       }
-    } catch { /* fallback */ }
+    } catch (e) { /* fallback */ }
   }
 
-  const url = URL.createObjectURL(blob);`n  try {`n    if (isIOS()) {`n      window.open(url, "_blank", "noopener");`n    } else {`n      const a = document.createElement("a");`n      a.href = url; a.download = fileName; a.rel = "noopener";`n      document.body.appendChild(a); a.click();`n      try{ document.body.removeChild(a);}catch{}`n    }`n  } finally { setTimeout(()=>URL.revokeObjectURL(url),3000); }`n  if (share && navigator.share) {`n    try { if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` }); } catch {}`n  }`n  showProgress(false);
+  const url = URL.createObjectURL(blob);
+  try {
+    if (isIOS()) {
+      window.open(url, "_blank", "noopener");
+    } else {
+      const a = document.createElement("a");
+      a.href = url; a.download = fileName; a.rel = "noopener";
+      document.body.appendChild(a); a.click();
+      try{ document.body.removeChild(a);}catch(e){}
+    }
+  } finally { setTimeout(()=>URL.revokeObjectURL(url),3000); }
+  if (share && navigator.share) {
+    try { if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` }); } catch (e) {}
+  }
+  showProgress(false);
   }
 }
 
@@ -2402,7 +2437,7 @@ function observeSettingsPanel() {
           })();
           presetSel.addEventListener('change', function(){ applyPreset(this.value); });
         }
-      } catch {}
+      } catch (e) {}
       if (body && !body.querySelector('#setTermsText')) {
         body.insertAdjacentHTML('beforeend', `
           <div class="ems-form-row">
@@ -2429,27 +2464,27 @@ function observeSettingsPanel() {
           else if (preset==='medio'){ next.pdf.galleryBase=200; next.pdf.galleryMin=160; next.pdf.galleryMax=235; }
           else if (preset==='grande'){ next.pdf.galleryBase=235; next.pdf.galleryMin=180; next.pdf.galleryMax=260; }
         }
-      } catch{}
+      } catch (e) {}
           const next = {
-            themeColor: overlay.querySelector('#setThemeColor')?.value || '#2563eb',
-            showCredit: (overlay.querySelector('#setShowCredit')?.value === '1'),
+            themeColor: (overlay.querySelector('#setThemeColor') ? overlay.querySelector('#setThemeColor').value : '#2563eb'),
+            showCredit: ((overlay.querySelector('#setShowCredit') ? overlay.querySelector('#setShowCredit').value : '1') === '1'),
             pdf: {
-              galleryBase: Number(overlay.querySelector('#setGalBase')?.value)||200,
-              galleryMin: Number(overlay.querySelector('#setGalMin')?.value)||160,
-              galleryMax: Number(overlay.querySelector('#setGalMax')?.value)||235,
-              titleGap: Number(overlay.querySelector('#setTitleGap')?.value)||8,
-              cardGap: Number(overlay.querySelector('#setCardGap')?.value)||8,
-              blockGap: Number(overlay.querySelector('#setBlockGap')?.value)||6,
-              termsDefault: overlay.querySelector('#setTermsDefault')?.value === '1',
-              termsText: overlay.querySelector('#setTermsText')?.value || ''
-            , termsDefault: overlay.querySelector(\
+              galleryBase: Number(overlay.querySelector('#setGalBase') ? overlay.querySelector('#setGalBase').value : 200)||200,
+              galleryMin: Number(overlay.querySelector('#setGalMin') ? overlay.querySelector('#setGalMin').value : 160)||160,
+              galleryMax: Number(overlay.querySelector('#setGalMax') ? overlay.querySelector('#setGalMax').value : 235)||235,
+              titleGap: Number(overlay.querySelector('#setTitleGap') ? overlay.querySelector('#setTitleGap').value : 8)||8,
+              cardGap: Number(overlay.querySelector('#setCardGap') ? overlay.querySelector('#setCardGap').value : 8)||8,
+              blockGap: Number(overlay.querySelector('#setBlockGap') ? overlay.querySelector('#setBlockGap').value : 6)||6,
+              termsDefault: (overlay.querySelector('#setTermsDefault') ? overlay.querySelector('#setTermsDefault').value : '1') === '1',
+              termsText: (overlay.querySelector('#setTermsText') ? overlay.querySelector('#setTermsText').value : '') || ''
+            };
           
           saveSettings(next);
           showSaved('Ajustes guardados');
           overlay.remove();
         };
       }
-    } catch {}
+    } catch (e) {}
   };
   const obs = new MutationObserver((muts) => {
     for (const m of muts) {
@@ -2480,7 +2515,7 @@ function confirmByTyping(seed = 'eliminar', title = 'Confirmar acción', onConfi
       </div>
     </div>`;
   document.body.appendChild(overlay);
-  const close = ()=>{ try { document.body.removeChild(overlay); } catch {} };
+  const close = ()=>{ try { document.body.removeChild(overlay); } catch (e) {} };
   overlay.querySelector('#emsConfirmCancel').onclick = close;
   overlay.querySelector('#emsConfirmOk').onclick = ()=>{
     const val = overlay.querySelector('#emsConfirmInput').value.trim().toLowerCase();
@@ -2493,7 +2528,7 @@ function confirmByTyping(seed = 'eliminar', title = 'Confirmar acción', onConfi
 const __orig_eliminarCotItemRow = typeof eliminarCotItemRow === 'function' ? eliminarCotItemRow : null;
 function eliminarCotItemRow(btn){
   confirmByTyping('eliminar','Eliminar este elemento de cotización',()=>{
-    try{ const tr = btn.closest('tr'); tr && tr.remove(); recalcTotalesCotizacion?.(); }catch{}
+    try{ const tr = btn.closest('tr'); if (tr) tr.remove(); if (typeof recalcTotalesCotizacion==='function') recalcTotalesCotizacion(); }catch(e){}
   });
 }
 
@@ -2502,10 +2537,10 @@ function eliminarRepItemRow(btn){
   confirmByTyping('eliminar','Eliminar esta actividad del reporte',()=>{
     try{
       const tr = btn.closest('tr');
-      const id = tr?.getAttribute('data-rowid');
+      const id = tr ? tr.getAttribute('data-rowid') : null;
       if (id && fotosItemsReporteMap[id]) delete fotosItemsReporteMap[id];
-      tr && tr.remove();
-    }catch{}
+      if (tr) tr.remove();
+    }catch(e){}
   });
 }
 
@@ -2516,7 +2551,7 @@ function eliminarFotoRepItem(btn, id, fidx){
       if (!fotosItemsReporteMap[id]) return;
       fotosItemsReporteMap[id].splice(fidx,1);
       const tr = btn.closest('tr');
-      const desc = tr?.querySelector('textarea')?.value || '';
+      const desc = (tr && tr.querySelector('textarea')) ? tr.querySelector('textarea').value : '';
       tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
       agregarDictadoMicros(); activarPredictivosInstantaneos();
     }catch{}
@@ -2526,7 +2561,7 @@ function eliminarFotoRepItem(btn, id, fidx){
 const __orig_eliminarFotoCot = typeof eliminarFotoCot === 'function' ? eliminarFotoCot : null;
 function eliminarFotoCot(index){
   confirmByTyping('borrar','Eliminar esta imagen de la cotización',()=>{
-    try{ fotosCotizacion.splice(index,1); renderCotFotosPreview(); guardarCotizacionDraft?.(); }catch{}
+    try{ fotosCotizacion.splice(index,1); renderCotFotosPreview(); if (typeof guardarCotizacionDraft==='function') guardarCotizacionDraft(); }catch(e){}
   });
 }
 
@@ -2536,7 +2571,7 @@ async function eliminarCotizacionCompleta(numero){
   if (!numero) return showModal('No se encontró el número de cotización.', 'error');
   confirmByTyping('eliminar','Para confirmar escribe la palabra indicada', async ()=>{
     try{ await db.collection('cotizaciones').doc(numero).delete(); showSaved('Cotización eliminada'); localStorage.removeItem('EMS_COT_BORRADOR'); renderInicio(); }
-    catch(e){ showModal('Error eliminando cotización: '+(e?.message||e), 'error'); }
+    catch(e){ showModal('Error eliminando cotización: '+((e && e.message)||e), 'error'); }
   });
 }
 
@@ -2546,7 +2581,7 @@ async function eliminarReporteCompleto(numero){
   if (!numero) return showModal('No se encontró el número de reporte.', 'error');
   confirmByTyping('eliminar','Para confirmar escribe la palabra indicada', async ()=>{
     try{ await db.collection('reportes').doc(numero).delete(); showSaved('Reporte eliminado'); localStorage.removeItem('EMS_REP_BORRADOR'); renderInicio(); }
-    catch(e){ showModal('Error eliminando reporte: '+(e?.message||e), 'error'); }
+    catch(e){ showModal('Error eliminando reporte: '+((e && e.message)||e), 'error'); }
   });
 }
 // ===== Panel de Ajustes (tema/pdf) =====
@@ -2600,7 +2635,7 @@ function openSettings() {
     };
     saveSettings(next);
     showSaved('Ajustes guardados');
-    try { applyThemeFromSettings(); } catch {}
+    try { applyThemeFromSettings(); } catch (e) {}
     overlay.remove();
   };
 }
