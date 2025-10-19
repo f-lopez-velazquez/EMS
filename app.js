@@ -1558,6 +1558,68 @@ async function guardarCotizacionDraft() {
   showSaved("Cotización guardada");
 }
 
+
+// ========== REPORTE: Guardado y borradores ==========
+async function enviarReporte(e) {
+  try { if (e && e.preventDefault) e.preventDefault(); } catch (err) {}
+  const form = document.getElementById('repForm');
+  if (!form) { showModal('No hay formulario de reporte activo.', 'error'); return; }
+  showSaved('Guardando...');
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+    const id = tr.getAttribute('data-rowid') || newUID();
+    const desc = (tr.querySelector('textarea[name="descripcion"]') || {}).value || '';
+    const fotos = (fotosItemsReporteMap && fotosItemsReporteMap[id]) ? fotosItemsReporteMap[id] : [];
+    if ((desc || '').trim() || (fotos && fotos.length)) items.push({ _id:id, descripcion: desc, fotos: (fotos||[]).slice(0,6) });
+  });
+  if (!datos.numero || !datos.cliente || items.length === 0) {
+    showSaved('Faltan datos');
+    showModal('Completa número, cliente y al menos una actividad.', 'warning');
+    return;
+  }
+  const reporte = {
+    ...datos,
+    items,
+    tipo: 'reporte',
+    fecha: datos.fecha,
+    hora: datos.hora || ahora(),
+    creada: new Date().toISOString()
+  };
+  if (!navigator.onLine) {
+    showModal('Sin conexión a Internet. Se recomienda guardar cuando tengas conexión.', 'warning');
+    showSaved('Offline');
+    return;
+  }
+  await db.collection('reportes').doc(datos.numero).set(reporte);
+  try { localStorage.removeItem('EMS_REP_BORRADOR'); } catch (err) {}
+  showSaved('¡Reporte guardado!');
+  renderInicio();
+}
+
+async function guardarReporteDraft() {
+  const form = document.getElementById('repForm');
+  if (!form) return;
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+    const id = tr.getAttribute('data-rowid') || newUID();
+    const desc = (tr.querySelector('textarea[name="descripcion"]') || {}).value || '';
+    const fotos = (fotosItemsReporteMap && fotosItemsReporteMap[id]) ? fotosItemsReporteMap[id] : [];
+    items.push({ _id:id, descripcion: desc, fotos: (fotos||[]).slice(0,6) });
+  });
+  const reporte = {
+    ...datos,
+    items,
+    tipo: 'reporte',
+    fecha: datos.fecha,
+    hora: datos.hora || ahora(),
+    creada: new Date().toISOString()
+  };
+  try { localStorage.setItem('EMS_REP_BORRADOR', JSON.stringify(reporte)); } catch (err) {}
+  try { await db.collection('reportes').doc(datos.numero || 'BORRADOR').set(reporte); } catch (err) {}
+  try { showSaved('Reporte guardado'); } catch (err) {}
+}
 // ====== Helpers PDF estéticos ======
 function emsRgb(arr = EMS_COLOR) {
   const { rgb } = PDFLib;
