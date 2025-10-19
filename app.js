@@ -1435,6 +1435,12 @@ async function enviarCotizacion(e) {
   e.preventDefault();
   showSaved("Guardando...");
   const form = document.getElementById('cotForm');
+async function generarPDFReporte(share = false, isPreview = false) {
+  showSaved(isPreview ? "Generando vista previa..." : "Generando PDF...");
+  try { if (!isPreview && typeof guardarReporteDraft === 'function') await guardarReporteDraft(); } catch (e) {}
+  const form = document.getElementById('repForm');
+  if (!form) { showProgress(false); showModal("No hay formulario de reporte activo.", "error"); return; }
+
   const datos = Object.fromEntries(new FormData(form));
   // Tomar secciones
   const secciones = [];
@@ -1680,6 +1686,82 @@ function ensureSpace(pdfDoc, ctx, needed) {
       ctx._atPageStart = true;
     }
   }
+}
+
+// ====== REPORTE: Composición mínima (stub) ======
+async function composeReportePDF({ datos, items, params, dryRun }) {
+  const { PDFDocument, StandardFonts } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
+  dims.usableW = dims.pageW - dims.mx * 2;
+  const fonts = { reg: helv, bold: helvB };
+  const logoImg = await getLogoImage(pdfDoc);
+
+  const ctx = {
+    pages: [], y: 0, dims, fonts, datos,
+    typeLabel: "REPORTE", logoImg, _atPageStart: true,
+    opts: {
+      dryRun: !!dryRun,
+      titleGap: Number(params && params.titleGap) || 8,
+      cardGap: Number(params && params.cardGap) || 8,
+      blockGap: Number(params && params.blockGap) || 6,
+    },
+    state: { prevBlock: 'start', inGallery: false, currentSection: null },
+    audit: { pages: 0 },
+  };
+
+  const first = pdfDoc.addPage([dims.pageW, dims.pageH]);
+  ctx.pages.push(first);
+  if (!ctx.opts.dryRun && logoImg) drawWatermark(first, dims, logoImg, WATERMARK_OP);
+  ctx.y = addHeader(pdfDoc, first, ctx.typeLabel, datos, fonts, dims, true, logoImg);
+  ctx._atPageStart = true;
+
+  // Contenido mínimo: lista de actividades/descripciones
+  if (Array.isArray(items) && items.length) {
+    try {
+      // Sección actividades
+      ctx.y = drawSectionTitle(first, dims.mx, ctx.y, 'Actividades realizadas', fonts, { titleGap: ctx.opts.titleGap, dryRun: ctx.opts.dryRun });
+      items.forEach((it, idx) => {
+        const txt = (it && it.descripcion) ? String(it.descripcion) : `Actividad ${idx+1}`;
+        ensureSpace(pdfDoc, ctx, 18);
+        if (!ctx.opts.dryRun) first.drawText(pdfSafe(txt), { x: dims.mx + 6, y: ctx.y - 12, size: 10.5, font: fonts.reg, color: gray(0.24) });
+        ctx.y -= 18;
+      });
+    } catch (e) {}
+  }
+
+  // Galería de fotos combinada (si no es dryRun)
+  if (!ctx.opts.dryRun) {
+    try {
+      const fotos = [];
+      (items||[]).forEach(it => ((it && it.fotos) || []).forEach(f => fotos.push(f)));
+      if (fotos.length) {
+        await drawSmartGallery(pdfDoc, ctx, fotos.slice(0, 10), {
+          title: 'Anexos fotográficos', captions: false,
+          baseTargetRowH: Number(params && params.baseRowH) || 200,
+          minRowH: Number(params && params.minRowH) || 160,
+          maxRowH: Number(params && params.maxRowH) || 235,
+          minImgW: 150, gutter: 8, rowPad: 5,
+        });
+      }
+    } catch (e) {}
+  }
+
+  // Términos (opcional)
+  try {
+    if (!ctx.opts.dryRun && params && params.includeTerms && (params.termsText||'').trim()) {
+      ensureSpace(pdfDoc, ctx, 48);
+      ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length-1], dims.mx, ctx.y, 'Términos y condiciones', fonts, { titleGap: ctx.opts.titleGap, dryRun: false });
+      const itemsTerms = parseObservaciones(params.termsText);
+      if (itemsTerms.length) drawBulletList(pdfDoc, ctx, itemsTerms, { fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+    }
+  } catch (e) {}
+
+  ctx.audit.pages = ctx.pages.length;
+  return { pdfDoc, ctx };
 }
 
 // --- Card de texto con etiqueta tipo “píldora” (con reserva para primera fila de fotos)
@@ -2222,7 +2304,8 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   // Si no es preview, proceder con download/share normal
   showSaved("PDF Listo");
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
-  const file = new File([blob], `Cotizacion_${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
+  const fileName = `Cotizacion_${datos.numero||"cotizacion"}.pdf`;
+  const file = new File([blob], fileName, { type: "application/pdf" });
   // Descargar siempre y compartir si procede
   const url = URL.createObjectURL(blob);
   try {
@@ -2236,9 +2319,10 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     }
   } finally { setTimeout(()=>URL.revokeObjectURL(url),3000); }
   if (share && navigator.share) {
-    try { if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` }); } catch (e) {}
+    try { if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: "Cotización", text: `Cotización ${datos.numero||""} de Electromotores Santana` }); } catch (e) {}
   }
-  showProgress(false); showModal("No hay formulario de reporte activo.", "error"); return; }
+  showProgress(false);
+}
 
   const datos = Object.fromEntries(new FormData(form));
   const items = [];
@@ -2330,11 +2414,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
       try{ document.body.removeChild(a);}catch(e){}
     }
   } finally { setTimeout(()=>URL.revokeObjectURL(url),3000); }
-  if (share && navigator.share) {
-    try { if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` }); } catch (e) {}
-  }
   showProgress(false);
-  }
 }
 
 // ====== Eliminar docs ======
@@ -2400,105 +2480,7 @@ function agregarDictadoMicros() {
 }
 
 // Observa la apertura del panel de ajustes y añade controles de términos + guardado simplificado
-function observeSettingsPanel() {
-  const defaultTerms = 'Cotización válida por 15 días naturales.\nPrecios sujetos a cambio sin previo aviso.\nTiempo de entrega estimado sujeto a disponibilidad.\nGarantía por defectos de mano de obra.\nNo incluye IVA salvo indicado.';
-  const enhance = (overlay) => {
-    try {
-      const s = getSettings();
-      const pdf = s.pdf || {};
-      const body = overlay.querySelector('.ems-settings-body');
-      // Tama�o de fotos amigable (compacto/medio/grande/personalizado)
-      try {
-        const baseInp = overlay.querySelector('#setGalBase');
-        const minInp  = overlay.querySelector('#setGalMin');
-        const maxInp  = overlay.querySelector('#setGalMax');
-        const rowNums = minInp ? minInp.closest('.ems-form-row') : null;
-        if (baseInp && !overlay.querySelector('#setSizePreset')) {
-          const presetRow = document.createElement('div');
-          presetRow.className='ems-form-row';
-          presetRow.innerHTML = '<div class="ems-form-group"><label>Tama�o de fotos</label><select id="setSizePreset"><option value="compacto">Compacto</option><option value="medio">Medio</option><option value="grande">Grande</option><option value="personalizado">Personalizado</option></select></div>';
-          (rowNums ? rowNums.parentNode.insertBefore(presetRow, rowNums) : body.appendChild(presetRow));
-          const presetSel = overlay.querySelector('#setSizePreset');
-          function applyPreset(val){
-            if (!baseInp||!minInp||!maxInp) return;
-            if (val==='compacto'){ baseInp.value=160; minInp.value=140; maxInp.value=200; if(rowNums) rowNums.style.display='none'; }
-            else if (val==='medio'){ baseInp.value=200; minInp.value=160; maxInp.value=235; if(rowNums) rowNums.style.display='none'; }
-            else if (val==='grande'){ baseInp.value=235; minInp.value=180; maxInp.value=260; if(rowNums) rowNums.style.display='none'; }
-            else { if(rowNums) rowNums.style.display=''; }
-          }
-          // Inicializar seg�n valores actuales
-          (function(){
-            let preset='personalizado';
-            const b=Number(baseInp.value||0), mn=Number(minInp.value||0), mx=Number(maxInp.value||0);
-            if (b===160 && mn===140 && mx===200) preset='compacto';
-            else if (b===200 && mn===160 && mx===235) preset='medio';
-            else if (b===235 && mn===180 && mx===260) preset='grande';
-            presetSel.value=preset; applyPreset(preset);
-          })();
-          presetSel.addEventListener('change', function(){ applyPreset(this.value); });
-        }
-      } catch (e) {}
-      if (body && !body.querySelector('#setTermsText')) {
-        body.insertAdjacentHTML('beforeend', `
-          <div class="ems-form-row">
-            <div class="ems-form-group"><label>Usar términos por defecto</label>
-              <select id="setTermsDefault"><option value="1" ${(pdf.termsDefault? 'selected':'')}>Sí</option><option value="0" ${(!pdf.termsDefault? 'selected':'')}>No</option></select>
-            </div>
-          </div>
-          <div class="ems-form-row">
-            <div class="ems-form-group" style="flex:1 1 100%">
-              <label>Términos y condiciones (para PDF)</label>
-              <textarea id="setTermsText" rows="5" placeholder="Ej: Cotización válida por 15 días naturales...">${pdf.termsText||defaultTerms}</textarea>
-            </div>
-          </div>
-        `);
-      }
-      const saveBtn = overlay.querySelector('#btnSaveSettings');
-      if (saveBtn && !saveBtn.__emsEnhanced) {
-        saveBtn.__emsEnhanced = true;
-              // Ajustar valores num�ricos seg�n preset si no es personalizado
-      try {
-        const preset = next.pdf.sizePreset;
-        if (preset && preset !== 'personalizado'){
-          if (preset==='compacto'){ next.pdf.galleryBase=160; next.pdf.galleryMin=140; next.pdf.galleryMax=200; }
-          else if (preset==='medio'){ next.pdf.galleryBase=200; next.pdf.galleryMin=160; next.pdf.galleryMax=235; }
-          else if (preset==='grande'){ next.pdf.galleryBase=235; next.pdf.galleryMin=180; next.pdf.galleryMax=260; }
-        }
-      } catch (e) {}
-          const next = {
-            themeColor: (overlay.querySelector('#setThemeColor') ? overlay.querySelector('#setThemeColor').value : '#2563eb'),
-            showCredit: ((overlay.querySelector('#setShowCredit') ? overlay.querySelector('#setShowCredit').value : '1') === '1'),
-            pdf: {
-              galleryBase: Number(overlay.querySelector('#setGalBase') ? overlay.querySelector('#setGalBase').value : 200)||200,
-              galleryMin: Number(overlay.querySelector('#setGalMin') ? overlay.querySelector('#setGalMin').value : 160)||160,
-              galleryMax: Number(overlay.querySelector('#setGalMax') ? overlay.querySelector('#setGalMax').value : 235)||235,
-              titleGap: Number(overlay.querySelector('#setTitleGap') ? overlay.querySelector('#setTitleGap').value : 8)||8,
-              cardGap: Number(overlay.querySelector('#setCardGap') ? overlay.querySelector('#setCardGap').value : 8)||8,
-              blockGap: Number(overlay.querySelector('#setBlockGap') ? overlay.querySelector('#setBlockGap').value : 6)||6,
-              termsDefault: (overlay.querySelector('#setTermsDefault') ? overlay.querySelector('#setTermsDefault').value : '1') === '1',
-              termsText: (overlay.querySelector('#setTermsText') ? overlay.querySelector('#setTermsText').value : '') || ''
-            };
-          
-          saveSettings(next);
-          showSaved('Ajustes guardados');
-          overlay.remove();
-        };
-      }
-    } catch (e) {}
-  };
-  const obs = new MutationObserver((muts) => {
-    for (const m of muts) {
-      (m.addedNodes||[]).forEach(node => {
-        if (node && node.nodeType === 1 && node.classList && node.classList.contains('ems-settings-overlay')) {
-          enhance(node);
-        }
-      });
-    }
-  });
-  obs.observe(document.body, { childList: true, subtree: true });
-}
-
-// ====== Sobrescrituras de confirmación por palabra en acciones destructivas ======
+function observeSettingsPanel() { }
 function confirmByTyping(seed = 'eliminar', title = 'Confirmar acción', onConfirm = ()=>{}) {
   const words = ['eliminar','borrar','confirmar','continuar','aprobar','aceptar'];
   const w = words[Math.floor(Math.random()*words.length)];
@@ -2802,3 +2784,4 @@ function ensureSideOptionButtons(){
     mo.observe(document.body, { childList:true, subtree:true });
   }catch(e){}
 })();
+
