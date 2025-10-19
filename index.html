@@ -43,8 +43,16 @@
       }, 800);
     });
 
-    // Firebase App Check (opcional)
-    try { if (firebase && firebase.app) { firebase.appCheck().activate('TU_RECAPTCHA_V3_SITE_KEY', true); } } catch (e) { console.warn('App Check not configured:', e); }
+    // Firebase App Check (opcional; sólo si ya existe la app)
+    try {
+      if (firebase && firebase.apps && firebase.apps.length) {
+        firebase.appCheck().activate('TU_RECAPTCHA_V3_SITE_KEY', true);
+      } else {
+        window.addEventListener('load', function(){
+          try { if (firebase && firebase.apps && firebase.apps.length) { firebase.appCheck().activate('TU_RECAPTCHA_V3_SITE_KEY', true); } } catch(e){}
+        });
+      }
+    } catch (e) { console.warn('App Check not configured:', e); }
 
     // Back handler: no salir de la app, volver al inicio
     (function(){
@@ -58,10 +66,16 @@
       } catch {}
     })();
 
-    // Recordatorios locales
+    // Recordatorios locales (pedir permiso sólo con interacción del usuario)
     (function(){
       if (!('Notification' in window)) return;
-      try { Notification.requestPermission().catch(()=>{}); } catch {}
+      if (Notification.permission === 'default') {
+        const askOnce = () => {
+          try { Notification.requestPermission().catch(()=>{}); } catch {}
+          document.removeEventListener('click', askOnce, true);
+        };
+        document.addEventListener('click', askOnce, true);
+      }
       function countPendientes(){
         let n = 0; try { if (localStorage.getItem('EMS_COT_BORRADOR')) n++; } catch {}
         try { if (localStorage.getItem('EMS_REP_BORRADOR')) n++; } catch {}
