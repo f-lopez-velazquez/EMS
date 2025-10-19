@@ -564,14 +564,17 @@ function pdfSafe(s) {
   try {
     if (s == null) return '';
     let t = String(s);
+    // Reemplaza U+FFFD y normaliza acentos
     t = t.replace(/\uFFFD/g, '?');
-    if (t.normalize) t = t.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
-    t = t.replace(/[•●▪◦]/g, '-');
-    t = t.replace([^\x0A\x0D\x20-\x7E\u00A0-\u00FF], '');
+    if (t.normalize) t = t.normalize('NFKD').replace(/[\u0300-\u036F]/g, '');
+    // Bullets y BEL a guiones
+    t = t.replace(/[•●▪◦]/g, '-').replace(/\u0007/g, '-');
+    // Permitir ASCII, latin-1 y saltos de línea
+    t = t.replace(/[^\x0A\x0D\x20-\x7E\u00A0-\u00FF]/g, '');
     return t;
-  } catch { return String(s||''); }
+  } catch (e) { return String(s||''); }
 }function wrapTextLines(text = "", font, fontSize, maxWidth) {
-  const words = String(text || "").replace(/\s+/g, " ").trim().split(" ");
+  const words = String(pdfSafe(text) || "").replace(/\s+/g, " ").trim().split(" ");
   const lines = [];
   let line = "";
   for (let i = 0; i < words.length; i++) {
