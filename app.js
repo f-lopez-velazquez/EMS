@@ -784,6 +784,39 @@ async function cargarHistorialEMS(filtro = "") {
     </div>
   `).join("");
 }
+
+// Abrir detalle desde historial (cotización o reporte)
+function abrirDetalleEMS(tipo, numero) {
+  try { if (!tipo || !numero) return; } catch (e) { return; }
+  try { showSaved('Cargando...'); } catch (e) {}
+  const col = (tipo === 'cotizacion') ? 'cotizaciones' : 'reportes';
+  try {
+    db.collection(col).doc(String(numero)).get().then((doc)=>{
+      if (!doc || !doc.exists) {
+        try { showModal('No se encontró el documento solicitado.', 'warning'); } catch (e) {}
+        return;
+      }
+      const data = doc.data() || {};
+      data.numero = data.numero || String(numero);
+      try {
+        if (tipo === 'cotizacion') {
+          localStorage.setItem('EMS_COT_BORRADOR', JSON.stringify(data));
+          localStorage.removeItem('EMS_REP_BORRADOR');
+          nuevaCotizacion();
+        } else {
+          localStorage.setItem('EMS_REP_BORRADOR', JSON.stringify(data));
+          localStorage.removeItem('EMS_COT_BORRADOR');
+          nuevoReporte();
+        }
+      } catch (e) { console.warn('No se pudo preparar el borrador local', e); }
+    }).catch((e)=>{
+      console.error('Error cargando detalle:', e);
+      try { showModal('Error cargando detalle: ' + (e && e.message ? e.message : e), 'error'); } catch (e2) {}
+    });
+  } catch (e) {
+    console.error('Error inesperado en abrirDetalleEMS:', e);
+  }
+}
 document.addEventListener("input", e => {
   if (e.target && e.target.id === "buscarEMS") {
     cargarHistorialEMS(e.target.value);
