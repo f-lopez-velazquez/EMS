@@ -905,10 +905,23 @@ function eliminarCotItemRow(btn) {
   btn.closest('tr').remove();
 }
 
+function toggleCotMode(flag) {
+  try {
+    const s = getSettings();
+    s.cotDetallado = !!flag;
+    saveSettings(s);
+    // Re-render conservando datos actuales
+    const snap = serializeCotizacionForm();
+    editarCotizacion({ ...snap, tipo: 'cotizacion' });
+    showSaved(flag? 'Modo detallado activo' : 'Modo normal activo');
+  } catch (e) { console.warn('toggleCotMode', e); }
+}
+
 // ========== NUEVO: Secciones de cotización ==========
 function renderCotSeccion(seccion = {}, rowId) {
   const id = rowId || newUID();
   const items = Array.isArray(seccion.items) ? seccion.items : [];
+  const isDet = (getSettings()?.cotDetallado === true) || items.some(x=> x && (x.cantidad!==undefined || x.unidad!==undefined || x.precioUnit!==undefined));
   const itemsHtml = items.map(it => `
       <tr>
         <td><input type="text" name="concepto" value="${safe(it.concepto)}" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
@@ -948,7 +961,9 @@ function renderCotSeccion(seccion = {}, rowId) {
 function agregarCotSeccion(preload = null) {
   const wrap = document.getElementById('cotSeccionesWrap');
   if (!wrap) return;
-  wrap.insertAdjacentHTML('beforeend', renderCotSeccion(preload||{ items:[{},{},] }));
+  const isDet = (getSettings()?.cotDetallado === true) || (preload && Array.isArray(preload.items) && preload.items.some(it=> it && (it.cantidad!==undefined || it.unidad!==undefined || it.precioUnit!==undefined)));
+  const html = isDet ? renderCotSeccionDet(preload||{ items:[{},{},] }) : renderCotSeccion(preload||{ items:[{},{},] });
+  wrap.insertAdjacentHTML('beforeend', html);
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
   recalcTotalesCotizacion();
@@ -961,29 +976,60 @@ function agregarRubroEnSeccion(btn) {
   const sec = btn.closest('.cot-seccion');
   if (!sec) return;
   const tbody = sec.querySelector('tbody');
-  tbody.insertAdjacentHTML('beforeend', `
-    <tr>
-      <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
-      <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..." spellcheck="true" autocapitalize="sentences"></textarea></td>
-      <td style="white-space:nowrap;display:flex;align-items:center;">
-        <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
-        <input type="number" name="precioSec" min="0" step="0.01" style="width:100px;">
-        <button type="button" class="btn-mini" onclick="this.closest('tr').remove(); recalcSeccionSubtotal(this.closest('.cot-seccion'))"><i class="fa fa-trash"></i></button>
-      </td>
-    </tr>
-  `);
+  const isDet = (sec.getAttribute('data-mode') === 'det') || !!sec.querySelector('input[name="precioUnitSec"]');
+  if (isDet) {
+    tbody.insertAdjacentHTML('beforeend', `
+      <tr>
+        <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
+        <td style="width:80px"><input type="number" name="cantidadSec" min="0" step="1" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))"></td>
+        <td style="width:100px"><input type="text" name="unidadSec" list="unidadesEMS" autocomplete="off"></td>
+        <td style="white-space:nowrap;display:flex;align-items:center;">
+          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
+          <input type="number" name="precioUnitSec" min="0" step="0.01" style="width:100px;" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))">
+        </td>
+        <td style="width:110px"><span class="cot-row-total">$0.00</span></td>
+        <td><button type="button" class="btn-mini" onclick="this.closest('tr').remove(); recalcSeccionSubtotal(this.closest('.cot-seccion'))"><i class="fa fa-trash"></i></button></td>
+      </tr>
+    `);
+  } else {
+    tbody.insertAdjacentHTML('beforeend', `
+      <tr>
+        <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
+        <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..." spellcheck="true" autocapitalize="sentences"></textarea></td>
+        <td style="white-space:nowrap;display:flex;align-items:center;">
+          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
+          <input type="number" name="precioSec" min="0" step="0.01" style="width:100px;">
+          <button type="button" class="btn-mini" onclick="this.closest('tr').remove(); recalcSeccionSubtotal(this.closest('.cot-seccion'))"><i class="fa fa-trash"></i></button>
+        </td>
+      </tr>
+    `);
+  }
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
   recalcSeccionSubtotal(sec);
 }
 function recalcSeccionSubtotal(sec) {
   if (!sec) return;
-  const precios = Array.from(sec.querySelectorAll('input[name="precioSec"]'));
-  const subtotal = precios.reduce((a,inp)=>{
-    const v = String(inp.value||"").trim();
-    if (v===''||v==='.'||v==='-') return a;
-    const n = Number(v); return a + (isNaN(n)?0:n);
-  },0);
+  const unitarios = Array.from(sec.querySelectorAll('input[name="precioUnitSec"]'));
+  let subtotal = 0;
+  if (unitarios.length) {
+    const rows = Array.from(sec.querySelectorAll('tbody tr'));
+    rows.forEach(tr => {
+      const c = Number(tr.querySelector('input[name="cantidadSec"]')?.value||0);
+      const pu = Number(tr.querySelector('input[name="precioUnitSec"]')?.value||0);
+      const tot = c*pu;
+      const span = tr.querySelector('.cot-row-total');
+      if (span) span.textContent = mostrarPrecioLimpio(tot);
+      subtotal += tot;
+    });
+  } else {
+    const precios = Array.from(sec.querySelectorAll('input[name="precioSec"]'));
+    subtotal = precios.reduce((a,inp)=>{
+      const v = String(inp.value||"").trim();
+      if (v===''||v==='.'||v==='-') return a;
+      const n = Number(v); return a + (isNaN(n)?0:n);
+    },0);
+  }
   const el = sec.querySelector('.cot-subtotal-val');
   if (el) el.textContent = mostrarPrecioLimpio(subtotal);
   return subtotal;
@@ -1166,7 +1212,7 @@ function nuevaCotizacion() {
       <div class="ems-form-group">
         <label>Imágenes para el PDF (hasta 5)</label>
         <div id="cotFotosPreview" class="ems-rep-fotos-row"></div>
-        <input id="cotFotosInput" type="file" accept="image/*" capture="environment" multiple onchange="subirFotosCot(this)" style="display:none">
+        <input id="cotFotosInput" type="file" accept="image/*" multiple onchange="subirFotosCot(this)" style="display:none">
         <label for="cotFotosInput" class="ems-file-btn"><i class="fa fa-camera"></i> Agregar fotos</label>
         <small>Se suben a Cloudinary y se insertan al final del PDF.</small>
       </div>
@@ -1496,9 +1542,17 @@ async function enviarCotizacion(e) {
     const items = [];
     sec.querySelectorAll('tbody tr').forEach(tr=>{
       const concepto = tr.querySelector('input[name="concepto"]').value;
-      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
-      const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
-      if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
+      if (tr.querySelector('input[name="precioUnitSec"]')) {
+        const cantidad = Number(tr.querySelector('input[name="cantidadSec"]').value||0);
+        const unidad = tr.querySelector('input[name="unidadSec"]').value||'';
+        const precioUnit = Number(tr.querySelector('input[name="precioUnitSec"]').value||0);
+        const total = cantidad * precioUnit;
+        if (concepto || cantidad || unidad || precioUnit) items.push({ concepto, cantidad, unidad, precioUnit, total });
+      } else {
+        const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
+        const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
+        if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
+      }
     });
     if (titulo || items.length) secciones.push({ titulo, items });
   });
@@ -1510,7 +1564,7 @@ async function enviarCotizacion(e) {
   savePredictEMSCloud("cliente", datos.cliente);
   secciones.forEach(sec => (sec.items||[]).forEach(it => { savePredictEMSCloud("concepto", it.concepto); }));
   // Cálculos
-  const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (Number(it.precio)||0),0), 0);
+  const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (it.total!=null? Number(it.total): Number(it.precio)||0),0), 0);
   const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
   const iva = incluyeIVA ? subtotal*0.16 : 0;
   const total = subtotal + iva;
@@ -1547,13 +1601,21 @@ async function guardarCotizacionDraft() {
     const items = [];
     sec.querySelectorAll('tbody tr').forEach(tr=>{
       const concepto = tr.querySelector('input[name="concepto"]').value;
-      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
-      const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
-      if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
+      if (tr.querySelector('input[name="precioUnitSec"]')) {
+        const cantidad = Number(tr.querySelector('input[name="cantidadSec"]').value||0);
+        const unidad = tr.querySelector('input[name="unidadSec"]').value||'';
+        const precioUnit = Number(tr.querySelector('input[name="precioUnitSec"]').value||0);
+        const total = cantidad * precioUnit;
+        if (concepto || cantidad || unidad || precioUnit) items.push({ concepto, cantidad, unidad, precioUnit, total });
+      } else {
+        const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
+        const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
+        if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
+      }
     });
     if (titulo || items.length) secciones.push({ titulo, items });
   });
-  const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (Number(it.precio)||0),0), 0);
+  const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (it.total!=null? Number(it.total): Number(it.precio)||0), 0), 0);
   const incluyeIVA = datos.incluyeIVA === 'on';
   const iva = incluyeIVA ? subtotal*0.16 : 0;
   const total = subtotal + iva;
@@ -2294,6 +2356,58 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   }
 }
 
+// Variante detallada: Concepto, Cantidad, Unidad, P. Unitario, Total
+function renderCotSeccionDet(seccion = {}, rowId) {
+  const id = rowId || newUID();
+  const items = Array.isArray(seccion.items) ? seccion.items : [];
+  const itemsHtml = items.map(it => {
+    const cantidad = it.cantidad ?? '';
+    const unidad = it.unidad ?? '';
+    const punit = it.precioUnit ?? '';
+    const tot = (Number(cantidad)||0) * (Number(punit)||0);
+    return `
+      <tr>
+        <td><input type="text" name="concepto" value="${safe(it.concepto)}" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
+        <td style="width:80px"><input type="number" name="cantidadSec" min="0" step="1" value="${safe(cantidad)}" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))"></td>
+        <td style="width:100px"><input type="text" name="unidadSec" value="${safe(unidad)}" list="unidadesEMS" autocomplete="off"></td>
+        <td style="white-space:nowrap;display:flex;align-items:center;">
+          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
+          <input type="number" name="precioUnitSec" min="0" step="0.01" value="${safe(punit)}" style="width:100px;" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))">
+        </td>
+        <td style="width:110px"><span class="cot-row-total">${mostrarPrecioLimpio(tot)}</span></td>
+        <td><button type="button" class="btn-mini" onclick="this.closest('tr').remove(); recalcSeccionSubtotal(this.closest('.cot-seccion'))"><i class="fa fa-trash"></i></button></td>
+      </tr>
+    `;
+  }).join('');
+  return `
+    <div class="cot-seccion" data-secid="${id}" data-mode="det">
+      <div class="cot-seccion-head">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="Título de sección (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
+        <div class="cot-sec-actions">
+          <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
+          <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
+        </div>
+      </div>
+      <table class="ems-items-table cot-seccion-table" data-mode="det">
+        <thead>
+          <tr>
+            <th style="width:30%">Concepto</th>
+            <th style="width:80px">Cant.</th>
+            <th style="width:100px">Unidad</th>
+            <th style="width:140px">P. Unitario</th>
+            <th style="width:120px">Total</th>
+            <th style="width:40px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+      </table>
+      <div class="cot-seccion-subtotal"><span>Subtotal sección:</span> <b class="cot-subtotal-val">$0.00</b></div>
+    </div>
+  `;
+}
+
 function editarCotizacion(datos) {
   nuevaCotizacion();
   const form = document.getElementById("cotForm");
@@ -2846,6 +2960,18 @@ function openSettings() {
     </div>
   `;
   document.body.appendChild(overlay);
+  // Añadir control de "Tabla detallada" para cotizaciones
+  try {
+    const body = overlay.querySelector('.ems-settings-body');
+    if (body && !overlay.querySelector('#setCotDet')) {
+      const row = document.createElement('div');
+      row.className = 'ems-form-row';
+      row.innerHTML = `<div class="ems-form-group"><label>Tabla detallada de cotización</label>
+        <label class="ems-switch"><input type="checkbox" id="setCotDet" ${getSettings()?.cotDetallado? 'checked':''}><span class="ems-switch-ui" aria-hidden="true"></span></label>
+      </div>`;
+      body.insertBefore(row, body.firstElementChild?.nextElementSibling || null);
+    }
+  } catch {}
   // Ayudas rápidas (¿?)
   try {
     const addHelpFor = (sel, tip) => {
@@ -2888,6 +3014,7 @@ function openSettings() {
       },
       tc: String(overlay.querySelector('#setTC').value||'').trim()
     };
+    try { next.cotDetallado = !!overlay.querySelector('#setCotDet')?.checked; } catch {}
     saveSettings(next);
     showSaved('Ajustes guardados');
     try { applyThemeFromSettings(); } catch {}
