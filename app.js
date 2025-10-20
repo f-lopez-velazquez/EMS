@@ -787,6 +787,7 @@ async function cargarHistorialEMS(filtro = "") {
 
 // Abrir detalle desde historial (cotización o reporte)
 function abrirDetalleEMS(tipo, numero) {
+try{ window.abrirDetalleEMS = abrirDetalleEMS; }catch(e){}
   try { if (!tipo || !numero) return; } catch (e) { return; }
   try { showSaved('Cargando...'); } catch (e) {}
   const col = (tipo === 'cotizacion') ? 'cotizaciones' : 'reportes';
@@ -1522,6 +1523,7 @@ async function generarPDFReporte(share = false, isPreview = false) {
   showSaved("¡Cotización guardada!");
   renderInicio();
 }
+try{ window.generarPDFReporte = generarPDFReporte; }catch(e){}
 
 async function guardarCotizacionDraft() {
   const form = document.getElementById('cotForm');
@@ -1596,6 +1598,7 @@ async function enviarReporte(e) {
   showSaved('¡Reporte guardado!');
   renderInicio();
 }
+try{ window.enviarReporte = enviarReporte; }catch(e){}
 
 async function guardarReporteDraft() {
   const form = document.getElementById('repForm');
@@ -1620,6 +1623,7 @@ async function guardarReporteDraft() {
   try { await db.collection('reportes').doc(datos.numero || 'BORRADOR').set(reporte); } catch (err) {}
   try { showSaved('Reporte guardado'); } catch (err) {}
 }
+try{ window.guardarReporteDraft = guardarReporteDraft; }catch(e){}
 // ====== Helpers PDF estéticos ======
 function emsRgb(arr = EMS_COLOR) {
   const { rgb } = PDFLib;
