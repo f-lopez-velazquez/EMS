@@ -149,6 +149,16 @@ function showProgress(visible = true, percent = 0, msg = '') {
     mask.innerHTML = '<div class=\'spinner\'>Cargando…</div>';
     document.body.appendChild(mask);
   }
+  // Garantizar overlay limpio y dinámico con puntos y texto
+  try {
+    var _box = mask.querySelector('.ems-busy-box');
+    if (!_box) {
+      mask.innerHTML = "<div class='ems-busy-box'><div class='ems-dots'><span class='ems-dot'></span><span class='ems-dot'></span><span class='ems-dot'></span></div><span class='ems-busy-text' role='status' aria-live='polite'></span></div>";
+      _box = mask.querySelector('.ems-busy-box');
+    }
+    var _txt = mask.querySelector('.ems-busy-text');
+    if (_txt) _txt.textContent = msg || 'Cargando…';
+  } catch (e) {}
   if (visible) { mask.classList.add('show'); } else { mask.classList.remove('show'); }
 }
 
