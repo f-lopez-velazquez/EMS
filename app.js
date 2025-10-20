@@ -1,11 +1,10 @@
-﻿// === INICIALIZACIÓN Y UTILIDADES ===
+// === INICIALIZACIÓN Y UTILIDADES ===
 const EMS_CONTACT = {
   empresa: "ELECTROMOTORES SANTANA",
   direccion: "Carr. a Chichimequillas 306, Colonia Menchaca 2, 76147 Santiago de Querétaro, Qro.",
   telefono: "cel: 442 469 9895; Tel/Fax: 4422208910",
   correo: "electromotores.santana@gmail.com"
 };
-try { window.guardarCotizacionDraft = guardarCotizacionDraft; } catch(e) {}
 const EMS_COLOR = [0.97, 0.54, 0.11]; // rgb(248,138,29) (fallback)
 
 // Ajustes (tema/PDF) persistentes
@@ -14,10 +13,10 @@ function getSettings() {
     const raw = localStorage.getItem('EMS_SETTINGS');
     if (!raw) return {};
     return JSON.parse(raw) || {};
-  } catch (e) { return {}; }
+  } catch { return {}; }
 }
 function saveSettings(conf) {
-  try { localStorage.setItem('EMS_SETTINGS', JSON.stringify(conf||{})); } catch (e) {}
+  try { localStorage.setItem('EMS_SETTINGS', JSON.stringify(conf||{})); } catch {}
 }
 function hexToRgbArray(hex) {
   if (!hex || typeof hex !== 'string') return EMS_COLOR;
@@ -28,14 +27,14 @@ function hexToRgbArray(hex) {
 }
 function getThemeRgbArray() {
   const s = getSettings();
-  const hex = (s && s.themeColor);
+  const hex = s?.themeColor;
   if (hex) return hexToRgbArray(hex);
   return EMS_COLOR;
 }
 
 // Aplicar tema (CSS vars y meta theme-color)
 function setCssVar(name, value) {
-  try { document.documentElement.style.setProperty(name, value); } catch (e) {}
+  try { document.documentElement.style.setProperty(name, value); } catch {}
 }
 function shadeHex(hex, percent) {
   // percent: -1..1 (negro..blanco)
@@ -385,8 +384,7 @@ function validateInput(input, isValid, errorMsg = '') {
 
   // Remover estado previo
   input.classList.remove('error', 'success');
-  const parentEl = input.parentElement;
-  const prevError = parentEl ? parentEl.querySelector('.error-message') : null;
+  const prevError = input.parentElement?.querySelector('.error-message');
   if (prevError) prevError.remove();
 
   if (isValid) {
@@ -399,7 +397,7 @@ function validateInput(input, isValid, errorMsg = '') {
       errorDiv.className = 'error-message';
       errorDiv.innerHTML = `<span>✕</span> ${errorMsg}`;
       errorDiv.setAttribute('role', 'alert');
-      if (parentEl) parentEl.appendChild(errorDiv);
+      input.parentElement?.appendChild(errorDiv);
     }
   }
 }
@@ -562,21 +560,8 @@ async function previsualizarPDFReporte() {
 }
 
 // --- Envoltura de texto por palabras (más estética que por caracteres)
-function pdfSafe(s) {
-  try {
-    if (s == null) return '';
-    let t = String(s);
-    // Reemplaza U+FFFD y normaliza acentos
-    t = t.replace(/\uFFFD/g, '?');
-    if (t.normalize) t = t.normalize('NFKD').replace(/[\u0300-\u036F]/g, '');
-    // Bullets y BEL a guiones
-    t = t.replace(/[•●▪◦]/g, '-').replace(/\u0007/g, '-');
-    // Permitir ASCII, latin-1 y saltos de línea
-    t = t.replace(/[^\x0A\x0D\x20-\x7E\u00A0-\u00FF]/g, '');
-    return t;
-  } catch (e) { return String(s||''); }
-}function wrapTextLines(text = "", font, fontSize, maxWidth) {
-  const words = String(pdfSafe(text) || "").replace(/\s+/g, " ").trim().split(" ");
+function wrapTextLines(text = "", font, fontSize, maxWidth) {
+  const words = String(text || "").replace(/\s+/g, " ").trim().split(" ");
   const lines = [];
   let line = "";
   for (let i = 0; i < words.length; i++) {
@@ -735,10 +720,9 @@ function renderInicio() {
 
 window.onload = () => {
   renderInicio();
-  try { applyThemeFromSettings(); } catch (e) {}
-  try { typeof showOffline === "function" && showOffline(true); } catch (e) {}
-  try { installUndoHandlers(); } catch (e) {}
-  try { observeSettingsPanel(); } catch (e) {}
+  try { applyThemeFromSettings(); } catch {}
+  try { typeof showOffline === "function" && showOffline(true); } catch {}
+  try { installUndoHandlers(); } catch {}
 };
 
 let ASYNC_ERR_GUARD = false;
@@ -752,7 +736,7 @@ async function cargarHistorialEMS(filtro = "") {
   try {
     cotSnap = await db.collection("cotizaciones").orderBy("creada", "desc").limit(20).get();
     repSnap = await db.collection("reportes").orderBy("creada", "desc").limit(20).get();
-  } catch (e) {
+  } catch {
     cont.innerHTML = "<div class='ems-historial-vacio'>No se pudo cargar historial (offline)</div>";
     return;
   }
@@ -784,40 +768,6 @@ async function cargarHistorialEMS(filtro = "") {
       <div class="ems-card-ir"><i class="fa fa-chevron-right"></i></div>
     </div>
   `).join("");
-}
-
-// Abrir detalle desde historial (cotización o reporte)
-function abrirDetalleEMS(tipo, numero) {
-try{ window.abrirDetalleEMS = abrirDetalleEMS; }catch(e){}
-  try { if (!tipo || !numero) return; } catch (e) { return; }
-  try { showSaved('Cargando...'); } catch (e) {}
-  const col = (tipo === 'cotizacion') ? 'cotizaciones' : 'reportes';
-  try {
-    db.collection(col).doc(String(numero)).get().then((doc)=>{
-      if (!doc || !doc.exists) {
-        try { showModal('No se encontró el documento solicitado.', 'warning'); } catch (e) {}
-        return;
-      }
-      const data = doc.data() || {};
-      data.numero = data.numero || String(numero);
-      try {
-        if (tipo === 'cotizacion') {
-          localStorage.setItem('EMS_COT_BORRADOR', JSON.stringify(data));
-          localStorage.removeItem('EMS_REP_BORRADOR');
-          nuevaCotizacion();
-        } else {
-          localStorage.setItem('EMS_REP_BORRADOR', JSON.stringify(data));
-          localStorage.removeItem('EMS_COT_BORRADOR');
-          nuevoReporte();
-        }
-      } catch (e) { console.warn('No se pudo preparar el borrador local', e); }
-    }).catch((e)=>{
-      console.error('Error cargando detalle:', e);
-      try { showModal('Error cargando detalle: ' + (e && e.message ? e.message : e), 'error'); } catch (e2) {}
-    });
-  } catch (e) {
-    console.error('Error inesperado en abrirDetalleEMS:', e);
-  }
 }
 document.addEventListener("input", e => {
   if (e.target && e.target.id === "buscarEMS") {
@@ -948,17 +898,6 @@ function recalcTotalesCotizacion() {
   let subtotal = 0;
   sections.forEach(sec => subtotal += recalcSeccionSubtotal(sec) || 0);
   const form = document.getElementById('cotForm');
-  // Inyecta checkbox de términos si no existe (evita depender del HTML exacto)
-  try {
-    const tituloEl = form.querySelector('input[name="titulo"]');
-    const sup = tituloEl ? tituloEl.closest('.ems-form-group') : null;
-    if (sup && !form.querySelector('input[name="incluyeTerminos"]')) {
-      const g = document.createElement('div');
-      g.className = 'ems-form-group';
-      g.innerHTML = '<label><input type="checkbox" name="incluyeTerminos"> Incluir términos y condiciones</label>';
-      sup.parentNode.insertBefore(g, sup);
-    }
-  } catch (e) {}
   if (!form) return;
   const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
   const iva = incluyeIVA ? subtotal * 0.16 : 0;
@@ -974,7 +913,7 @@ function recalcTotalesCotizacion() {
 // === Fotos de COTIZACIÓN (Cloudinary, máx 5) ===
 async function subirFotosCot(input) {
   if (!input.files || input.files.length === 0) return;
-  const cupo = 5 - ((Array.isArray(fotosCotizacion) ? fotosCotizacion.length : 0));
+  const cupo = 5 - (fotosCotizacion?.length || 0);
   if (cupo <= 0) { showModal("Máximo 5 imágenes permitidas.", "warning"); input.value = ""; return; }
 
   const files = Array.from(input.files).slice(0, cupo);
@@ -1160,21 +1099,9 @@ function nuevaCotizacion() {
       form.anticipoPorc.value = draft.anticipoPorc || "";
     }
     if (Array.isArray(draft.fotos)) fotosCotizacion = [...draft.fotos];
-    // Términos desde borrador o ajustes por defecto
-    try {
-      const s = getSettings();
-      const def = !!(s.pdf && s.pdf.termsDefault);
-      if (form.incluyeTerminos) {
-        form.incluyeTerminos.checked = (draft.incluyeTerminos === 'on') || (draft.incluyeTerminos === true) || (draft.incluyeTerminos === 'true') || (draft.incluyeTerminos === 1) || (draft.incluyeTerminos === '1') || (draft.incluyeTerminos === undefined && def);
-      }
-    } catch (e) {}
   } else {
     // Inicial con una sección
     agregarCotSeccion({ titulo: 'General', items: [{},{}] });
-    try {
-      const s = getSettings();
-      if (form.incluyeTerminos) form.incluyeTerminos.checked = !!(s.pdf && s.pdf.termsDefault);
-    } catch (e) {}
   }
 
   renderCotFotosPreview();
@@ -1183,7 +1110,7 @@ function nuevaCotizacion() {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
-    try { pushUndoCotSnapshot(); } catch (e) {}
+    try { pushUndoCotSnapshot(); } catch {}
   }, 100);
 
   form.onsubmit = async (e) => {
@@ -1194,13 +1121,10 @@ function nuevaCotizacion() {
 
   if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
   window.autoSaveTimer = setInterval(() => {
-    try {
-      if (document.getElementById('cotForm') && typeof guardarCotizacionDraft === 'function') {
-        guardarCotizacionDraft();
-      }
-    } catch (e) {}
+    if (document.getElementById('cotForm')) guardarCotizacionDraft();
   }, 15000);
 
+  // eliminar si ya existe
   setTimeout(() => {
     if(form && form.numero && form.numero.value && !document.getElementById('btnEliminarCot')){
       let btn = document.createElement("button");
@@ -1298,7 +1222,7 @@ async function subirFotoRepItem(input, id) {
   }
   // Re-renderiza la fila
   const tr = document.querySelector(`#repItemsTable tbody tr[data-rowid="${id}"]`);
-  const desc = (tr && tr.querySelector("textarea")) ? tr.querySelector("textarea").value : "";
+  const desc = tr?.querySelector("textarea")?.value || "";
   if (tr) tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
@@ -1310,7 +1234,7 @@ function eliminarFotoRepItem(btn, id, fidx) {
   if (!fotosItemsReporteMap[id]) return;
   fotosItemsReporteMap[id].splice(fidx, 1);
   const tr = btn.closest('tr');
-  const desc = (tr && tr.querySelector("textarea")) ? tr.querySelector("textarea").value : "";
+  const desc = tr?.querySelector("textarea")?.value || "";
   tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
@@ -1400,17 +1324,6 @@ function nuevoReporte() {
     <div class="ems-credit">Programado por: Francisco López Velázquez.</div>
   `;
   const form = document.getElementById('repForm');
-  // Inyecta checkbox de términos en Reporte si no existe
-  try {
-    const notasEl = form.querySelector('textarea[name="notas"]');
-    const notas = notasEl ? notasEl.closest('.ems-form-group') : null;
-    if (notas && !form.querySelector('input[name="incluyeTerminos"]')) {
-      const g = document.createElement('div');
-      g.className = 'ems-form-group';
-      g.innerHTML = '<label><input type="checkbox" name="incluyeTerminos"> Incluir términos y condiciones</label>';
-      notas.parentNode.insertBefore(g, notas);
-    }
-  } catch (e) {}
   let draft = localStorage.getItem('EMS_REP_BORRADOR');
   if (draft) {
     draft = JSON.parse(draft);
@@ -1429,19 +1342,11 @@ function nuevoReporte() {
   } else {
     agregarRepItemRow();
   }
-  // Default de términos desde ajustes si no hay borrador
-  try {
-    const s = getSettings();
-    if (form.incluyeTerminos && (!draft || draft.incluyeTerminos === undefined)) form.incluyeTerminos.checked = !!(s.pdf && s.pdf.termsDefault);
-    if (draft && form.incluyeTerminos) {
-      form.incluyeTerminos.checked = (draft.incluyeTerminos === 'on') || (draft.incluyeTerminos === true) || (draft.incluyeTerminos === 'true') || (draft.incluyeTerminos === 1) || (draft.incluyeTerminos === '1');
-    }
-  } catch (e) {}
   setTimeout(() => {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
-    try { pushUndoRepSnapshot(); } catch (e) {}
+    try { pushUndoRepSnapshot(); } catch {}
   }, 100);
   form.onsubmit = async (e) => {
     e.preventDefault();
@@ -1470,31 +1375,31 @@ function nuevoReporte() {
 
 // ========== GUARDADO, PDF, EDICIÓN, DETALLE ==========
 async function enviarCotizacion(e) {
-  if (e && e.preventDefault) e.preventDefault();
-  showSaved('Guardando...');
+  e.preventDefault();
+  showSaved("Guardando...");
   const form = document.getElementById('cotForm');
-  if (!form) { showModal('No hay formulario de cotización activo.', 'error'); return; }
   const datos = Object.fromEntries(new FormData(form));
+  // Tomar secciones
   const secciones = [];
   document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
-    const tituloEl = sec.querySelector('input[name="sec_titulo"]');
-    const titulo = tituloEl ? tituloEl.value.trim() : '';
+    const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
     const items = [];
-    sec.querySelectorAll('tbody tr').forEach(tr => {
-      const concepto = (tr.querySelector('input[name="concepto"]')||{}).value || '';
-      const descripcion = (tr.querySelector('textarea[name="descripcion"]')||{}).value || '';
-      const precio = Number((tr.querySelector('input[name="precioSec"]')||{}).value||0);
+    sec.querySelectorAll('tbody tr').forEach(tr=>{
+      const concepto = tr.querySelector('input[name="concepto"]').value;
+      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
+      const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
       if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
     });
     if (titulo || items.length) secciones.push({ titulo, items });
   });
   if (!datos.numero || !datos.cliente || !secciones.length) {
-    showSaved('Faltan datos');
-    showModal('Por favor completa número, cliente y al menos una sección.', 'warning');
+    showSaved("Faltan datos");
+    showModal("Por favor completa todos los campos requeridos: número, cliente y al menos una sección.", "warning");
     return;
   }
-  try { savePredictEMSCloud('cliente', datos.cliente); } catch (e) {}
-  try { secciones.forEach(sec => (sec.items||[]).forEach(it => { savePredictEMSCloud('concepto', it.concepto); })); } catch (e) {}
+  savePredictEMSCloud("cliente", datos.cliente);
+  secciones.forEach(sec => (sec.items||[]).forEach(it => { savePredictEMSCloud("concepto", it.concepto); }));
+  // Cálculos
   const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (Number(it.precio)||0),0), 0);
   const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
   const iva = incluyeIVA ? subtotal*0.16 : 0;
@@ -1502,62 +1407,1123 @@ async function enviarCotizacion(e) {
   const cotizacion = {
     ...datos,
     secciones,
-    subtotal, iva, total,
-    fotos: (Array.isArray(fotosCotizacion)?fotosCotizacion:[]).slice(0,5),
+    subtotal,
+    iva,
+    total,
+    fotos: fotosCotizacion.slice(0,5),
     tipo: 'cotizacion',
     fecha: datos.fecha,
     hora: datos.hora || ahora(),
     creada: new Date().toISOString()
   };
   if (!navigator.onLine) {
-    showModal('Sin conexión a Internet. Los datos se guardarán localmente. Intenta guardar cuando tengas conexión.', 'warning');
-    showSaved('Offline');
+    showModal("Sin conexión a Internet. Los datos se guardarán localmente. Intenta guardar cuando tengas conexión.", "warning");
+    showSaved("Offline");
     return;
   }
-  await db.collection('cotizaciones').doc(datos.numero).set(cotizacion);
-  try { localStorage.removeItem('EMS_COT_BORRADOR'); } catch (e) {}
-  showSaved('¡Cotización guardada!');
+  await db.collection("cotizaciones").doc(datos.numero).set(cotizacion);
+  localStorage.removeItem('EMS_COT_BORRADOR');
+  showSaved("¡Cotización guardada!");
   renderInicio();
 }
-try{ window.enviarCotizacion = enviarCotizacion; }catch(e){}
-// Guardar borrador de cotización (LocalStorage + Firestore BORRADOR)
-function guardarCotizacionDraft() {
+
+async function guardarCotizacionDraft() {
   const form = document.getElementById('cotForm');
   if (!form) return;
   const datos = Object.fromEntries(new FormData(form));
   const secciones = [];
   document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
-    const tituloEl = sec.querySelector('input[name=\"sec_titulo\"]');
-    const titulo = tituloEl ? tituloEl.value.trim() : '';
+    const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
     const items = [];
     sec.querySelectorAll('tbody tr').forEach(tr=>{
-      const concepto = (tr.querySelector('input[name=\"concepto\"]')||{}).value || '';
-      const descripcion = (tr.querySelector('textarea[name=\"descripcion\"]')||{}).value || '';
-      const precio = Number((tr.querySelector('input[name=\"precioSec\"]')||{}).value||0);
+      const concepto = tr.querySelector('input[name="concepto"]').value;
+      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
+      const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
       if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
     });
     if (titulo || items.length) secciones.push({ titulo, items });
   });
   const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (Number(it.precio)||0),0), 0);
-  const incluyeIVA = (datos.incluyeIVA === 'on') || (form.incluyeIVA && form.incluyeIVA.checked);
+  const incluyeIVA = datos.incluyeIVA === 'on';
   const iva = incluyeIVA ? subtotal*0.16 : 0;
   const total = subtotal + iva;
   const cotizacion = {
     ...datos,
     secciones,
     subtotal, iva, total,
-    fotos: (Array.isArray(fotosCotizacion)?fotosCotizacion:[]).slice(0,5),
+    fotos: fotosCotizacion.slice(0,5),
     tipo: 'cotizacion',
     fecha: datos.fecha,
     hora: datos.hora || ahora(),
     creada: new Date().toISOString()
   };
-  try { localStorage.setItem('EMS_COT_BORRADOR', JSON.stringify(cotizacion)); } catch(e) {}
-  try { db.collection('cotizaciones').doc(datos.numero || 'BORRADOR').set(cotizacion); } catch(e) {}
-  try { showSaved('Cotización guardada'); } catch(e) {}
+  await db.collection("cotizaciones").doc(datos.numero || "BORRADOR").set(cotizacion);
+  localStorage.setItem('EMS_COT_BORRADOR', JSON.stringify(cotizacion));
+  showSaved("Cotización guardada");
 }
 
-try{ window.guardarCotizacionDraft = guardarCotizacionDraft; }catch(e){}
+// ====== Helpers PDF estéticos ======
+function emsRgb(arr = EMS_COLOR) {
+  const { rgb } = PDFLib;
+  const theme = Array.isArray(arr) ? arr : getThemeRgbArray();
+  return rgb(theme[0], theme[1], theme[2]);
+}
+function gray(v) {
+  const { rgb } = PDFLib;
+  return rgb(v, v, v);
+}
+function drawTextRight(page, text, xRight, y, opts) {
+  const width = opts.font.widthOfTextAtSize(text, opts.size);
+  page.drawText(text, { x: xRight - width, y, ...opts });
+}
+function rule(page, x1, y, x2, color = gray(0.85), thickness = 0.6) {
+  page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, thickness, color });
+}
+function drawSectionTitle(page, x, y, text, fonts, opts = {}) {
+  const gap = opts.titleGap ?? 10; // gap extra bajo el título
+  if (!opts.dryRun) page.drawRectangle({ x, y: y - 10, width: 4, height: 14, color: emsRgb(), opacity: 0.9 });
+  if (!opts.dryRun) page.drawText(String(text || "").toUpperCase(), { x: x + 10, y: y - 6, size: 11.5, font: fonts.bold, color: gray(0.18) });
+  return y - 20 - gap;
+}
+
+// === Compactación global (menos blanco) ===
+const FOOTER_SAFE = 70;              // zona reservada inferior (pie de página)
+const TOP_PAD_NO_HEADER = 6;        // respiro arriba cuando NO hay encabezado
+const WATERMARK_W = 220, WATERMARK_H = 220, WATERMARK_OP = 0.04;
+
+// --- Banda de sección (mejora de contraste y asociación) con reserva anti-solape
+function drawSectionBand(pdfDoc, ctx, label, { continuation = false, preservePageStart = false } = {}) {
+  const { fonts, dims } = ctx;
+  const bandH = 26;
+  ensureSpace(pdfDoc, ctx, bandH + 6); // un poco más compacto
+  const page = ctx.pages[ctx.pages.length - 1];
+  page.drawRectangle({
+    x: dims.mx,
+    y: ctx.y - bandH + 6,
+    width: dims.usableW,
+    height: bandH,
+    color: emsRgb(),
+    opacity: 0.10,
+    borderColor: emsRgb(),
+    borderWidth: 0.8
+  });
+  const txt = continuation ? `${label} — continuación` : label;
+  page.drawText(String(txt).toUpperCase(), {
+    x: dims.mx + 10,
+    y: ctx.y - bandH + 12,
+    size: 11.5,
+    font: fonts.bold,
+    color: emsRgb()
+  });
+  ctx.y -= bandH + 8; // gap más corto
+  if (!preservePageStart) ctx._atPageStart = false;
+  ctx.state.prevBlock = "section-band";
+}
+
+// --- Logo embebido (caché por documento)
+async function getLogoImage(pdfDoc) {
+  if (!pdfDoc.__EMS_LOGO_IMG_TRIED) {
+    pdfDoc.__EMS_LOGO_IMG_TRIED = true;
+    try {
+      const bytes = await fetch(LOGO_URL, { mode: 'cors' }).then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.arrayBuffer();
+      });
+      try { pdfDoc.__EMS_LOGO_IMG = await pdfDoc.embedPng(bytes); }
+      catch { pdfDoc.__EMS_LOGO_IMG = await pdfDoc.embedJpg(bytes); }
+    } catch (e) {
+      console.warn('No se pudo cargar el logo para watermark/header:', e);
+      pdfDoc.__EMS_LOGO_IMG = null; // seguimos sin logo
+    }
+  }
+  return pdfDoc.__EMS_LOGO_IMG;
+}
+
+// Header con logo (solo se usa en PRIMERA página)
+function addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, isFirst = false, logoImg = null, opts = {}) {
+  const { pageW, mx } = dims;
+  let yTop = dims.pageH - dims.my;
+
+  if (!opts.dryRun && logoImg) {
+    page.drawImage(logoImg, { x: mx, y: yTop - 46, width: 46, height: 46 });
+  }
+
+  if (!opts.dryRun) {
+    page.drawText(EMS_CONTACT.empresa, { x: mx + 64, y: yTop - 4, size: 16.5, font: fonts.bold, color: gray(0.18) });
+    page.drawText(typeLabel, { x: mx + 64, y: yTop - 22, size: 12, font: fonts.bold, color: emsRgb() });
+
+    page.drawText(`Cliente: ${datos.cliente || ""}`, { x: mx + 64, y: yTop - 38, size: 10.5, font: fonts.reg, color: gray(0.25) });
+    drawTextRight(page, `No: ${datos.numero || ""}`, pageW - mx, yTop - 4, { size: 10.5, font: fonts.bold, color: gray(0.25) });
+    drawTextRight(page, `Fecha: ${datos.fecha || ""}${datos.hora ? " • " + datos.hora : ""}`, pageW - mx, yTop - 22, { size: 10.5, font: fonts.bold, color: gray(0.25) });
+
+    rule(page, mx, yTop - 48, pageW - mx, gray(0.85), 0.8);
+  }
+  return yTop - 58;
+}
+
+// Pie de página en TODAS las páginas
+function applyFooters(pdfDoc, pages, fonts, dims) {
+  const total = pages.length;
+  for (let i = 0; i < total; i++) {
+    const page = pages[i];
+    const y = 56;
+    rule(page, dims.mx, y + 14, dims.pageW - dims.mx, gray(0.85), 0.8);
+    page.drawText(`${EMS_CONTACT.empresa}  •  ${EMS_CONTACT.direccion}`, { x: dims.mx + 8, y: y + 2, size: 9.2, font: fonts.reg, color: gray(0.25) });
+    page.drawText(`Tel: ${EMS_CONTACT.telefono}  •  ${EMS_CONTACT.correo}`, { x: dims.mx + 8, y: y - 11, size: 9.2, font: fonts.reg, color: gray(0.25) });
+    drawTextRight(page, `Página ${i + 1} de ${total}`, dims.pageW - dims.mx, y - 11, { size: 9.2, font: fonts.bold, color: gray(0.45) });
+    try {
+      const s = getSettings();
+      if (s.showCredit !== false) {
+        page.drawText('Programado por: Francisco López Velázquez.', { x: dims.mx + 8, y: y - 24, size: 8.8, font: fonts.reg, color: gray(0.55) });
+      }
+    } catch {}
+  }
+}
+
+async function embedSmart(pdfDoc, url) {
+  try {
+    // 1) Intento rápido: comprimir a JPEG y embeber
+    const jpegBytes = await compressImageToJpegArrayBuffer(url, PDF_IMG_DEFAULTS);
+    return await pdfDoc.embedJpg(jpegBytes);
+  } catch (err) {
+    // 2) Fallback: descargar tal cual y probar JPG/PNG
+    try {
+      const orig = await fetch(url, { mode: 'cors' }).then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.arrayBuffer();
+      });
+      try { return await pdfDoc.embedJpg(orig); } catch { return await pdfDoc.embedPng(orig); }
+    } catch {
+      // 3) Si todo falla (403/CORS), devolvemos null para que el flujo siga sin imagen
+      return null;
+    }
+  }
+}
+
+// === Watermark tenue
+function drawWatermark(page, dims, logoImg, op = WATERMARK_OP) {
+  try { page.drawImage(logoImg, { x: (dims.pageW - WATERMARK_W) / 2, y: (dims.pageH - WATERMARK_H) / 2, width: WATERMARK_W, height: WATERMARK_H, opacity: op }); } catch {}
+}
+
+// === Control de salto de página (sin encabezado en páginas siguientes)
+function ensureSpace(pdfDoc, ctx, needed) {
+  const { dims, logoImg, opts } = ctx;
+  const bottomSafe = FOOTER_SAFE; // más compacto
+  if (ctx.y - needed < bottomSafe) {
+    const page = pdfDoc.addPage([dims.pageW, dims.pageH]);
+    ctx.pages.push(page);
+    if (!opts.dryRun && logoImg) drawWatermark(page, dims, logoImg, WATERMARK_OP);
+    // Arranque de página SIN encabezado: casi al tope
+    ctx.y = dims.pageH - dims.my - TOP_PAD_NO_HEADER;
+    ctx._atPageStart = true;
+    ctx.state.prevBlock = "page-start";
+    if (ctx.state.inGallery && ctx.state.currentSection) {
+      drawSectionBand(pdfDoc, ctx, ctx.state.currentSection, { continuation: true, preservePageStart: true });
+      ctx._atPageStart = true;
+    }
+  }
+}
+
+// --- Card de texto con etiqueta tipo “píldora” (con reserva para primera fila de fotos)
+function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10, reserveBelow = 0 }) {
+  const { dims, fonts, opts } = ctx;
+  if (ctx.state.prevBlock === "section-band") ctx.y -= 2;
+
+  const page = ctx.pages[ctx.pages.length - 1];
+  const labelTxt = String(label || "").toUpperCase();
+  const bodyTxt  = String(text || "").trim();
+  const lines = wrapTextLines(bodyTxt, fonts.reg, fontSize, dims.usableW - 2*pad);
+  const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2*pad);
+  const cardSelfHeight = 22 + 6 + bodyH + (opts.cardGap || 8);
+  const needed = cardSelfHeight + (reserveBelow || 0);
+
+  ensureSpace(pdfDoc, ctx, needed);
+
+  const pillW = Math.min(dims.usableW, fonts.bold.widthOfTextAtSize(labelTxt, 10.5) + 14);
+  if (!opts.dryRun) {
+    page.drawRectangle({ x: dims.mx, y: ctx.y - 18, width: pillW, height: 18, color: emsRgb(), opacity: 0.95 });
+    page.drawText(labelTxt, { x: dims.mx + 7, y: ctx.y - 14, size: 10.5, font: fonts.bold, color: PDFLib.rgb(1,1,1) });
+
+    const topBodyY = ctx.y - 18 - 5;
+    page.drawRectangle({ x: dims.mx, y: topBodyY - bodyH, width: dims.usableW, height: bodyH, color: gray(0.985), borderColor: gray(0.90), borderWidth: 0.8 });
+    let y = topBodyY - pad - fontSize;
+    lines.forEach(ln => {
+      page.drawText(ln, { x: dims.mx + pad, y, size: fontSize, font: fonts.reg, color: gray(0.18) });
+      y -= (fontSize + 3);
+    });
+  }
+
+  const topBodyY = ctx.y - 18 - 5;
+  const endY = topBodyY - bodyH + (-(opts.cardGap || 8));
+  ctx.y = endY;
+  ctx._atPageStart = false;
+  ctx.state.prevBlock = "card";
+}
+
+// ====== OBSERVACIONES EN LISTA ======
+function parseObservaciones(raw) {
+  let t = String(raw || "").trim();
+  if (!t) return [];
+  t = t.replace(/\r\n/g, "\n")
+       .replace(/[;•]/g, "\n")
+       .replace(/\n{2,}/g, "\n")
+       .replace(/\t/g, " ");
+  const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
+  const items = [];
+  for (let ln of lines) {
+    ln = ln.replace(/^\s*[-*•]\s+/, "")
+           .replace(/^\s*\d+[\.\)]\s+/, "");
+    if (ln) items.push(ln);
+  }
+  return items;
+}
+function drawBulletList(pdfDoc, ctx, items, { bullet = "•", fontSize = 10, lineGap = 4, leftPad = 8, bulletGap = 6 } = {}) {
+  const { dims, fonts, opts } = ctx;
+  const xBullet = dims.mx + leftPad;
+  const xText = xBullet + bulletGap + 6;
+  const maxW = dims.usableW - (xText - dims.mx) - leftPad;
+
+  for (const it of items) {
+    const lines = wrapTextLines(it, fonts.reg, fontSize, maxW);
+    const needed = (lines.length * (fontSize + lineGap)) + 2 + (opts.blockGap || 6);
+    ensureSpace(pdfDoc, ctx, needed);
+
+    if (!opts.dryRun) {
+      ctx.pages[ctx.pages.length - 1].drawText(bullet, {
+        x: xBullet,
+        y: ctx.y - fontSize,
+        size: fontSize,
+        font: fonts.bold,
+        color: gray(0.25)
+      });
+
+      let y = ctx.y - fontSize;
+      lines.forEach((ln) => {
+        ctx.pages[ctx.pages.length - 1].drawText(ln, { x: xText, y, size: fontSize, font: fonts.reg, color: gray(0.28) });
+        y -= (fontSize + lineGap);
+      });
+    }
+
+    ctx.y -= (lines.length * (fontSize + lineGap)) + (opts.blockGap || 6);
+  }
+  ctx._atPageStart = false;
+  ctx.state.prevBlock = "list";
+}
+
+// --- Utilidades de galería ---
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function availablePageHeight(ctx) {
+  // altura real libre hasta el footer seguro (más compacto)
+  return ctx.y - FOOTER_SAFE;
+}
+
+// Dibuja una sola imagen (centrada)
+async function drawSingleImageBlock(pdfDoc, ctx, url, { maxWFactor = 0.92, maxH = 300, pad = 6 } = {}) {
+  const { dims, opts } = ctx;
+  const img = await embedSmart(pdfDoc, url);
+  if (!img) return;
+  const maxW = Math.floor(dims.usableW * maxWFactor);
+  let w = img.width, h = img.height;
+  const scale = Math.min(maxW / w, maxH / h, 1);
+  w = Math.round(w * scale); h = Math.round(h * scale);
+
+  const needed = h + pad * 2 + (opts.blockGap || 6);
+  ensureSpace(pdfDoc, ctx, needed);
+
+  if (!opts.dryRun) {
+    const p = ctx.pages[ctx.pages.length - 1];
+    p.drawRectangle({ x: dims.mx, y: ctx.y - (h + pad * 2), width: dims.usableW, height: h + pad * 2, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
+    const x = dims.mx + (dims.usableW - w) / 2;
+    const y = ctx.y - pad - h;
+    p.drawImage(img, { x, y, width: w, height: h });
+  }
+  ctx.y -= (h + pad * 2 + (opts.blockGap || 6));
+  ctx._atPageStart = false;
+  ctx.state.prevBlock = "image";
+}
+
+// == Grid 2x2 inteligente (garantiza 4 por página al inicio) ==
+async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 8, pad = 6, vGap = 8 } = {}) {
+  const { dims, opts } = ctx;
+
+  const emb1 = [], emb2 = [];
+  for (const u of row1Imgs) { const e = await embedSmart(pdfDoc, u); if (e) emb1.push({img:e, r:e.width/e.height}); }
+  for (const u of row2Imgs) { const e = await embedSmart(pdfDoc, u); if (e) emb2.push({img:e, r:e.width/e.height}); }
+  if (emb1.length + emb2.length === 0) return;
+
+  const sumR1 = emb1.reduce((a,b)=>a+b.r,0) || 1;
+  const sumR2 = emb2.reduce((a,b)=>a+b.r,0) || 1;
+
+  let h1 = Math.floor((dims.usableW - gutter*(emb1.length-1)) / sumR1);
+  let h2 = Math.floor((dims.usableW - gutter*(emb2.length-1)) / sumR2);
+
+  const boxH = pad*2 + h1 + vGap + h2 + pad*2 + (opts.blockGap || 6);
+  let avail = availablePageHeight(ctx) - 8;
+  if (boxH > avail) {
+    const s = (avail) / boxH;
+    h1 = Math.floor(h1 * s);
+    h2 = Math.floor(h2 * s);
+  }
+
+  const needed = pad*2 + h1 + vGap + h2 + pad*2 + (opts.blockGap || 6);
+  ensureSpace(pdfDoc, ctx, needed);
+
+  if (!opts.dryRun) {
+    const p = ctx.pages[ctx.pages.length - 1];
+    const topY = ctx.y;
+
+    // fila 1
+    let x = dims.mx + Math.round((dims.usableW - (emb1.reduce((a,b)=>a+Math.round(b.r*h1),0) + gutter*(emb1.length-1)))/2);
+    let y = topY - pad - h1;
+    for (let i=0;i<emb1.length;i++) {
+      const w = Math.round(emb1[i].r*h1);
+      p.drawImage(emb1[i].img, { x, y, width: w, height: h1 });
+      x += w + gutter;
+    }
+
+    // fila 2
+    x = dims.mx + Math.round((dims.usableW - (emb2.reduce((a,b)=>a+Math.round(b.r*h2),0) + gutter*(emb2.length-1)))/2);
+    y = topY - pad - h1 - vGap - h2;
+    for (let i=0;i<emb2.length;i++) {
+      const w = Math.round(emb2[i].r*h2);
+      p.drawImage(emb2[i].img, { x, y, width: w, height: h2 });
+      x += w + gutter;
+    }
+
+    // marco sutil de bloque
+    p.drawRectangle({
+      x: dims.mx,
+      y: topY - (pad*2 + h1 + vGap + h2),
+      width: dims.usableW,
+      height: pad*2 + h1 + vGap + h2,
+      color: gray(0.99),
+      borderColor: gray(0.90),
+      borderWidth: 0.6
+    });
+  }
+
+  ctx.y -= (pad*2 + h1 + vGap + h2 + (opts.blockGap || 6));
+  ctx._atPageStart = false;
+  ctx.state.prevBlock = "grid2x2";
+}
+
+// Dibuja dos imágenes lado a lado
+async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 8, rowPad = 5, targetH = 210, maxH = 230 } = {}) {
+  const { dims, opts } = ctx;
+  const imgs = [];
+  for (const u of urls) {
+    const img = await embedSmart(pdfDoc, u);
+    if (img) imgs.push({ img, r: img.width / img.height });
+  }
+  if (imgs.length === 0) return;
+  if (imgs.length === 1) return drawSingleImageBlock(pdfDoc, ctx, urls[0], { maxH });
+
+  let rowH = clamp(targetH, 160, maxH);
+  const sumR = imgs[0].r + imgs[1].r;
+  rowH = Math.min(rowH, Math.floor((dims.usableW - gutter) / sumR));
+
+  const needed = rowPad * 2 + rowH + (opts.blockGap || 6);
+  ensureSpace(pdfDoc, ctx, needed);
+
+  if (!opts.dryRun) {
+    const p = ctx.pages[ctx.pages.length - 1];
+    const topY = ctx.y;
+    p.drawRectangle({ x: dims.mx, y: topY - (rowPad * 2 + rowH), width: dims.usableW, height: rowPad * 2 + rowH, color: gray(0.99), borderColor: gray(0.90), borderWidth: 0.6 });
+
+    const w1 = Math.round(imgs[0].r * rowH);
+    const w2 = Math.round(imgs[1].r * rowH);
+    let startX = dims.mx + Math.round((dims.usableW - (w1 + w2 + gutter)) / 2);
+    const y = topY - rowPad - rowH;
+    p.drawImage(imgs[0].img, { x: startX, y, width: w1, height: rowH });
+    p.drawImage(imgs[1].img, { x: startX + w1 + gutter, y, width: w2, height: rowH });
+  }
+
+  ctx.y -= (rowPad * 2 + rowH + (opts.blockGap || 6));
+  ctx._atPageStart = false;
+  ctx.state.prevBlock = "row2";
+}
+
+/**
+ * Galería "packed" profesional (más compacta):
+ * - En inicio de página usa grid 2×2 para asegurar 4 fotos por hoja.
+ * - Evita filas de 1 imagen (funde con la siguiente).
+ * - Ajusta dinámicamente la altura objetivo a lo disponible.
+ * - Última fila centrada sin estirar de más.
+ * - Marca continuidad de sección cuando salta de página.
+ */
+async function drawSmartGallery(
+  pdfDoc,
+  ctx,
+  images,
+  {
+    title = null,
+    captions = false,
+    baseTargetRowH = 200,
+    minRowH = 160,
+    maxRowH = 235,
+    minImgW = 150,
+    gutter = 8,
+    rowPad = 5,
+  } = {}
+) {
+  const { dims, fonts, opts } = ctx;
+  const page = () => ctx.pages[ctx.pages.length - 1];
+
+  if (!Array.isArray(images) || images.length === 0) return;
+
+  // Título opcional
+  if (title) {
+    ensureSpace(pdfDoc, ctx, 24 + (opts.titleGap ?? 8));
+    ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts, { titleGap: opts.titleGap ?? 8, dryRun: opts.dryRun });
+    ctx._atPageStart = false;
+    ctx.state.prevBlock = "title";
+  }
+
+  // Pre-embed ratios
+  const emb = [];
+  for (const url of images) {
+    const img = await embedSmart(pdfDoc, url);
+    if (!img) continue;
+    emb.push({ img, r: img.width / img.height });
+  }
+  if (emb.length === 0) return;
+
+  let i = 0;
+  let figCounter = 1;
+  ctx.state.inGallery = true;
+
+  while (i < emb.length) {
+    // Si estamos al inicio de página y hay >= 4 imágenes, aplicar grid 2x2
+    if (ctx._atPageStart && (emb.length - i) >= 4) {
+      await drawFourUpGrid(pdfDoc, ctx,
+        [images[i], images[i+1]],
+        [images[i+2], images[i+3]],
+        { gutter: 8, pad: 6, vGap: 8 }
+      );
+      i += 4;
+      continue;
+    }
+
+    // Altura objetivo dinámica para llenado eficiente
+    const dynamicTarget = clamp(Math.floor(availablePageHeight(ctx) / 2) - 10, minRowH, maxRowH);
+    const targetRowH = clamp(dynamicTarget || baseTargetRowH, minRowH, maxRowH);
+
+    // Construcción de fila evitando 1 sola imagen
+    let row = [];
+    let sumRatios = 0;
+
+    while (i < emb.length) {
+      row.push(emb[i]);
+      sumRatios += emb[i].r;
+      const widthAtTarget = Math.round(sumRatios * targetRowH) + gutter * (row.length - 1);
+
+      const minWidthAtTarget = Math.min(...row.map(o => o.r * targetRowH));
+      if (minWidthAtTarget < minImgW && row.length > 1) {
+        row.pop(); sumRatios -= emb[i].r; break;
+      }
+      if (widthAtTarget >= dims.usableW) break;
+      i++;
+    }
+    if (row.length > 0 && emb[i] === row[row.length - 1]) i++;
+
+    // Si quedó una sola imagen y aún hay más disponibles, forzar pareja
+    if (row.length === 1 && i < emb.length) {
+      row.push(emb[i]); sumRatios += emb[i].r; i++;
+    }
+
+    // altura final de fila
+    let rowH = (dims.usableW - gutter * (row.length - 1)) / sumRatios;
+    rowH = clamp(rowH, minRowH, maxRowH);
+
+    // Asegurar que cabe en la página
+    const boxH = rowPad * 2 + rowH + (captions ? 16 : 0) + (opts.blockGap || 6);
+    ensureSpace(pdfDoc, ctx, boxH);
+
+    if (!opts.dryRun) {
+      const p = page();
+      const topY = ctx.y;
+
+      p.drawRectangle({
+        x: dims.mx,
+        y: topY - (rowPad * 2 + rowH + (captions ? 16 : 0)),
+        width: dims.usableW,
+        height: rowPad * 2 + rowH + (captions ? 16 : 0),
+        color: gray(0.99),
+        borderColor: gray(0.90),
+        borderWidth: 0.6
+      });
+
+      let widths = row.map(o => Math.round(o.r * rowH));
+      let totalRowWidth = widths.reduce((a, b) => a + b, 0) + gutter * (row.length - 1);
+
+      // reajuste fino
+      while (totalRowWidth > dims.usableW && rowH > minRowH) {
+        rowH -= 1;
+        widths = row.map(o => Math.round(o.r * rowH));
+        totalRowWidth = widths.reduce((a, b) => a + b, 0) + gutter * (row.length - 1);
+      }
+
+      let startX = dims.mx + Math.round((dims.usableW - totalRowWidth) / 2);
+      let x = startX;
+      const iy = topY - rowPad - rowH;
+      for (let k = 0; k < row.length; k++) {
+        p.drawImage(row[k].img, { x, y: iy, width: widths[k], height: rowH });
+        if (captions) {
+          p.drawText(`Figura ${figCounter}`, { x, y: iy - 12, size: 9.2, font: fonts.reg, color: gray(0.45) });
+        }
+        figCounter++;
+        x += widths[k] + gutter;
+      }
+    }
+
+    ctx.y -= (rowPad * 2 + rowH + (captions ? 16 : 0) + (opts.blockGap || 6));
+    ctx._atPageStart = false;
+    ctx.state.prevBlock = "galleryRow";
+  }
+
+  ctx.state.inGallery = false;
+}
+
+// ====== COTIZACIÓN: PDF ======
+async function generarPDFCotizacion(share = false, isPreview = false) {
+  // Configuración de calidad según modo
+  const imgQuality = isPreview
+    ? { maxW: 640, maxH: 640, quality: 0.5 } // Baja calidad para preview rápido
+    : PDF_IMG_DEFAULTS; // Alta calidad para PDF final
+
+  showSaved(isPreview ? "Generando vista previa..." : "Generando PDF...");
+  if (!isPreview) await guardarCotizacionDraft();
+
+  const form = document.getElementById('cotForm');
+  const datos = Object.fromEntries(new FormData(form));
+  // Secciones
+  const secciones = [];
+  form.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
+    const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
+    const items = [];
+    sec.querySelectorAll('tbody tr').forEach(tr => {
+      const concepto = tr.querySelector('input[name="concepto"]').value;
+      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
+      const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
+      if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
+    });
+    if (titulo || items.length) secciones.push({ titulo, items });
+  });
+
+  let subtotal = secciones.reduce((acc, sec)=> acc + (sec.items||[]).reduce((a,it)=> a + (Number(it.precio)||0), 0), 0);
+  const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
+  const iva = incluyeIVA ? subtotal * 0.16 : 0;
+  const total = subtotal + iva;
+
+  const { PDFDocument, rgb, StandardFonts } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
+  dims.usableW = dims.pageW - dims.mx * 2;
+
+  const fonts = { reg: helv, bold: helvB };
+  const logoImg = await getLogoImage(pdfDoc);
+
+  const ctx = { 
+    pages: [], y: 0, dims, fonts, datos, 
+    typeLabel: "COTIZACIÓN", logoImg, _atPageStart: true,
+    opts: { dryRun: false, titleGap: 8, cardGap: 8, blockGap: 6 },
+    state: { prevBlock: 'start', inGallery: false, currentSection: null }
+  };
+
+  const first = pdfDoc.addPage([dims.pageW, dims.pageH]);
+  ctx.pages.push(first);
+  drawWatermark(first, dims, logoImg, WATERMARK_OP);
+  ctx.y = addHeader(pdfDoc, first, ctx.typeLabel, datos, fonts, dims, true, logoImg);
+  ctx._atPageStart = true;
+
+  // SUPERTÍTULO (opcional)
+  if ((datos.titulo || "").trim()) {
+    const titulo = datos.titulo.trim();
+    const rectH = 32;
+    first.drawRectangle({ x: dims.mx, y: ctx.y - rectH + 10, width: dims.usableW, height: rectH, color: emsRgb(), opacity: 0.08, borderColor: emsRgb(), borderWidth: 1 });
+    const w = helvB.widthOfTextAtSize(titulo, 15);
+    first.drawText(titulo, { x: dims.mx + (dims.usableW - w) / 2, y: ctx.y - rectH / 2 + 12, size: 15, font: helvB, color: emsRgb() });
+    ctx.y -= rectH + 14;
+    ctx._atPageStart = false;
+  } else {
+    ctx.y -= 6;
+  }
+
+  const currentPage = () => ctx.pages[ctx.pages.length - 1];
+  for (let s = 0; s < secciones.length; s++) {
+    const sec = secciones[s];
+    // Banda de sección
+    drawSectionBand(pdfDoc, ctx, sec.titulo || `Sección ${s+1}`);
+    // Encabezado de tabla
+    ensureSpace(pdfDoc, ctx, 24);
+    const pT = currentPage();
+    const thY = ctx.y;
+    pT.drawRectangle({ x: dims.mx, y: thY - 18, width: dims.usableW, height: 20, color: emsRgb(), opacity: 0.98 });
+    pT.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+    pT.drawText("Descripción", { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+    pT.drawText("Precio", { x: dims.mx + dims.usableW - 120, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+    ctx.y = thY - 24;
+    let subSec = 0;
+    (sec.items||[]).forEach((it, idx) => {
+      ensureSpace(pdfDoc, ctx, 22);
+      const p = currentPage();
+      if (idx % 2 === 0) {
+        p.drawRectangle({ x: dims.mx, y: ctx.y - 2, width: dims.usableW, height: 18, color: rgb(0.98,0.91,0.75), opacity: 0.16 });
+      }
+      p.drawText(String(it.concepto||""), { x: dims.mx + 6, y: ctx.y, size: 10, font: helv, color: gray(0.24) });
+      const maxW = dims.usableW - 120 - (180 - 6);
+      const lines = wrapTextLines(String(it.descripcion||""), helv, 10, maxW);
+      let yy = ctx.y;
+      lines.slice(0,3).forEach((ln)=>{
+        p.drawText(ln, { x: dims.mx + 180, y: yy, size: 10, font: helv, color: gray(0.28) });
+        yy -= 12;
+      });
+      drawTextRight(p, mostrarPrecioLimpio(it.precio), dims.mx + dims.usableW - 6, ctx.y, { size: 10, font: helv, color: gray(0.24) });
+      rule(p, dims.mx, ctx.y - 3, dims.pageW - dims.mx, gray(0.93), 0.4);
+      ctx.y -= 18;
+      subSec += Number(it.precio)||0;
+    });
+    ctx.y -= 4;
+    const pS = currentPage();
+    pS.drawText("Subtotal sección:", { x: dims.mx + dims.usableW - 180, y: ctx.y, size: 10.5, font: helvB, color: gray(0.3) });
+    drawTextRight(pS, mostrarPrecioLimpio(subSec), dims.mx + dims.usableW - 6, ctx.y, { size: 10.5, font: helvB, color: gray(0.3) });
+    ctx.y -= 16;
+  }
+
+  // Totales generales
+  ctx.y -= 6;
+  rule(currentPage(), dims.mx + 336, ctx.y, dims.pageW - dims.mx, emsRgb(), 1);
+  ctx.y -= 12;
+  const pTot = currentPage();
+  pTot.drawText("Subtotal:", { x: dims.mx + 336, y: ctx.y, size: 10.5, font: helvB, color: gray(0.25) });
+  drawTextRight(pTot, mostrarPrecioLimpio(subtotal), dims.pageW - dims.mx, ctx.y, { size: 10.5, font: helvB, color: gray(0.25) });
+  ctx.y -= 13;
+  if (iva > 0) {
+    pTot.drawText("IVA (16%):", { x: dims.mx + 336, y: ctx.y, size: 10.5, font: helvB, color: gray(0.25) });
+    drawTextRight(pTot, mostrarPrecioLimpio(iva), dims.pageW - dims.mx, ctx.y, { size: 10.5, font: helvB, color: emsRgb() });
+    ctx.y -= 13;
+  }
+  pTot.drawText("Total:", { x: dims.mx + 336, y: ctx.y, size: 11.5, font: helvB, color: emsRgb() });
+  drawTextRight(pTot, mostrarPrecioLimpio(total), dims.pageW - dims.mx, ctx.y, { size: 11.5, font: helvB, color: emsRgb() });
+  ctx.y -= 14;
+
+  // Anexos fotográficos – galería packed
+  if (Array.isArray(fotosCotizacion) && fotosCotizacion.length) {
+    const s = getSettings();
+    const pdfCfg = s?.pdf || {};
+    await drawSmartGallery(pdfDoc, ctx, fotosCotizacion.slice(0, 10), {
+      title: "Anexos fotográficos",
+      captions: false,
+      baseTargetRowH: Number(pdfCfg.galleryBase)||200,
+      minRowH: Number(pdfCfg.galleryMin)||160,
+      maxRowH: Number(pdfCfg.galleryMax)||235,
+      minImgW: 150,
+      gutter: 8,
+      rowPad: 5
+    });
+  }
+
+  // Observaciones
+  if ((datos.notas || "").trim()) {
+    ensureSpace(pdfDoc, ctx, 48);
+    ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, "Observaciones", fonts, { titleGap: 8, dryRun: false });
+    const itemsObs = parseObservaciones(datos.notas);
+    if (itemsObs.length) {
+      drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "•", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+    }
+  }
+
+  applyFooters(pdfDoc, ctx.pages, fonts, dims);
+
+  const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
+
+  // Si es preview, retornar los bytes directamente
+  if (isPreview) {
+    showSaved("Vista previa lista");
+    return pdfBytes;
+  }
+
+  // Si no es preview, proceder con download/share normal
+  showSaved("PDF Listo");
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const file = new File([blob], `Cotizacion_${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
+
+  if (share && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    await navigator.share({ files: [file], title: "Cotización", text: `Cotización ${datos.numero||""} de Electromotores Santana` });
+  } else {
+    const url = URL.createObjectURL(blob);
+    if (isIOS()) {
+      window.open(url, '_blank', 'noopener');
+    } else {
+      const a = document.createElement("a");
+      a.href = url; a.download = file.name; a.rel = 'noopener';
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { document.body.removeChild(a); }, 0);
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+}
+
+function editarCotizacion(datos) {
+  nuevaCotizacion();
+  const form = document.getElementById("cotForm");
+  form.numero.value = datos.numero || "";
+  form.fecha.value = datos.fecha || "";
+  form.cliente.value = datos.cliente || "";
+  form.hora.value = datos.hora || "";
+  if (datos.incluyeIVA) form.incluyeIVA.checked = true;
+  if (datos.anticipo) {
+    form.anticipo.checked = true;
+    form.anticipoPorc.parentElement.style.display = '';
+    form.anticipoPorc.value = datos.anticipoPorc || "";
+  }
+  if (form.titulo) form.titulo.value = datos.titulo || "";
+  form.notas.value = datos.notas || "";
+
+  const wrap = document.getElementById('cotSeccionesWrap');
+  wrap.innerHTML = '';
+  if (Array.isArray(datos.secciones) && datos.secciones.length) {
+    datos.secciones.forEach(sec => agregarCotSeccion(sec));
+  } else if (Array.isArray(datos.items) && datos.items.length) {
+    const sec = { titulo: 'General', items: datos.items.map(it=>({ concepto: it.concepto, descripcion: '', precio: it.precio })) };
+    agregarCotSeccion(sec);
+  } else {
+    agregarCotSeccion({ titulo: 'General', items: [{},{}] });
+  }
+
+  fotosCotizacion = Array.isArray(datos.fotos) ? [...datos.fotos] : [];
+  renderCotFotosPreview();
+
+  setTimeout(() => {
+    actualizarPredictsEMSCloud();
+    agregarDictadoMicros();
+    activarPredictivosInstantaneos();
+  }, 100);
+}
+
+// ----- Abrir detalle desde Historial -----
+async function abrirReporte(numero) {
+  let doc = await db.collection("reportes").doc(numero).get();
+  if (!doc.exists) return showModal("No se encontró el reporte con el número especificado.", "error");
+  const datos = doc.data();
+  nuevoReporte();
+  const form = document.getElementById("repForm");
+  form.numero.value = datos.numero;
+  form.fecha.value = datos.fecha;
+  form.cliente.value = datos.cliente;
+  form.hora.value = datos.hora;
+  form.concepto.value = datos.concepto || "";
+  const tbody = form.querySelector("#repItemsTable tbody");
+  tbody.innerHTML = "";
+  fotosItemsReporteMap = {};
+  (datos.items || []).forEach((item) => {
+    const id = item._id || newUID();
+    fotosItemsReporteMap[id] = Array.isArray(item.fotos) ? [...item.fotos] : [];
+    tbody.insertAdjacentHTML("beforeend", renderRepItemRow({ ...item, _id:id }, id, true));
+  });
+  if ((datos.items || []).length === 0) agregarRepItemRow();
+  form.notas.value = datos.notas || "";
+  setTimeout(() => {
+    actualizarPredictsEMSCloud();
+    agregarDictadoMicros();
+    activarPredictivosInstantaneos();
+  }, 100);
+}
+
+async function abrirDetalleEMS(tipo, numero) {
+  if (tipo === "cotizacion") {
+    let doc = await db.collection("cotizaciones").doc(numero).get();
+    if (!doc.exists) return showModal("No se encontró la cotización con el número especificado.", "error");
+    editarCotizacion(doc.data());
+  } else if (tipo === "reporte") {
+    window.editandoReporte = true;
+    abrirReporte?.(numero);
+  }
+}
+
+// ======= (NUEVO) Medidor de altura de tarjeta de descripción =======
+function measureCardHeight(ctx, text, fontSize = 11, pad = 10) {
+  const { fonts, dims, opts } = ctx;
+  const lines = wrapTextLines(String(text||"").trim(), fonts.reg, fontSize, dims.usableW - 2*pad);
+  const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2*pad);
+  return 22 + 6 + bodyH + (opts.cardGap || 8); // altura total de la tarjeta
+}
+
+// ======= Motor de composición con PRE-FLIGHT (Reportes) =======
+async function composeReportePDF({ datos, items, params, dryRun = false }) {
+  const { PDFDocument, StandardFonts } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
+  dims.usableW = dims.pageW - dims.mx*2;
+  const fonts = { reg: helv, bold: helvB };
+  const logoImg = await getLogoImage(pdfDoc);
+
+  const ctx = { 
+    pages: [], y: 0, dims, fonts, datos, 
+    typeLabel: "REPORTE DE SERVICIO", logoImg, _atPageStart: true,
+    opts: { 
+      dryRun,
+      titleGap: params.titleGap,
+      cardGap: params.cardGap,
+      blockGap: params.blockGap
+    },
+    state: { prevBlock: "start", inGallery: false, currentSection: null },
+    audit: { pages: 0 }
+  };
+
+  // Primera página
+  let page = pdfDoc.addPage([dims.pageW, dims.pageH]);
+  ctx.pages.push(page);
+  if (!dryRun) {
+    drawWatermark(page, dims, logoImg, WATERMARK_OP);
+  }
+  ctx.y = addHeader(pdfDoc, page, ctx.typeLabel, datos, fonts, dims, true, logoImg, { dryRun });
+  ctx._atPageStart = true;
+
+  // CONCEPTO (si existe)
+  if ((datos.concepto || "").trim()) {
+    drawLabeledCard(pdfDoc, ctx, { label: "Concepto", text: datos.concepto.trim(), fontSize: 12 });
+  }
+
+  // Lista de items
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const fotos = Array.isArray(it.fotos) ? it.fotos : [];
+
+    // Preparación: estimar altura de banda + tarjeta + primera fila de fotos
+    const descText = `• ${String(it.descripcion || "").trim()}`;
+    const cardH = measureCardHeight(ctx, descText, 11, 10);
+    const bandH = 26 + 8; // alto de la banda + respiro
+    // Reserva conservadora para la 1ª fila (pero compacta)
+    const reserveFirstRow = fotos.length > 0 ? (params.maxRowH + 2*5 + (ctx.opts.blockGap || 6) + 18) : 0;
+
+    // Garantiza que todo el bloque inicial del ítem entre junto
+    ensureSpace(pdfDoc, ctx, bandH + cardH + reserveFirstRow);
+
+    // Banda de sección
+    ctx.state.currentSection = `Sección ${i + 1}`;
+    drawSectionBand(pdfDoc, ctx, ctx.state.currentSection);
+
+    // DESCRIPCIÓN (píldora) con reserva de la primera fila de fotos
+    drawLabeledCard(pdfDoc, ctx, { label: "Descripción", text: descText, fontSize: 11, reserveBelow: reserveFirstRow });
+
+    // Fotos del ítem – galería packed
+    if (fotos.length) {
+      await drawSmartGallery(pdfDoc, ctx, fotos, {
+        title: null,
+        captions: false,
+        baseTargetRowH: params.baseRowH,
+        minRowH: params.minRowH,
+        maxRowH: params.maxRowH,
+        minImgW: 150,
+        gutter: 8,
+        rowPad: 5
+      });
+    }
+
+    // Separador suave entre items (más corto)
+    if (i < items.length - 1) {
+      const needed = 8;
+      ensureSpace(pdfDoc, ctx, needed);
+      if (!dryRun) rule(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, dims.pageW - dims.mx, gray(0.9), 0.5);
+      ctx.y -= 6;
+    }
+  }
+
+  // Observaciones como lista
+  if ((datos.notas || "").trim()) {
+    ensureSpace(pdfDoc, ctx, 48);
+    if (!dryRun) ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, "Observaciones", fonts, { titleGap: params.titleGap, dryRun });
+    else ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], dims.mx, ctx.y, "Observaciones", fonts, { titleGap: params.titleGap, dryRun: true });
+
+    const itemsObs = parseObservaciones(datos.notas);
+    if (itemsObs.length) {
+      drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "•", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+    }
+  }
+
+  ctx.audit.pages = ctx.pages.length;
+  return { pdfDoc, ctx };
+}
+
+// ======= GUARDADO Y PDF DE REPORTES ==========
+async function enviarReporte(e) {
+  e.preventDefault();
+  showSaved("Guardando...");
+  const form = document.getElementById('repForm');
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+    const id = tr.getAttribute('data-rowid') || newUID();
+    items.push({
+      _id: id,
+      descripcion: tr.querySelector('textarea[name="descripcion"]').value,
+      fotos: (fotosItemsReporteMap[id] || [])
+    });
+  });
+  if (!datos.numero || !datos.cliente || !items.length) {
+    showSaved("Faltan datos");
+    showModal("Por favor completa todos los campos requeridos: número, cliente y al menos un item.", "warning");
+    return;
+  }
+  savePredictEMSCloud("cliente", datos.cliente);
+  if (datos.concepto) savePredictEMSCloud("concepto", datos.concepto);
+  items.forEach(it => savePredictEMSCloud("descripcion", it.descripcion));
+  const reporte = {
+    ...datos,
+    items,
+    tipo: 'reporte',
+    fecha: datos.fecha,
+    hora: datos.hora || ahora(),
+    creada: new Date().toISOString()
+  };
+  if (!navigator.onLine) {
+    showModal("Sin conexión a Internet. Los datos se guardarán localmente. Intenta guardar cuando tengas conexión.", "warning");
+    showSaved("Offline");
+    return;
+  }
+  await db.collection("reportes").doc(datos.numero).set(reporte);
+  localStorage.removeItem('EMS_REP_BORRADOR');
+  showSaved("¡Reporte guardado!");
+  renderInicio();
+}
+
+async function guardarReporteDraft() {
+  const form = document.getElementById('repForm');
+  if (!form) return;
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+    const id = tr.getAttribute('data-rowid') || newUID();
+    items.push({
+      _id: id,
+      descripcion: tr.querySelector('textarea[name="descripcion"]').value,
+      fotos: (fotosItemsReporteMap[id] || [])
+    });
+  });
+  const reporte = {
+    ...datos,
+    items,
+    tipo: 'reporte',
+    fecha: datos.fecha,
+    hora: datos.hora || ahora(),
+    creada: new Date().toISOString()
+  };
+  await db.collection("reportes").doc(datos.numero || "BORRADOR").set(reporte);
+  localStorage.setItem('EMS_REP_BORRADOR', JSON.stringify(reporte));
+  showSaved("Reporte guardado");
+}
+
+// === Generador de Reporte con análisis PRE-FLIGHT y auto-ajuste ===
+async function generarPDFReporte(share = false, isPreview = false) {
+  // Configuración de calidad según modo
+  const imgQuality = isPreview
+    ? { maxW: 640, maxH: 640, quality: 0.5 } // Baja calidad para preview rápido
+    : PDF_IMG_DEFAULTS; // Alta calidad para PDF final
+
+  showProgress(true, 10, isPreview ? "Analizando vista previa..." : "Analizando diseño...");
+  if (!isPreview) await guardarReporteDraft();
+
+  const form = document.getElementById('repForm');
+  if (!form) { showProgress(false); showModal("No hay formulario de reporte activo.", "error"); return; }
+
+  const datos = Object.fromEntries(new FormData(form));
+  const items = [];
+  form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
+    const id = tr.getAttribute('data-rowid') || newUID();
+    items.push({
+      _id: id,
+      descripcion: tr.querySelector('textarea[name="descripcion"]').value,
+      fotos: (fotosItemsReporteMap[id] || []).slice(0, 6),
+    });
+  });
+
+  // Parámetros iniciales compactos, con ajustes desde panel
+  const s = getSettings();
+  const pdfCfg = s?.pdf || {};
+  let params = {
+    baseRowH: Number(pdfCfg.galleryBase)||200,
+    minRowH: Number(pdfCfg.galleryMin)||160,
+    maxRowH: Number(pdfCfg.galleryMax)||235,
+    titleGap: Number(pdfCfg.titleGap)||8,
+    cardGap: Number(pdfCfg.cardGap)||8,
+    blockGap: Number(pdfCfg.blockGap)||6
+  };
+
+  // --- Pre-flight con hasta 2 ajustes automáticos ---
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { ctx } = await composeReportePDF({ datos, items, params, dryRun: true });
+    if (ctx.audit.pages >= 6) {
+      // documento muy largo: compactar más
+      params.baseRowH = Math.max(180, params.baseRowH - 10);
+      params.minRowH  = Math.max(150, params.minRowH - 8);
+      params.maxRowH  = Math.max(210, params.maxRowH - 12);
+      params.cardGap  = Math.max(6, params.cardGap - 2);
+      params.blockGap = Math.max(6, params.blockGap - 2);
+      params.titleGap = Math.max(6, params.titleGap - 2);
+      continue;
+    }
+    break;
+  }
+
+  showProgress(true, 45, "Componiendo PDF...");
+
+  // --- Render final (no dry run) ---
+  const { pdfDoc, ctx } = await composeReportePDF({ datos, items, params, dryRun: false });
+
+  // Pie de página en todas
+  applyFooters(pdfDoc, ctx.pages, ctx.fonts, ctx.dims);
+
+  const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
+
+  // Si es preview, retornar los bytes directamente
+  if (isPreview) {
+    showProgress(false);
+    showSaved("Vista previa lista");
+    return pdfBytes;
+  }
+
+  // Si no es preview, proceder con download/share normal
+  showProgress(true, 90, "Exportando...");
+
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const fileName = `Reporte_${datos.numero || "reporte"}.pdf`;
+
+  if (share && navigator.share && navigator.canShare) {
+    try {
+      const file = new File([blob], fileName, { type: "application/pdf" });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` });
+        showProgress(false);
+        return;
+      }
+    } catch { /* fallback */ }
+  }
+
+  const url = URL.createObjectURL(blob);
+  try {
+    if (isIOS()) {
+      window.open(url, '_blank', 'noopener');
+    } else {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    showProgress(false);
+  }
+}
 
 // ====== Eliminar docs ======
 async function eliminarCotizacionCompleta(numero) {
@@ -1621,8 +2587,7 @@ function agregarDictadoMicros() {
   });
 }
 
-// Observa la apertura del panel de ajustes y añade controles de términos + guardado simplificado
-function observeSettingsPanel() { }
+// ====== Sobrescrituras de confirmación por palabra en acciones destructivas ======
 function confirmByTyping(seed = 'eliminar', title = 'Confirmar acción', onConfirm = ()=>{}) {
   const words = ['eliminar','borrar','confirmar','continuar','aprobar','aceptar'];
   const w = words[Math.floor(Math.random()*words.length)];
@@ -1639,7 +2604,7 @@ function confirmByTyping(seed = 'eliminar', title = 'Confirmar acción', onConfi
       </div>
     </div>`;
   document.body.appendChild(overlay);
-  const close = ()=>{ try { document.body.removeChild(overlay); } catch (e) {} };
+  const close = ()=>{ try { document.body.removeChild(overlay); } catch {} };
   overlay.querySelector('#emsConfirmCancel').onclick = close;
   overlay.querySelector('#emsConfirmOk').onclick = ()=>{
     const val = overlay.querySelector('#emsConfirmInput').value.trim().toLowerCase();
@@ -1652,7 +2617,7 @@ function confirmByTyping(seed = 'eliminar', title = 'Confirmar acción', onConfi
 const __orig_eliminarCotItemRow = typeof eliminarCotItemRow === 'function' ? eliminarCotItemRow : null;
 function eliminarCotItemRow(btn){
   confirmByTyping('eliminar','Eliminar este elemento de cotización',()=>{
-    try{ const tr = btn.closest('tr'); if (tr) tr.remove(); if (typeof recalcTotalesCotizacion==='function') recalcTotalesCotizacion(); }catch(e){}
+    try{ const tr = btn.closest('tr'); tr && tr.remove(); recalcTotalesCotizacion?.(); }catch{}
   });
 }
 
@@ -1661,10 +2626,10 @@ function eliminarRepItemRow(btn){
   confirmByTyping('eliminar','Eliminar esta actividad del reporte',()=>{
     try{
       const tr = btn.closest('tr');
-      const id = tr ? tr.getAttribute('data-rowid') : null;
+      const id = tr?.getAttribute('data-rowid');
       if (id && fotosItemsReporteMap[id]) delete fotosItemsReporteMap[id];
-      if (tr) tr.remove();
-    }catch(e){}
+      tr && tr.remove();
+    }catch{}
   });
 }
 
@@ -1675,7 +2640,7 @@ function eliminarFotoRepItem(btn, id, fidx){
       if (!fotosItemsReporteMap[id]) return;
       fotosItemsReporteMap[id].splice(fidx,1);
       const tr = btn.closest('tr');
-      const desc = (tr && tr.querySelector('textarea')) ? tr.querySelector('textarea').value : '';
+      const desc = tr?.querySelector('textarea')?.value || '';
       tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
       agregarDictadoMicros(); activarPredictivosInstantaneos();
     }catch{}
@@ -1685,7 +2650,7 @@ function eliminarFotoRepItem(btn, id, fidx){
 const __orig_eliminarFotoCot = typeof eliminarFotoCot === 'function' ? eliminarFotoCot : null;
 function eliminarFotoCot(index){
   confirmByTyping('borrar','Eliminar esta imagen de la cotización',()=>{
-    try{ fotosCotizacion.splice(index,1); renderCotFotosPreview(); if (typeof guardarCotizacionDraft==='function') guardarCotizacionDraft(); }catch(e){}
+    try{ fotosCotizacion.splice(index,1); renderCotFotosPreview(); guardarCotizacionDraft?.(); }catch{}
   });
 }
 
@@ -1695,7 +2660,7 @@ async function eliminarCotizacionCompleta(numero){
   if (!numero) return showModal('No se encontró el número de cotización.', 'error');
   confirmByTyping('eliminar','Para confirmar escribe la palabra indicada', async ()=>{
     try{ await db.collection('cotizaciones').doc(numero).delete(); showSaved('Cotización eliminada'); localStorage.removeItem('EMS_COT_BORRADOR'); renderInicio(); }
-    catch(e){ showModal('Error eliminando cotización: '+((e && e.message)||e), 'error'); }
+    catch(e){ showModal('Error eliminando cotización: '+(e?.message||e), 'error'); }
   });
 }
 
@@ -1705,7 +2670,7 @@ async function eliminarReporteCompleto(numero){
   if (!numero) return showModal('No se encontró el número de reporte.', 'error');
   confirmByTyping('eliminar','Para confirmar escribe la palabra indicada', async ()=>{
     try{ await db.collection('reportes').doc(numero).delete(); showSaved('Reporte eliminado'); localStorage.removeItem('EMS_REP_BORRADOR'); renderInicio(); }
-    catch(e){ showModal('Error eliminando reporte: '+((e && e.message)||e), 'error'); }
+    catch(e){ showModal('Error eliminando reporte: '+(e?.message||e), 'error'); }
   });
 }
 // ===== Panel de Ajustes (tema/pdf) =====
@@ -1759,7 +2724,7 @@ function openSettings() {
     };
     saveSettings(next);
     showSaved('Ajustes guardados');
-    try { applyThemeFromSettings(); } catch (e) {}
+    try { applyThemeFromSettings(); } catch {}
     overlay.remove();
   };
 }
@@ -1783,11 +2748,6 @@ function serializeCotizacionForm() {
   });
   return { ...datos, secciones, fotos: (fotosCotizacion||[]).slice(0) };
 }
-function editarCotizacion(data){
-  try { localStorage.setItem('EMS_COT_BORRADOR', JSON.stringify(data||{})); } catch(e) {}
-  try { nuevaCotizacion(); } catch(e) {}
-}
-try{ window.editarCotizacion = editarCotizacion; }catch(e){}
 function applyCotSnapshot(snap) {
   if (!snap) return;
   editarCotizacion({ ...snap, tipo: 'cotizacion' });
@@ -1873,135 +2833,3 @@ function installUndoHandlers() {
     }, 400);
   }, true);
 }
-
-// === Sidebar de opciones (sustituye checkboxes inline) ===
-function openSideOptions(type){
-  const form = document.getElementById(type==='cot'?'cotForm':'repForm');
-  if (!form) return;
-  let ov = document.getElementById('ems-side-overlay');
-  if (!ov){
-    ov = document.createElement('div'); ov.id='ems-side-overlay'; ov.className='ems-side-overlay';
-    ov.innerHTML = '<div id="ems-sidebar" class="ems-sidebar"><div class="ems-sidebar-header"><div class="ems-sidebar-title">Opciones</div><button class="btn-mini" id="emsSideClose">×</button></div><div class="ems-sidebar-body"></div><div class="ems-side-actions"><button class="btn-mini" id="emsSideCancel">Cerrar</button></div></div>';
-    document.body.appendChild(ov);
-    ov.addEventListener('click', (e)=>{ if(e.target===ov) closeSideOptions(); });
-    ov.querySelector('#emsSideClose').onclick = closeSideOptions;
-    ov.querySelector('#emsSideCancel').onclick = closeSideOptions;
-  }
-  const body = ov.querySelector('.ems-sidebar-body');
-  body.innerHTML='';
-  function addSwitch(labelText, el){
-    const row = document.createElement('div'); row.className='ems-switch';
-    const lab = document.createElement('div'); lab.className='label'; lab.textContent = labelText;
-    const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!(el && el.checked);
-    cb.addEventListener('change', ()=>{ if(el){ el.checked = cb.checked; el.dispatchEvent(new Event('input',{bubbles:true})); if(el.name==='incluyeIVA'){ try{ recalcTotalesCotizacion(); }catch(e){} } if(el.name==='anticipo'){ try{ el.form.anticipoPorc.parentElement.style.display=cb.checked?'':'' }catch(e){} } } });
-    row.appendChild(lab); row.appendChild(cb); body.appendChild(row);
-  }
-  const iva = form.querySelector('input[name="incluyeIVA"]'); if (iva) addSwitch('Incluir IVA (16%)', iva);
-  const antic = form.querySelector('input[name="anticipo"]'); if (antic) addSwitch('Con anticipo', antic);
-  const terms = form.querySelector('input[name="incluyeTerminos"]'); if (terms) addSwitch('Incluir términos y condiciones', terms);
-  const ai = form.querySelector('input[name="corrigeIA"]'); if (ai) addSwitch('Mejorar redacción con IA', ai);
-  if (antic && form.anticipoPorc){
-    const row = document.createElement('div'); row.className='ems-switch';
-    const lab = document.createElement('div'); lab.className='label'; lab.textContent = '% Anticipo';
-    const inp = document.createElement('input'); inp.type='number'; inp.min='0'; inp.max='100'; inp.value = form.anticipoPorc.value||''; inp.style.width='90px';
-    inp.addEventListener('input', ()=>{ form.anticipoPorc.value = inp.value; });
-    row.appendChild(lab); row.appendChild(inp); body.appendChild(row);
-  }
-  ov.classList.add('open'); ov.querySelector('#ems-sidebar').classList.add('open');
-}
-function closeSideOptions(){ const ov=document.getElementById('ems-side-overlay'); if(!ov) return; ov.classList.remove('open'); const sb=ov.querySelector('#ems-sidebar'); if(sb) sb.classList.remove('open'); }
-
-function ensureSideOptionButtons(){
-  ['cotForm','repForm'].forEach(function(fid){
-    const f = document.getElementById(fid); if(!f) return;
-    const act = f.querySelector('.ems-form-actions');
-    if (act && !document.getElementById('btnOpts_'+fid)){
-      const b = document.createElement('button'); b.type='button'; b.className='btn-secondary'; b.id='btnOpts_'+fid; b.innerHTML='<i class="fa fa-sliders"></i> Opciones';
-      b.onclick = function(){ openSideOptions(fid==='cotForm'?'cot':'rep'); };
-      act.insertBefore(b, act.firstChild);
-    }
-    const iva = f.querySelector('input[name="incluyeIVA"]'); if (iva){ const row = iva.closest('.ems-form-row'); if(row) row.style.display='none'; }
-  });
-}
-
-// Activar inserción de botones en cargas y DOM dinámico
-(function(){ try{ ensureSideOptionButtons(); }catch(e){}
-  try{
-    const mo = new MutationObserver(()=>{ try{ ensureSideOptionButtons(); }catch(e){} });
-    mo.observe(document.body, { childList:true, subtree:true });
-  }catch(e){}
-})();
-
-try{ window.guardarCotizacionDraft = guardarCotizacionDraft; }catch(e){}
-async function generarPDFCotizacion(share = false, isPreview = false) {
-  try { showSaved(isPreview ? 'Generando vista previa...' : 'Generando PDF...'); } catch(e){}
-  try { if (!isPreview && typeof guardarCotizacionDraft === 'function') guardarCotizacionDraft(); } catch(e){}
-  const form = document.getElementById('cotForm');
-  if (!form) { try{ showModal('No hay formulario de cotización activo.', 'error'); }catch(e){}; return; }
-  // Reusar serialización existente
-  let data = {};
-  try { data = serializeCotizacionForm() || {}; } catch(e) {
-    const datos = Object.fromEntries(new FormData(form));
-    data = { ...datos };
-  }
-  const { PDFDocument, StandardFonts, rgb } = PDFLib;
-  const pdfDoc = await PDFDocument.create();
-  const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helvB = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const page = pdfDoc.addPage([595.28, 841.89]); // A4 portrait
-  const draw = (txt, x, y, size=11, bold=false, color=rgb(0,0,0)) => {
-    page.drawText(String(txt||''), { x, y, size, font: bold?helvB:helv, color });
-  };
-  let y = 800;
-  draw('COTIZACION', 40, y, 18, true, rgb(0.15,0.15,0.15)); y -= 24;
-  draw('Cliente: ' + (data.cliente||''), 40, y); y -= 14;
-  draw('Numero: ' + (data.numero||''), 40, y); y -= 14;
-  draw('Fecha: ' + ((data.fecha||'') + (data.hora?(' '+data.hora):'')), 40, y); y -= 22;
-  // Secciones
-  try {
-    const secciones = Array.isArray(data.secciones)? data.secciones : [];
-    for (let s=0; s<secciones.length; s++){
-      const sec = secciones[s];
-      if (y < 80) { page.drawLine({ start:{x:40,y:70}, end:{x:555,y:70}, thickness:0.5, color: rgb(0.8,0.8,0.8)}); y = 800; }
-      draw((sec.titulo||('Seccion '+(s+1))), 40, y, 12, true); y -= 16;
-      const items = Array.isArray(sec.items)? sec.items: [];
-      for (let it of items){
-        const linea = (it.concepto||'') + (it.descripcion?(' - '+it.descripcion):'') + (typeof it.precio==='number'?(' $'+Number(it.precio).toFixed(2)):'');
-        draw(linea, 48, y, 10, false, rgb(0.2,0.2,0.2)); y -= 12;
-        if (y < 60) { y = 800; }
-      }
-      y -= 8;
-    }
-  } catch(e){}
-  // Totales
-  try {
-    const subtotal = Number(data.subtotal||0);
-    const iva = Number(data.iva||0);
-    const total = Number(data.total|| subtotal + iva);
-    draw('Subtotal:', 360, y, 11, true); draw('$'+subtotal.toFixed(2), 460, y); y -= 14;
-    if (iva>0){ draw('IVA (16%):', 360, y, 11, true); draw('$'+iva.toFixed(2), 460, y); y -= 14; }
-    draw('Total:', 360, y, 12, true, rgb(0.2,0.2,0.2)); draw('$'+total.toFixed(2), 460, y, 12, true, rgb(0.2,0.2,0.2)); y -= 18;
-  } catch(e){}
-  const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
-  if (isPreview) { try{ showSaved('Vista previa lista'); }catch(e){}; return pdfBytes; }
-  // Descargar y compartir
-  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-  const fileName = 'Cotizacion_'+(data.numero||'cotizacion')+'.pdf';
-  const url = URL.createObjectURL(blob);
-  try {
-    const a = document.createElement('a'); a.href=url; a.download=fileName; a.rel='noopener'; document.body.appendChild(a); a.click(); try{document.body.removeChild(a);}catch(e){}
-  } finally { setTimeout(()=>URL.revokeObjectURL(url),3000); }
-  try {
-    if (share && navigator.canShare && navigator.canShare({ files: [new File([blob], fileName, { type:'application/pdf' })] })){
-      await navigator.share({ files:[ new File([blob], fileName, { type:'application/pdf' }) ], title:'Cotizacion', text:'Cotizacion '+(data.numero||'') });
-    }
-  } catch(e){}
-  try { showSaved('PDF Listo'); }catch(e){}
-}
-try{ window.generarPDFCotizacion = generarPDFCotizacion; }catch(e){}
-try{ window.previsualizarPDFCotizacion = previsualizarPDFCotizacion; }catch(e){}
-try{ window.previsualizarPDFReporte = previsualizarPDFReporte; }catch(e){}
-
-
-
-
