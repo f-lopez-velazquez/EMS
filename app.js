@@ -2236,13 +2236,14 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     }
   }
 
-  // Términos y Condiciones (desde ajustes)
+  // Términos y Condiciones (desde ajustes o por defecto)
   try {
     const s = getSettings();
-    if (s && s.tc && String(s.tc).trim()) {
+    const tc = (s && typeof s.tc === 'string' && s.tc.trim()) || 'Vigencia: 15 días naturales a partir de la fecha de cotización.\nPrecios en MXN. El IVA se incluye sólo si está indicado.\nTiempo de entrega sujeto a confirmación. Garantía limitada por defecto de fabricación y/o servicio según aplique.';
+    if (tc && String(tc).trim()) {
       ensureSpace(pdfDoc, ctx, 48);
       ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, "Términos y Condiciones", fonts, { titleGap: 8, dryRun: false });
-      drawLabeledCard(pdfDoc, ctx, { label: "Términos", text: String(s.tc).trim(), fontSize: 10 });
+      drawLabeledCard(pdfDoc, ctx, { label: "Términos", text: String(tc).trim(), fontSize: 10 });
     }
   } catch {}
 
@@ -2593,14 +2594,14 @@ async function generarPDFReporte(share = false, isPreview = false) {
   // --- Render final (no dry run) ---
   const { pdfDoc, ctx } = await composeReportePDF({ datos, items, params, dryRun: false });
 
-  // Términos y Condiciones (desde ajustes)
+  // Términos y Condiciones (desde ajustes o por defecto)
   try {
     const s = getSettings();
-    if (s && s.tc && String(s.tc).trim()) {
-      // reutilizamos drawLabeledCard/drawSectionTitle con el contexto existente
+    const tc = (s && typeof s.tc === 'string' && s.tc.trim()) || 'Vigencia: 15 días naturales a partir de la fecha de cotización.\nPrecios en MXN. El IVA se incluye sólo si está indicado.\nTiempo de entrega sujeto a confirmación. Garantía limitada por defecto de fabricación y/o servicio según aplique.';
+    if (tc && String(tc).trim()) {
       ensureSpace(pdfDoc, ctx, 48);
       ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], ctx.dims.mx, ctx.y, "Términos y Condiciones", ctx.fonts, { titleGap: 8, dryRun: false });
-      drawLabeledCard(pdfDoc, ctx, { label: "Términos", text: String(s.tc).trim(), fontSize: 10 });
+      drawLabeledCard(pdfDoc, ctx, { label: "Términos", text: String(tc).trim(), fontSize: 10 });
     }
   } catch {}
 
@@ -2835,6 +2836,34 @@ function openSettings() {
     </div>
   `;
   document.body.appendChild(overlay);
+  // Ayudas rápidas (¿?)
+  try {
+    const addHelpFor = (sel, tip) => {
+      const el = overlay.querySelector(sel);
+      if (!el) return;
+      const label = el.closest('.ems-form-group')?.querySelector('label');
+      if (!label) return;
+      const h = document.createElement('span');
+      h.className = 'ems-help';
+      h.title = tip;
+      h.textContent = '?';
+      label.appendChild(h);
+    };
+    addHelpFor('#setThemeColor', 'Color usado en botones y PDF.');
+    addHelpFor('#setShowCredit', 'Muestra o no la leyenda en el pie del PDF.');
+    addHelpFor('#setGalBase', 'Altura objetivo de las filas de fotos en el PDF.');
+    addHelpFor('#setGalMin', 'Altura mínima posible de una fila de fotos.');
+    addHelpFor('#setGalMax', 'Altura máxima posible de una fila de fotos.');
+    addHelpFor('#setTitleGap', 'Espacio inferior bajo cada título en el PDF.');
+    addHelpFor('#setCardGap', 'Separación entre bloques de texto tipo tarjeta.');
+    addHelpFor('#setBlockGap', 'Separación general entre secciones.');
+    // Default de T&C si vacío
+    const tc = overlay.querySelector('#setTC');
+    if (tc && !String(tc.value||'').trim()) {
+      tc.value = 'Vigencia: 15 días naturales a partir de la fecha de cotización.\nPrecios en MXN. El IVA se incluye sólo si está indicado.\nTiempo de entrega sujeto a confirmación. Garantía limitada por defecto de fabricación y/o servicio según aplique.';
+    }
+    addHelpFor('#setTC', 'Se insertan al final del PDF (cotización y reporte).');
+  } catch {}
   overlay.querySelector('#btnSaveSettings').onclick = () => {
     const next = {
       themeColor: overlay.querySelector('#setThemeColor').value,
