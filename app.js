@@ -1193,10 +1193,13 @@ function nuevaCotizacion() {
 
   if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
   window.autoSaveTimer = setInterval(() => {
-    if (document.getElementById('cotForm')) guardarCotizacionDraft();
+    try {
+      if (document.getElementById('cotForm') && typeof guardarCotizacionDraft === 'function') {
+        guardarCotizacionDraft();
+      }
+    } catch (e) {}
   }, 15000);
 
-  // eliminar si ya existe
   setTimeout(() => {
     if(form && form.numero && form.numero.value && !document.getElementById('btnEliminarCot')){
       let btn = document.createElement("button");
