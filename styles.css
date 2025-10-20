@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   /* Paleta Minimalista - SIN DEGRADADOS */
   --azul: #2563eb;
   --azul-hover: #1d4ed8;
@@ -1274,3 +1274,22 @@ textarea.success {
     padding: var(--space-2);
   }
 }
+
+/* Disable selection globally except form fields */
+body { -webkit-user-select: none; user-select: none; }
+input, textarea, select, button { -webkit-user-select: text; user-select: text; }
+
+/* Toggle slider */
+.ems-toggle { appearance: none; -webkit-appearance: none; width: 42px; height: 24px; background: #d1d5db; border-radius: 999px; position: relative; outline: none; cursor: pointer; transition: background .2s ease; vertical-align: middle; }
+.ems-toggle:before { content: ''; position: absolute; left: 2px; top: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .2s ease; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.ems-toggle:checked { background: var(--azul, #2563eb); }
+.ems-toggle:checked:before { transform: translateX(18px); }
+
+/* Busy overlay */
+.ems-busy-mask { position: fixed; inset: 0; background: rgba(17,24,39,.35); backdrop-filter: blur(2px); display: none; z-index: 2000; }
+.ems-busy-mask.show { display: block; }
+.ems-busy-mask .spinner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: #fff; color: #111827; padding: 10px 14px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.18); font-size: .9rem; }
+
+/* File button */
+.ems-file-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--azul, #2563eb); color: #fff; border: 0; border-radius: 8px; cursor: pointer; }
+.ems-file-btn i { pointer-events: none; }

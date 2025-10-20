@@ -1,4 +1,4 @@
-// === INICIALIZACIÓN Y UTILIDADES ===
+﻿// === INICIALIZACIÓN Y UTILIDADES ===
 const EMS_CONTACT = {
   empresa: "ELECTROMOTORES SANTANA",
   direccion: "Carr. a Chichimequillas 306, Colonia Menchaca 2, 76147 Santiago de Querétaro, Qro.",
@@ -109,43 +109,47 @@ function mostrarPrecioLimpio(val) {
 }
 
 // Barra de progreso
-function showProgress(visible = true, percent = 0, msg = "") {
-  let bar = document.getElementById("progress-bar");
+function showProgress(visible = true, percent = 0, msg = '') {
+  let bar = document.getElementById('progress-bar');
   if (!bar) {
-    bar = document.createElement("div");
-    bar.id = "progress-bar";
-    bar.style.display = "flex";
-    bar.style.alignItems = "center";
-    bar.style.justifyContent = "center";
-    bar.style.position = "fixed";
-    bar.style.left = "0";
-    bar.style.top = "0";
-    bar.style.width = "100vw";
-    bar.style.height = "5px";
-    bar.style.background = "#26B77A";
-    bar.style.zIndex = "1200";
+    bar = document.createElement('div');
+    bar.id = 'progress-bar';
+    bar.style.display = 'flex';
+    bar.style.alignItems = 'center';
+    bar.style.justifyContent = 'center';
+    bar.style.position = 'fixed';
+    bar.style.left = '0';
+    bar.style.top = '0';
+    bar.style.width = '100vw';
+    bar.style.height = '5px';
+    bar.style.background = '#26B77A';
+    bar.style.zIndex = '1200';
     bar.innerHTML = '';
     document.body.appendChild(bar);
   }
-  let inner = bar.querySelector(".progress-inner");
+  let inner = bar.querySelector('.progress-inner');
   if (!inner) {
-    inner = document.createElement("div");
-    inner.className = "progress-inner";
-    inner.style.height = "100%";
-    inner.style.width = percent + "%";
+    inner = document.createElement('div');
+    inner.className = 'progress-inner';
+    inner.style.height = '100%';
+    inner.style.width = percent + '%';
     inner.innerText = msg;
     bar.appendChild(inner);
   }
-  bar.style.display = visible ? "flex" : "none";
-  inner.style.width = percent + "%";
-  inner.innerText = msg;
-  if (!visible) {
-    setTimeout(() => {
-      bar.style.display = "none";
-      inner.innerText = "";
-      inner.style.width = "0%";
-    }, 400);
+  bar.style.display = visible ? 'flex' : 'none';
+  inner.style.width = percent + '%';
+  inner.innerText = msg || (visible ? '' : '');
+
+  // Busy mask to block interactions
+  var mask = document.getElementById('ems-busy-mask');
+  if (!mask) {
+    mask = document.createElement('div');
+    mask.id = 'ems-busy-mask';
+    mask.className = 'ems-busy-mask';
+    mask.innerHTML = '<div class=\'spinner\'>Cargando…</div>';
+    document.body.appendChild(mask);
   }
+  if (visible) { mask.classList.add('show'); } else { mask.classList.remove('show'); }
 }
 
 function showSaved(msg = "Guardado") {
@@ -720,12 +724,93 @@ function renderInicio() {
 
 window.onload = () => {
   renderInicio();
+  // Modo app-like: bloquear atrás y menús contextuales globales
+  try {
+    if (!history.state || !history.state.ems) history.replaceState({ems:'root'}, '');
+    window.addEventListener('popstate', function(e){ e.preventDefault(); history.pushState({ems:'root'}, ''); });
+    document.addEventListener('contextmenu', function(e){
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA') e.preventDefault();
+    }, true);
+  } catch (e) {}
   try { applyThemeFromSettings(); } catch {}
   try { typeof showOffline === "function" && showOffline(true); } catch {}
   try { installUndoHandlers(); } catch {}
+  try { schedulePendingNotifications(); } catch {}
 };
 
 let ASYNC_ERR_GUARD = false;
+
+// ===== Notificaciones esporádicas de pendientes =====
+function schedulePendingNotifications() {
+  const MIN_MINUTES = 15; // mínimo cada 15 min
+  const JITTER_MIN  = 10; // ±10 min aleatorio
+  const keyLast = 'EMS_LAST_PENDING_NOTIFY';
+  const keyCounts = 'EMS_LAST_PENDING_COUNTS';
+
+  async function notify(msg) {
+    try {
+      if ('Notification' in window) {
+        if (Notification.permission === 'default') {
+          try { await Notification.requestPermission(); } catch {}
+        }
+        if (Notification.permission === 'granted') {
+          new Notification('EMS', { body: msg });
+          return;
+        }
+      }
+    } catch {}
+    try { showToast(msg, 'info', 5000); } catch {}
+  }
+
+  async function checkNow() {
+    try {
+      const last = Number(localStorage.getItem(keyLast) || '0');
+      const now = Date.now();
+      if (now - last < MIN_MINUTES * 60000) return; // demasiado pronto
+
+      // Consultas: estado='pendiente' o pendiente=true (dos consultas simples)
+      let cotPend = 0, repPend = 0;
+      try {
+        const q1 = await db.collection('cotizaciones').where('estado','==','pendiente').limit(20).get();
+        cotPend += q1.size;
+      } catch {}
+      try {
+        const q2 = await db.collection('cotizaciones').where('pendiente','==',true).limit(20).get();
+        cotPend = Math.max(cotPend, q2.size);
+      } catch {}
+      try {
+        const q3 = await db.collection('reportes').where('estado','==','pendiente').limit(20).get();
+        repPend += q3.size;
+      } catch {}
+      try {
+        const q4 = await db.collection('reportes').where('pendiente','==',true).limit(20).get();
+        repPend = Math.max(repPend, q4.size);
+      } catch {}
+
+      const prev = JSON.parse(localStorage.getItem(keyCounts) || '{"cot":0,"rep":0}');
+      // Notificar solo si hay al menos 1 y cambió vs última vez
+      if (cotPend > 0 && cotPend !== Number(prev.cot||0)) {
+        await notify(`Tienes ${cotPend} cotización(es) pendiente(s).`);
+      }
+      if (repPend > 0 && repPend !== Number(prev.rep||0)) {
+        await notify(`Tienes ${repPend} reporte(s) pendiente(s).`);
+      }
+      localStorage.setItem(keyCounts, JSON.stringify({ cot: cotPend, rep: repPend }));
+      localStorage.setItem(keyLast, String(now));
+    } catch {}
+  }
+
+  // primera comprobación diferida
+  setTimeout(checkNow, 5000);
+
+  // programar siguientes con jitter
+  (function loop() {
+    const jitter = (Math.random() * (JITTER_MIN * 2) - JITTER_MIN) * 60000; // ±JITTER
+    const delay = MIN_MINUTES * 60000 + Math.max(-JITTER_MIN*60000, Math.min(jitter, JITTER_MIN*60000));
+    setTimeout(async () => { await checkNow(); loop(); }, delay);
+  })();
+}
 
 // ==== Historial ====
 async function cargarHistorialEMS(filtro = "") {
@@ -918,12 +1003,13 @@ async function subirFotosCot(input) {
 
   const files = Array.from(input.files).slice(0, cupo);
   input.disabled = true;
+  showProgress(true, 5, `Preparando subida (${files.length})...`);
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     if (!file.type.startsWith("image/")) continue;
-
-    showSaved(`Subiendo imagen ${i+1} de ${files.length}...`);
+    const pct = Math.round(((i) / Math.max(1, files.length)) * 80) + 10;
+    showProgress(true, pct, `Subiendo imagen ${i+1} de ${files.length}...`);
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_PRESET);
@@ -947,6 +1033,7 @@ async function subirFotosCot(input) {
   renderCotFotosPreview();
   input.disabled = false;
   input.value = "";
+  showProgress(false, 100, "Listo");
 
   try { guardarCotizacionDraft(); } catch(e) {}
 }
@@ -1021,14 +1108,17 @@ function nuevaCotizacion() {
       </div>
       <div class="ems-form-row">
         <div class="ems-form-group">
-          <label><input type="checkbox" name="incluyeIVA"> Incluir IVA (16%)</label>
+          <label for="incluyeIVA">Incluir IVA (16%)</label>
+          <input class="ems-toggle" id="incluyeIVA" type="checkbox" name="incluyeIVA">
         </div>
         <div class="ems-form-group">
-          <label><input type="checkbox" name="anticipo" onchange="this.form.anticipoPorc.parentElement.style.display=this.checked?'':'none'"> Con anticipo</label>
+          <label for="anticipo">Con anticipo</label>
+          <input class="ems-toggle" id="anticipo" type="checkbox" name="anticipo" onchange="this.form.anticipoPorc.parentElement.style.display=this.checked?'':'none'">
           <div style="display:none"><input type="number" name="anticipoPorc" min="0" max="100" placeholder="% Anticipo"> %</div>
         </div>
         <div class="ems-form-group">
-          <label><input type="checkbox" name="corrigeIA"> Mejorar redacción con IA</label>
+          <label for="corrigeIA">Mejorar redacción con IA</label>
+          <input class="ems-toggle" id="corrigeIA" type="checkbox" name="corrigeIA">
         </div>
       </div>
       <!-- SUPERTÍTULO GENERAL -->
@@ -1057,7 +1147,8 @@ function nuevaCotizacion() {
       <div class="ems-form-group">
         <label>Imágenes para el PDF (hasta 5)</label>
         <div id="cotFotosPreview" class="ems-rep-fotos-row"></div>
-        <input id="cotFotosInput" type="file" accept="image/*" multiple onchange="subirFotosCot(this)">
+        <input id="cotFotosInput" type="file" accept="image/*" capture="environment" multiple onchange="subirFotosCot(this)" style="display:none">
+        <label for="cotFotosInput" class="ems-file-btn"><i class="fa fa-camera"></i> Agregar fotos</label>
         <small>Se suben a Cloudinary y se insertan al final del PDF.</small>
       </div>
       <div class="ems-form-actions">
@@ -1991,7 +2082,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     ? { maxW: 640, maxH: 640, quality: 0.5 } // Baja calidad para preview rápido
     : PDF_IMG_DEFAULTS; // Alta calidad para PDF final
 
-  showSaved(isPreview ? "Generando vista previa..." : "Generando PDF...");
+  showProgress(true, 10, isPreview ? "Generando vista previa..." : "Generando PDF...");
   if (!isPreview) await guardarCotizacionDraft();
 
   const form = document.getElementById('cotForm');
@@ -2136,34 +2227,50 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     }
   }
 
+  // Términos y Condiciones (desde ajustes)
+  try {
+    const s = getSettings();
+    if (s && s.tc && String(s.tc).trim()) {
+      ensureSpace(pdfDoc, ctx, 48);
+      ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, "Términos y Condiciones", fonts, { titleGap: 8, dryRun: false });
+      drawLabeledCard(pdfDoc, ctx, { label: "Términos", text: String(s.tc).trim(), fontSize: 10 });
+    }
+  } catch {}
+
   applyFooters(pdfDoc, ctx.pages, fonts, dims);
 
   const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
 
   // Si es preview, retornar los bytes directamente
   if (isPreview) {
-    showSaved("Vista previa lista");
+    showProgress(false, 100, "Vista previa lista");
     return pdfBytes;
   }
 
-  // Si no es preview, proceder con download/share normal
-  showSaved("PDF Listo");
+  // Si no es preview, proceder con download y luego compartir (si fue solicitado)
+  showProgress(true, 90, "Exportando...");
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const file = new File([blob], `Cotizacion_${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
-
-  if (share && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-    await navigator.share({ files: [file], title: "Cotización", text: `Cotización ${datos.numero||""} de Electromotores Santana` });
-  } else {
-    const url = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
+  try {
+    // Descargar
     if (isIOS()) {
       window.open(url, '_blank', 'noopener');
     } else {
       const a = document.createElement("a");
       a.href = url; a.download = file.name; a.rel = 'noopener';
       document.body.appendChild(a); a.click();
-      setTimeout(() => { document.body.removeChild(a); }, 0);
+      document.body.removeChild(a);
     }
+    // Compartir (si aplica y está soportado)
+    if (share && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: "Cotización", text: `Cotización ${datos.numero||""} de Electromotores Santana` });
+      } catch (_) { /* usuario canceló o no disponible */ }
+    }
+  } finally {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
+    showProgress(false, 100, "PDF Listo");
   }
 }
 
@@ -2477,6 +2584,17 @@ async function generarPDFReporte(share = false, isPreview = false) {
   // --- Render final (no dry run) ---
   const { pdfDoc, ctx } = await composeReportePDF({ datos, items, params, dryRun: false });
 
+  // Términos y Condiciones (desde ajustes)
+  try {
+    const s = getSettings();
+    if (s && s.tc && String(s.tc).trim()) {
+      // reutilizamos drawLabeledCard/drawSectionTitle con el contexto existente
+      ensureSpace(pdfDoc, ctx, 48);
+      ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], ctx.dims.mx, ctx.y, "Términos y Condiciones", ctx.fonts, { titleGap: 8, dryRun: false });
+      drawLabeledCard(pdfDoc, ctx, { label: "Términos", text: String(s.tc).trim(), fontSize: 10 });
+    }
+  } catch {}
+
   // Pie de página en todas
   applyFooters(pdfDoc, ctx.pages, ctx.fonts, ctx.dims);
 
@@ -2494,20 +2612,10 @@ async function generarPDFReporte(share = false, isPreview = false) {
 
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
   const fileName = `Reporte_${datos.numero || "reporte"}.pdf`;
-
-  if (share && navigator.share && navigator.canShare) {
-    try {
-      const file = new File([blob], fileName, { type: "application/pdf" });
-      if (navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` });
-        showProgress(false);
-        return;
-      }
-    } catch { /* fallback */ }
-  }
-
+  const file = new File([blob], fileName, { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   try {
+    // Descargar primero
     if (isIOS()) {
       window.open(url, '_blank', 'noopener');
     } else {
@@ -2518,6 +2626,10 @@ async function generarPDFReporte(share = false, isPreview = false) {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+    }
+    // Compartir si fue solicitado y está soportado
+    if (share && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` }); } catch {}
     }
   } finally {
     setTimeout(() => URL.revokeObjectURL(url), 3000);
@@ -2683,23 +2795,28 @@ function openSettings() {
   overlay.innerHTML = `
     <div class="ems-settings-modal">
       <div class="ems-settings-head">
-        <h3 style="margin:0">Ajustes de Apariencia y PDF</h3>
+        <h3 style="margin:0">Ajustes rápidos</h3>
         <button class="btn-mini" onclick="this.closest('.ems-settings-overlay').remove()"><i class='fa fa-times'></i></button>
       </div>
       <div class="ems-settings-body">
         <div class="ems-form-row">
-          <div class="ems-form-group"><label>Color principal (PDF)</label><input type="color" id="setThemeColor" value="${themeHex}"></div>
-          <div class="ems-form-group"><label>Mostrar crédito</label><select id="setShowCredit"><option value="1" ${s.showCredit!==false?'selected':''}>Sí</option><option value="0" ${s.showCredit===false?'selected':''}>No</option></select></div>
+          <div class="ems-form-group"><label>Color principal</label><input type="color" id="setThemeColor" value="${themeHex}"></div>
+          <div class="ems-form-group"><label>Mostrar crédito (pie de página)</label><select id="setShowCredit"><option value="1" ${s.showCredit!==false?'selected':''}>Sí</option><option value="0" ${s.showCredit===false?'selected':''}>No</option></select></div>
         </div>
         <div class="ems-form-row">
-          <div class="ems-form-group"><label>Galería base (px)</label><input type="number" id="setGalBase" min="120" max="300" value="${pdf.galleryBase||200}"></div>
-          <div class="ems-form-group"><label>Galería min (px)</label><input type="number" id="setGalMin" min="120" max="260" value="${pdf.galleryMin||160}"></div>
-          <div class="ems-form-group"><label>Galería max (px)</label><input type="number" id="setGalMax" min="160" max="300" value="${pdf.galleryMax||235}"></div>
+          <div class="ems-form-group"><label>Tamaño base de fotos (px)</label><input type="number" id="setGalBase" min="120" max="300" value="${pdf.galleryBase||200}"></div>
+          <div class="ems-form-group"><label>Tamaño mínimo (px)</label><input type="number" id="setGalMin" min="120" max="260" value="${pdf.galleryMin||160}"></div>
+          <div class="ems-form-group"><label>Tamaño máximo (px)</label><input type="number" id="setGalMax" min="160" max="300" value="${pdf.galleryMax||235}"></div>
         </div>
         <div class="ems-form-row">
-          <div class="ems-form-group"><label>Espaciado título</label><input type="number" id="setTitleGap" min="4" max="20" value="${pdf.titleGap||8}"></div>
-          <div class="ems-form-group"><label>Espaciado tarjeta</label><input type="number" id="setCardGap" min="4" max="20" value="${pdf.cardGap||8}"></div>
-          <div class="ems-form-group"><label>Espaciado bloques</label><input type="number" id="setBlockGap" min="4" max="20" value="${pdf.blockGap||6}"></div>
+          <div class="ems-form-group"><label>Espaciado de títulos</label><input type="number" id="setTitleGap" min="4" max="20" value="${pdf.titleGap||8}"></div>
+          <div class="ems-form-group"><label>Espaciado entre tarjetas</label><input type="number" id="setCardGap" min="4" max="20" value="${pdf.cardGap||8}"></div>
+          <div class="ems-form-group"><label>Espaciado entre bloques</label><input type="number" id="setBlockGap" min="4" max="20" value="${pdf.blockGap||6}"></div>
+        </div>
+        <div class="ems-form-group">
+          <label>Términos y Condiciones (aparecen al final del PDF)</label>
+          <textarea id="setTC" rows="4" placeholder="Escribe aquí tus términos...">${(s.tc||'')}</textarea>
+          <small>Se guardan en el dispositivo y se incluyen en Cotizaciones y Reportes.</small>
         </div>
       </div>
       <div class="ems-form-actions">
@@ -2720,7 +2837,8 @@ function openSettings() {
         titleGap: Number(overlay.querySelector('#setTitleGap').value)||8,
         cardGap: Number(overlay.querySelector('#setCardGap').value)||8,
         blockGap: Number(overlay.querySelector('#setBlockGap').value)||6,
-      }
+      },
+      tc: String(overlay.querySelector('#setTC').value||'').trim()
     };
     saveSettings(next);
     showSaved('Ajustes guardados');

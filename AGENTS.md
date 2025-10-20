@@ -2,18 +2,26 @@
 
 Este documento orienta a cualquier CLI/IA que intervenga en este proyecto. Mantenerlo actualizado es obligatorio al tocar arquitectura, contratos o flujos.
 
-## Resumen
+## Resumen (v2.0)
 - Tipo: WebApp estática (HTML/CSS/JS) publicada en GitHub Pages desde el root del repo.
-- Objetivo: Crear y gestionar Cotizaciones y Reportes con PDFs estéticos, usables en móvil, con corrector, confirmación segura al eliminar y opción de deshacer (Ctrl+Z).
+- Objetivo: Crear y gestionar Cotizaciones y Reportes con PDFs estéticos, usables en móvil, con corrector, confirmación segura al eliminar, opción de deshacer (Ctrl+Z) y experiencia “app nativa”.
 - Persistencia: Firebase Firestore (colecciones `cotizaciones`, `reportes`, `predictEMS`).
 - Medios: Imágenes en Cloudinary para anexos.
 - PDF: PDFLib en el navegador (sin servidor).
 - Offline: Service Worker con caché de assets, sin interceptar Firestore/Cloudinary.
+- Novedades 2.0:
+  - UI tipo app: bloqueo del botón atrás, sin menú contextual en contenido, selección de texto deshabilitada salvo inputs.
+  - Cargando/Bloqueo global durante procesos (PDF/Uploads) con `showProgress()` y máscara `ems-busy-mask`.
+  - Botón de fotos mejorado (“Agregar fotos”) para cámara/galería y `capture="environment"` en móviles.
+  - Checkboxes reemplazados por toggles deslizables (`.ems-toggle`).
+  - Términos y Condiciones editables (guardado en `EMS_SETTINGS.tc`) e incluidos en PDFs.
+  - Compartir: al compartir, se descarga y además se abre el share del sistema (Web Share API cuando esté disponible).
+  - Notificaciones esporádicas de pendientes (toasts/Notifications) con `schedulePendingNotifications()`.
 
 ## Estructura
-- `index.html`: Entrypoint. Carga `styles.css`, `app.js`, PDFLib y Firebase. Registra el Service Worker.
-- `styles.css`: Diseño mobile-first, accesible y de alto contraste. Evitar degradados. Usar variables CSS.
-- `app.js`: Lógica de UI, persistencia, generación de PDFs, Undo/Redo y confirmaciones.
+- `index.html`: Entrypoint. Carga `styles.css`, `app.js`, PDFLib y Firebase. Registra el Service Worker (bust `?v=XX`).
+- `styles.css`: Diseño mobile-first, accesible y de alto contraste. Evitar degradados. Variables CSS. Incluye estilos `ems-toggle`, `ems-file-btn`, `ems-busy-mask`.
+- `app.js`: Lógica de UI, persistencia, generación de PDFs, Undo/Redo y confirmaciones. UI tipo app (bloqueo atrás/context menu), notificaciones, y share.
 - `service-worker.js`: Caché de assets y control de actualización. No interceptar Firestore/Cloudinary.
 - `manifest.json`: PWA (start_url/scope relativos) e iconos.
 - `icons/`: Íconos (favicon/apple-touch). El logo se usa desde `./icons/icon-192.png`.
@@ -42,21 +50,25 @@ Este documento orienta a cualquier CLI/IA que intervenga en este proyecto. Mante
 ## Flujo de datos
 - Firebase Firestore V8 SDK.
   - Colecciones: `cotizaciones` (doc por `numero`), `reportes` (doc por `numero`), `predictEMS` (doc por usuario con arrays de predictivos).
+  - Opcional para notificaciones: campo `estado='pendiente'` o `pendiente=true` por documento (usado por `schedulePendingNotifications`).
 - Cloudinary: subida anónima con `upload_preset`.
 - LocalStorage:
   - Borradores: `EMS_COT_BORRADOR`, `EMS_REP_BORRADOR`.
-  - Ajustes: `EMS_SETTINGS` (tema/PDF).
+  - Ajustes: `EMS_SETTINGS` con:
+    - `themeColor`, `showCredit`, `pdf` ({`galleryBase`,`galleryMin`,`galleryMax`,`titleGap`,`cardGap`,`blockGap`})
+    - `tc` (Términos y Condiciones editables, string)
   - Undo stacks en memoria: `window.__EMS_UNDO_COT`, `window.__EMS_UNDO_REP` (no persistente).
 
 ## PDF
 - Librería: PDFLib (desde CDN). No hay servidor.
 - Generadores:
-  - Cotización: `generarPDFCotizacion(share?: boolean)`.
-  - Reporte: `generarPDFReporte(share?: boolean)`.
+  - Cotización: `generarPDFCotizacion(share?: boolean, isPreview?: boolean)`.
+  - Reporte: `generarPDFReporte(share?: boolean, isPreview?: boolean)`.
 - Contratos clave:
   - Siempre inicializar `ctx.state = { prevBlock, inGallery, currentSection }` antes de usar helpers (p. ej., `drawSectionBand`).
   - Usa `ensureSpace` para saltos de página y respeta `FOOTER_SAFE`.
   - Watermark/logo vía `getLogoImage(pdfDoc)` (usa `./icons/icon-192.png`).
+  - Incluir T&C si `getSettings().tc` no está vacío: usar `drawLabeledCard(..., { label: 'Términos y Condiciones', text: s.tc })`.
 - Estilo:
   - Sin degradados ni colores de bajo contraste. Usar `emsRgb()` (derivado de tema) y `gray()`.
 
@@ -66,11 +78,15 @@ Este documento orienta a cualquier CLI/IA que intervenga en este proyecto. Mante
   - Para Firestore/Cloudinary: responder con `fetch(req)` y `return;` (no cachear ni interceptar).
   - Navegación (`mode === 'navigate'`): network-first con fallback a `index.html`.
   - Assets same-origin: cache-first con actualización pasiva.
-- Registrar con bust de caché en `index.html` (query param temporal) para forzar update.
+- Registrar con bust de caché en `index.html` (query param `?v=XX`) para forzar update.
 
 ## Confirmación y seguridad
 - Eliminaciones usan confirmación por palabra aleatoria: `confirmByTyping()`.
   - Cualquier nueva acción destructiva debe usar este patrón.
+- UX tipo app (nativo):
+  - Bloquear botón atrás (`history.pushState` + `popstate` neutralizado).
+  - Desactivar `contextmenu` y selección de texto global (excepto inputs/textarea).
+  - Mostrar máscara de “cargando” durante operaciones largas con `showProgress(true, ...)` y ocultar al finalizar.
 
 ## Undo/Redo (Ctrl+Z)
 - Cotización:
@@ -87,14 +103,23 @@ Este documento orienta a cualquier CLI/IA que intervenga en este proyecto. Mante
 ## Iconos
 - Preferir Font Awesome desde CDN sin SRI (evita mismatch). 
 - Fallback CSS incluidos para íconos críticos (trash, mic, etc.) si la CDN falla.
+ 
+## Notificaciones de pendientes
+- Implementadas en `schedulePendingNotifications()` (en `app.js`).
+- Estrategia: intervalos con aleatoriedad suave (jitter) y límite de frecuencia (guardado en `localStorage`).
+- Preferencia: `Notification` API si el usuario otorga permiso; fallback a `showToast()` dentro de la app.
+- Fuente de datos: Firestore (`cotizaciones` y `reportes`) con filtro sugerido `estado='pendiente'` o `pendiente=true`.
 
 ## Checklist al hacer cambios
 1) UI/UX
 - Mantener alto contraste; sin degradados; botones visibles en móvil.
 - Verificar que botones de borrar muestran icono (FA o fallback).
+- Verificar toggles `.ems-toggle` en cotización.
+- Verificar botón “Agregar fotos” abre cámara/galería y sube a Cloudinary.
 2) PDFs
 - Probar `generarPDFCotizacion` y `generarPDFReporte` (chrome/ios).
 - Confirmar que `ctx.state` está inicializado y que `ensureSpace` se usa correctamente.
+- Confirmar inclusión de Términos y Condiciones cuando existan en ajustes.
 3) Service Worker
 - Bump de `CACHE_NAME`.
 - Asegurar bypass de Firestore/Cloudinary.
@@ -104,6 +129,11 @@ Este documento orienta a cualquier CLI/IA que intervenga en este proyecto. Mante
 - Deshacer (Ctrl+Z) funciona en cotización y reporte.
 5) Publicación
 - Commit con mensaje claro. Push a `main` (Pages). Revisar consola en producción.
+
+Regla operativa (obligatoria): tras cualquier cambio efectivo, ejecutar siempre:
+- `git add -A && git commit -m "<mensaje claro>"`
+- `git push origin main`
+Si el push falla por credenciales, configura `user.name`, `user.email` y PAT de GitHub antes de reintentar. GitHub Pages publica desde `main`, por lo que el push es imprescindible para ver los cambios.
 
 ## Cómo probar rápido
 - Local: `npx serve .` y abrir en navegador.
@@ -127,6 +157,9 @@ Este documento orienta a cualquier CLI/IA que intervenga en este proyecto. Mante
   - `showToast(message, type, duration)` - Notificaciones no bloqueantes
   - `initNetworkStatus()` - Monitor de estado de red online/offline
   - `validateInput(input, isValid, errorMsg)` - Validación visual de inputs
+- Notificaciones: `schedulePendingNotifications()` - verifica pendientes y avisa esporádicamente
+- Cargando global: `showProgress(visible, percent, msg)` - muestra barra y bloquea interacción
+- Archivos/fotos: `subirFotosCot(input)` - sube a Cloudinary (máx 5)
 
 ## Notas para futuras IA/CLI
 - Si cambias contratos (forma de `secciones`, PDFs o SW), actualiza este AGENTS.md.
@@ -148,6 +181,11 @@ Plantilla sugerida:
 - Notas: validaciones, impactos, acciones pendientes
 
 Entradas:
+- Fecha: 2025-10-20 (Versión 2.0 - UX nativa + Share + T&C)
+  - Agente: Codex CLI
+  - Resumen: Experiencia tipo app (bloqueo atrás y sin menú contextual en contenido), overlay de “cargando” que bloquea edición durante generación de PDFs y subidas de fotos, botón de fotos mejorado con acceso a cámara/galería, checkboxes reemplazados por toggles deslizables, Términos y Condiciones editables (guardados y añadidos a PDFs), y compartir que descarga y además abre el share del sistema. Notificaciones esporádicas de pendientes con Firestore. SW v42.
+  - Archivos clave: `AGENTS.md`, `app.js`, `styles.css`, `index.html`, `service-worker.js`
+  - Notas: Requiere actualizar PWA (cerrar/abrir) por SW. Requiere conceder permiso de notificaciones para avisos del sistema; si no, se usan toasts.
 - Fecha: 2025-10-18 (Vista Previa PDF en Tiempo Real)
   - Agente: Claude Code
   - Resumen: Sistema completo de vista previa de PDFs antes de generarlos. Visor profesional en overlay con iframe, barra de acciones (actualizar/cerrar), spinner de carga, soporte ESC y accesibilidad (ARIA). Funciones generarPDFCotizacion() y generarPDFReporte() ahora aceptan parámetro isPreview que usa menor calidad de imagen (640x640, quality 0.5 vs 1280x1280, quality 0.72) para generación rápida. Retornan pdfBytes cuando isPreview=true en lugar de descargar. Botones "Vista Previa" agregados en UI de cotización y reporte con icono ojo. Función mostrarVisorPDF() crea overlay con backdrop blur, iframe para mostrar PDF, botón de actualizar que regenera en tiempo real, botón cerrar con cleanup de URLs. Funciones previsualizarPDFCotizacion() y previsualizarPDFReporte() orquestan el flujo completo. CSS profesional con +140 líneas de estilos responsivos. Usuario puede ver estructura y distribución antes de generar PDF final de alta calidad.
