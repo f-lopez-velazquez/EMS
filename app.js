@@ -1933,6 +1933,75 @@ function ensureSideOptionButtons(){
 })();
 
 try{ window.guardarCotizacionDraft = guardarCotizacionDraft; }catch(e){}
+async function generarPDFCotizacion(share = false, isPreview = false) {
+  try { showSaved(isPreview ? 'Generando vista previa...' : 'Generando PDF...'); } catch(e){}
+  try { if (!isPreview && typeof guardarCotizacionDraft === 'function') guardarCotizacionDraft(); } catch(e){}
+  const form = document.getElementById('cotForm');
+  if (!form) { try{ showModal('No hay formulario de cotización activo.', 'error'); }catch(e){}; return; }
+  // Reusar serialización existente
+  let data = {};
+  try { data = serializeCotizacionForm() || {}; } catch(e) {
+    const datos = Object.fromEntries(new FormData(form));
+    data = { ...datos };
+  }
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const page = pdfDoc.addPage([595.28, 841.89]); // A4 portrait
+  const draw = (txt, x, y, size=11, bold=false, color=rgb(0,0,0)) => {
+    page.drawText(String(txt||''), { x, y, size, font: bold?helvB:helv, color });
+  };
+  let y = 800;
+  draw('COTIZACION', 40, y, 18, true, rgb(0.15,0.15,0.15)); y -= 24;
+  draw('Cliente: ' + (data.cliente||''), 40, y); y -= 14;
+  draw('Numero: ' + (data.numero||''), 40, y); y -= 14;
+  draw('Fecha: ' + ((data.fecha||'') + (data.hora?(' '+data.hora):'')), 40, y); y -= 22;
+  // Secciones
+  try {
+    const secciones = Array.isArray(data.secciones)? data.secciones : [];
+    for (let s=0; s<secciones.length; s++){
+      const sec = secciones[s];
+      if (y < 80) { page.drawLine({ start:{x:40,y:70}, end:{x:555,y:70}, thickness:0.5, color: rgb(0.8,0.8,0.8)}); y = 800; }
+      draw((sec.titulo||('Seccion '+(s+1))), 40, y, 12, true); y -= 16;
+      const items = Array.isArray(sec.items)? sec.items: [];
+      for (let it of items){
+        const linea = (it.concepto||'') + (it.descripcion?(' - '+it.descripcion):'') + (typeof it.precio==='number'?(' $'+Number(it.precio).toFixed(2)):'');
+        draw(linea, 48, y, 10, false, rgb(0.2,0.2,0.2)); y -= 12;
+        if (y < 60) { y = 800; }
+      }
+      y -= 8;
+    }
+  } catch(e){}
+  // Totales
+  try {
+    const subtotal = Number(data.subtotal||0);
+    const iva = Number(data.iva||0);
+    const total = Number(data.total|| subtotal + iva);
+    draw('Subtotal:', 360, y, 11, true); draw('$'+subtotal.toFixed(2), 460, y); y -= 14;
+    if (iva>0){ draw('IVA (16%):', 360, y, 11, true); draw('$'+iva.toFixed(2), 460, y); y -= 14; }
+    draw('Total:', 360, y, 12, true, rgb(0.2,0.2,0.2)); draw('$'+total.toFixed(2), 460, y, 12, true, rgb(0.2,0.2,0.2)); y -= 18;
+  } catch(e){}
+  const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
+  if (isPreview) { try{ showSaved('Vista previa lista'); }catch(e){}; return pdfBytes; }
+  // Descargar y compartir
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+  const fileName = 'Cotizacion_'+(data.numero||'cotizacion')+'.pdf';
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement('a'); a.href=url; a.download=fileName; a.rel='noopener'; document.body.appendChild(a); a.click(); try{document.body.removeChild(a);}catch(e){}
+  } finally { setTimeout(()=>URL.revokeObjectURL(url),3000); }
+  try {
+    if (share && navigator.canShare && navigator.canShare({ files: [new File([blob], fileName, { type:'application/pdf' })] })){
+      await navigator.share({ files:[ new File([blob], fileName, { type:'application/pdf' }) ], title:'Cotizacion', text:'Cotizacion '+(data.numero||'') });
+    }
+  } catch(e){}
+  try { showSaved('PDF Listo'); }catch(e){}
+}
 try{ window.generarPDFCotizacion = generarPDFCotizacion; }catch(e){}
 try{ window.previsualizarPDFCotizacion = previsualizarPDFCotizacion; }catch(e){}
 try{ window.previsualizarPDFReporte = previsualizarPDFReporte; }catch(e){}
+
+
+
+
