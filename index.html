@@ -97,12 +97,34 @@
         navigator.serviceWorker.register('./service-worker.js?v=30')
           .then(function(registration) {
             console.log('SW registered:', registration.scope);
+            try {
+              if (!navigator.serviceWorker._emsVersionListener) {
+                navigator.serviceWorker._emsVersionListener = true;
+                navigator.serviceWorker.addEventListener('message', function(e){
+                  if (e && e.data && e.data.type === 'SW_VERSION') {
+                    console.log(`[SW] versión ${e.data.version} (cache ${e.data.cache}) @ ${new Date(e.data.when).toLocaleString()}`);
+                  }
+                });
+              }
+              const ping = function(){
+                try {
+                  if (navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage('PING_VERSION');
+                  } else if (registration.active) {
+                    registration.active.postMessage('PING_VERSION');
+                  }
+                } catch (e) {}
+              };
+              ping();
+              navigator.serviceWorker.addEventListener('controllerchange', ping);
+            } catch (e) {}
             registration.update().catch(()=>{});
             registration.addEventListener('updatefound', () => {
               const newWorker = registration.installing; if (!newWorker) return;
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                   if (typeof showToast === 'function') { showToast('Nueva version disponible. Recarga para actualizar.', 'info', 8000); }
+                  try { ping(); } catch (e) {}
                 }
               });
             });

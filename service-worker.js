@@ -1,4 +1,5 @@
-﻿// SW v30 – versión simple y estable
+// SW v30 - versión simple y estable
+const SW_VERSION = '30';
 const CACHE_NAME = 'ems-cache-v30';
 const TO_CACHE = [
   './',
@@ -12,18 +13,42 @@ const TO_CACHE = [
   'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js'
 ];
 
+console.log(`[SW] bootstrap v${SW_VERSION} (cache: ${CACHE_NAME})`);
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(TO_CACHE)).catch(() => {})
-  );
+  console.log(`[SW] install v${SW_VERSION}`);
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(TO_CACHE)).catch(() => {}));
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
-  );
-  self.clients.claim();
+  console.log(`[SW] activate v${SW_VERSION}`);
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)));
+    await self.clients.claim();
+    try {
+      const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
+      const payload = { type: 'SW_VERSION', version: SW_VERSION, cache: CACHE_NAME, when: Date.now() };
+      clients.forEach((c) => { try { c.postMessage(payload); } catch (e) {} });
+    } catch (e) {}
+  })());
+});
+
+self.addEventListener('message', (event) => {
+  const data = event.data;
+  if (data === 'PING_VERSION' || (data && data.type === 'PING_VERSION')) {
+    const payload = { type: 'SW_VERSION', version: SW_VERSION, cache: CACHE_NAME, when: Date.now() };
+    try {
+      if (event.source && event.source.postMessage) {
+        event.source.postMessage(payload);
+      } else {
+        self.clients.matchAll({ includeUncontrolled: true, type: 'window' }).then((clients) => {
+          clients.forEach((c) => { try { c.postMessage(payload); } catch (e) {} });
+        });
+      }
+    } catch (e) {}
+  }
 });
 
 self.addEventListener('fetch', (event) => {
@@ -61,3 +86,4 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
