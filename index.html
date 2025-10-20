@@ -94,7 +94,7 @@
     // Service Worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./service-worker.js?v=43')
+        navigator.serviceWorker.register('./service-worker.js?v=30')
           .then(function(registration) {
             console.log('SW registered:', registration.scope);
             registration.update().catch(()=>{});
@@ -123,4 +123,5 @@
   </script>
 </body>
 </html>
+
 
