@@ -1108,17 +1108,26 @@ function nuevaCotizacion() {
       </div>
       <div class="ems-form-row">
         <div class="ems-form-group">
-          <label for="incluyeIVA">Incluir IVA (16%)</label>
-          <input class="ems-toggle" id="incluyeIVA" type="checkbox" name="incluyeIVA">
+          <label>Incluir IVA (16%)</label>
+          <label class="ems-switch" aria-label="Incluir IVA (16%)">
+            <input class="ems-toggle" id="incluyeIVA" type="checkbox" name="incluyeIVA">
+            <span class="ems-switch-ui" aria-hidden="true"></span>
+          </label>
         </div>
         <div class="ems-form-group">
-          <label for="anticipo">Con anticipo</label>
-          <input class="ems-toggle" id="anticipo" type="checkbox" name="anticipo" onchange="this.form.anticipoPorc.parentElement.style.display=this.checked?'':'none'">
+          <label>Con anticipo</label>
+          <label class="ems-switch" aria-label="Con anticipo">
+            <input class="ems-toggle" id="anticipo" type="checkbox" name="anticipo" onchange="this.form.anticipoPorc.parentElement.style.display=this.checked?'':'none'">
+            <span class="ems-switch-ui" aria-hidden="true"></span>
+          </label>
           <div style="display:none"><input type="number" name="anticipoPorc" min="0" max="100" placeholder="% Anticipo"> %</div>
         </div>
         <div class="ems-form-group">
-          <label for="corrigeIA">Mejorar redacción con IA</label>
-          <input class="ems-toggle" id="corrigeIA" type="checkbox" name="corrigeIA">
+          <label>Mejorar redacción con IA</label>
+          <label class="ems-switch" aria-label="Mejorar redacción con IA">
+            <input class="ems-toggle" id="corrigeIA" type="checkbox" name="corrigeIA">
+            <span class="ems-switch-ui" aria-hidden="true"></span>
+          </label>
         </div>
       </div>
       <!-- SUPERTÍTULO GENERAL -->
