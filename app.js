@@ -5,6 +5,7 @@ const EMS_CONTACT = {
   telefono: "cel: 442 469 9895; Tel/Fax: 4422208910",
   correo: "electromotores.santana@gmail.com"
 };
+try { window.guardarCotizacionDraft = guardarCotizacionDraft; } catch(e) {}
 const EMS_COLOR = [0.97, 0.54, 0.11]; // rgb(248,138,29) (fallback)
 
 // Ajustes (tema/PDF) persistentes
@@ -1519,6 +1520,44 @@ async function enviarCotizacion(e) {
   renderInicio();
 }
 try{ window.enviarCotizacion = enviarCotizacion; }catch(e){}
+// Guardar borrador de cotización (LocalStorage + Firestore BORRADOR)
+function guardarCotizacionDraft() {
+  const form = document.getElementById('cotForm');
+  if (!form) return;
+  const datos = Object.fromEntries(new FormData(form));
+  const secciones = [];
+  document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
+    const tituloEl = sec.querySelector('input[name=\"sec_titulo\"]');
+    const titulo = tituloEl ? tituloEl.value.trim() : '';
+    const items = [];
+    sec.querySelectorAll('tbody tr').forEach(tr=>{
+      const concepto = (tr.querySelector('input[name=\"concepto\"]')||{}).value || '';
+      const descripcion = (tr.querySelector('textarea[name=\"descripcion\"]')||{}).value || '';
+      const precio = Number((tr.querySelector('input[name=\"precioSec\"]')||{}).value||0);
+      if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
+    });
+    if (titulo || items.length) secciones.push({ titulo, items });
+  });
+  const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (Number(it.precio)||0),0), 0);
+  const incluyeIVA = (datos.incluyeIVA === 'on') || (form.incluyeIVA && form.incluyeIVA.checked);
+  const iva = incluyeIVA ? subtotal*0.16 : 0;
+  const total = subtotal + iva;
+  const cotizacion = {
+    ...datos,
+    secciones,
+    subtotal, iva, total,
+    fotos: (Array.isArray(fotosCotizacion)?fotosCotizacion:[]).slice(0,5),
+    tipo: 'cotizacion',
+    fecha: datos.fecha,
+    hora: datos.hora || ahora(),
+    creada: new Date().toISOString()
+  };
+  try { localStorage.setItem('EMS_COT_BORRADOR', JSON.stringify(cotizacion)); } catch(e) {}
+  try { db.collection('cotizaciones').doc(datos.numero || 'BORRADOR').set(cotizacion); } catch(e) {}
+  try { showSaved('Cotización guardada'); } catch(e) {}
+}
+
+try{ window.guardarCotizacionDraft = guardarCotizacionDraft; }catch(e){}
 
 // ====== Eliminar docs ======
 async function eliminarCotizacionCompleta(numero) {
@@ -1744,6 +1783,11 @@ function serializeCotizacionForm() {
   });
   return { ...datos, secciones, fotos: (fotosCotizacion||[]).slice(0) };
 }
+function editarCotizacion(data){
+  try { localStorage.setItem('EMS_COT_BORRADOR', JSON.stringify(data||{})); } catch(e) {}
+  try { nuevaCotizacion(); } catch(e) {}
+}
+try{ window.editarCotizacion = editarCotizacion; }catch(e){}
 function applyCotSnapshot(snap) {
   if (!snap) return;
   editarCotizacion({ ...snap, tipo: 'cotizacion' });
