@@ -747,7 +747,19 @@ function renderInicio() {
       <button onclick="nuevaCotizacion()" class="btn-primary"><i class="fa fa-file-invoice"></i> Nueva COTIZACI\u00D3N</button>
       <button onclick="nuevoReporte()" class="btn-secondary"><i class="fa fa-clipboard-list"></i> Nuevo Reporte</button>
     </div>
-    <div class="ems-historial">
+        <div class=\"ems-price-card\">
+      <div class=\"ems-price-head\">
+        <h2><i class=\"fa fa-table\"></i> Lista de precios</h2>
+        <div class=\"price-controls\">
+          <label>Año <input type=\"number\" id=\"plYear\" min=\"2000\" max=\"2100\"></label>
+          <label>Ajuste % <input type=\"number\" id=\"plAdj\" step=\"0.1\" placeholder=\"0\"></label>
+          <button class=\"btn-mini\" data-action=\"prices-apply\"><i class=\"fa fa-rotate\"></i> Aplicar</button>
+          <button class=\"btn-mini\" data-action=\"prices-pdf\"><i class=\"fa fa-file-pdf\"></i> PDF</button>
+          <button class=\"btn-mini\" data-action=\"prices-share\"><i class=\"fa fa-share\"></i> Compartir</button>
+        </div>
+      </div>
+      <div id=\"priceTableWrap\"></div>
+    </div><div class="ems-historial">
       <div class="ems-historial-header">
         <h2><i class="fa fa-clock"></i> Recientes</h2>
         <input type="text" id="buscarEMS" placeholder="Buscar por cliente, n\u00FAmero o fecha...">
@@ -757,6 +769,7 @@ function renderInicio() {
     <div class="ems-credit">Programado por: Francisco L\u00F3pez Vel\u00E1zquez.</div>
   `;
   cargarHistorialEMS();
+  try { renderPriceTable(); } catch {}
 }
 
 window.onload = () => {
@@ -794,6 +807,10 @@ function initActionDelegates() {
         case 'cot-pdf': ev.preventDefault(); try{ await guardarCotizacionDraft(); }catch{} generarPDFCotizacion(); break;
         case 'cot-share': ev.preventDefault(); try{ await guardarCotizacionDraft(); }catch{} generarPDFCotizacion(true); break;
         case 'del-photo-cot': ev.preventDefault(); const idx = Number(btn.getAttribute('data-idx')); if(!Number.isNaN(idx)) eliminarFotoCot(idx); break;
+        // Lista de precios
+        case 'prices-apply': ev.preventDefault(); aplicarAjustePrecios(); break;
+        case 'prices-pdf': ev.preventDefault(); generarPDFPrecios(false); break;
+        case 'prices-share': ev.preventDefault(); generarPDFPrecios(true); break;
         default: break;
       }
     } catch(e){ console.warn('Acción fallida', act, e); }
@@ -2294,8 +2311,8 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
       // Cabecera normal
       pT.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
     pT.drawText(decodeU("Descripci\\u00F3n"), { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      pT.drawText("Precio", { x: dims.mx + dims.usableW - 120, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-    } else {
+      pT.drawText(decodeU(" Descripci\\\\u00F3n\), { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+ pT.drawText(\Precio\, { x: dims.mx + dims.usableW - 120, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
       // Cabecera detallada
       const widths = { cant: 60, unidad: 90, punit: 100, total: 100 }; const conceptW = dims.usableW - (widths.cant + widths.unidad + widths.punit + widths.total) - 20;
       var xConcept = dims.mx + 6;
@@ -3351,3 +3368,115 @@ try { if (typeof initActionDelegates === 'function') initActionDelegates(); } ca
 
 
 
+
+
+// ===== Lista de precios (UI + PDF) =====
+function getPriceList() {
+  try { return JSON.parse(localStorage.getItem('EMS_PRICE_LIST')) || {}; } catch { return {}; }
+}
+function savePriceList(pl) {
+  try { localStorage.setItem('EMS_PRICE_LIST', JSON.stringify(pl||{})); } catch {}
+}
+function seedPriceList() {
+  const seed = [
+    {hp:'1 (0.75)'},{hp:'1.5 (1.1)'},{hp:'2 (1.5)'},{hp:'3 (2.2)'},{hp:'5 (4)'},{hp:'7.5 (5)'},{hp:'10 (7.5)'},{hp:'15 (11.2)'},{hp:'20 (15)'},{hp:'25 (18.5)'},{hp:'30 (22)'},{hp:'40 (30)'},{hp:'50 (37.5)'},{hp:'60 (45)'},{hp:'75 (55)'},{hp:'100 (75)'},{hp:'125 (93.3)'},{hp:'150 (112)'},{hp:'175 (132)'},{hp:'200 (150)'},{hp:'250 (190)'},{hp:'300 (255)'}
+  ].map((r,i)=>{
+    const hp = [1,1.5,2,3,5,7.5,10,15,20,25,30,40,50,60,75,100,125,150,175,200,250,300][i];
+    const prev = 2800 + hp*450;
+    const corr = Math.round(prev*1.75);
+    const fan  = 380 + hp*20;
+    return { hp:r.hp, prev: prev, corr: corr, fan: fan };
+  });
+  return { year: new Date().getFullYear(), rows: seed };
+}
+function renderPriceTable(percent=0) {
+  const wrap = document.getElementById('priceTableWrap');
+  if (!wrap) return;
+  const pl = Object.assign(seedPriceList(), getPriceList());
+  const year = document.getElementById('plYear');
+  if (year) year.value = pl.year || new Date().getFullYear();
+  const adj = Number(document.getElementById('plAdj')?.value||percent||0);
+  const mul = 1 + (adj/100);
+  const fmt = v => mostrarPrecioLimpio(Math.round(Number(v||0)*mul));
+  const head = `<div class="price-table-wrap"><table class="ems-price-table"><thead><tr>
+    <th>Potencia en HP/KW</th>
+    <th>Mantenimiento Preventivo</th>
+    <th>Mantenimiento Correctivo (Embobinado)</th>
+    <th>Abanico de Enfriamiento</th>
+  </tr></thead><tbody>`;
+  const body = (pl.rows||[]).map(r=>`<tr><td>${r.hp||''}</td><td>${fmt(r.prev)}</td><td>${fmt(r.corr)}</td><td>${fmt(r.fan)}</td></tr>`).join('');
+  const foot = `</tbody></table><div class="price-note">Nota: Los precios no incluyen IVA. El precio incluye recolección de equipo dentro del área de Santiago de Querétaro, desarmado, diagnóstico y extracción de baleros.</div></div>`;
+  wrap.innerHTML = `<div class="price-title">PRECIOS ${year?.value||pl.year}</div>` + head + body + foot;
+}
+function aplicarAjustePrecios(){
+  try { const y = Number(document.getElementById('plYear').value||new Date().getFullYear()); const pl = Object.assign(seedPriceList(), getPriceList()); pl.year = y; savePriceList(pl); } catch {}
+  renderPriceTable();
+}
+async function generarPDFPrecios(share=false){
+  showProgress(true, 10, 'Generando PDF...');
+  const pl = Object.assign(seedPriceList(), getPriceList());
+  const year = Number(document.getElementById('plYear')?.value||pl.year||new Date().getFullYear());
+  const adj = Number(document.getElementById('plAdj')?.value||0);
+  const mul = 1 + (adj/100);
+  const { PDFDocument, StandardFonts } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB= await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
+  const page = pdfDoc.addPage([dims.pageW, dims.pageH]);
+  // Header
+  let y = dims.pageH - dims.my;
+  page.drawText('Electromotores Santana.', { x: dims.mx, y: y-4, size: 14, font: helvB, color: gray(0.18) });
+  page.drawText('Lista de precios '+year+'.', { x: dims.mx, y: y-20, size: 11, font: helvB, color: gray(0.4) });
+  y -= 36;
+  // Title band
+  page.drawRectangle({ x: dims.mx, y: y-24, width: dims.pageW - 2*dims.mx, height: 24, color: emsRgb(), opacity: 0.95 });
+  const title = 'PRECIOS '+year;
+  const w = helvB.widthOfTextAtSize(title, 12.5);
+  page.drawText(title, { x: dims.mx + (dims.pageW - 2*dims.mx - w)/2, y: y-16, size: 12.5, font: helvB, color: PDFLib.rgb(1,1,1) });
+  y -= 34;
+  const colXs = [dims.mx+8, dims.mx+200, dims.mx+404, dims.mx+504];
+  const colW  = [192, 200, 100, 80];
+  // Table header
+  page.drawRectangle({ x: dims.mx, y: y-18, width: dims.pageW - 2*dims.mx, height: 20, color: emsRgb(), opacity: 0.98 });
+  const th = ['Potencia en HP/KW','Mantenimiento Preventivo','Mantenimiento Correctivo (Embobinado)','Abanico de Enfriamiento'];
+  [0,1,2,3].forEach(i=> page.drawText(th[i], { x: colXs[i], y: y-12, size: 10.5, font: helvB, color: PDFLib.rgb(1,1,1) }));
+  // vertical lines header
+  [colXs[1]-8,colXs[2]-8,colXs[3]-8].forEach(x=> page.drawLine({ start:{x, y:y-18}, end:{x, y:y+2}, thickness:0.6, color: PDFLib.rgb(1,1,1)}));
+  y -= 28;
+  // Rows
+  const fmt = v => mostrarPrecioLimpio(Math.round(Number(v||0)*mul));
+  (pl.rows||[]).forEach((r,idx)=>{
+    if (y < 90){ // new page
+      const p2 = pdfDoc.addPage([dims.pageW, dims.pageH]);
+      y = dims.pageH - dims.my - 24;
+    }
+    if (idx % 2 === 0) page.drawRectangle({ x: dims.mx, y: y-2, width: dims.pageW - 2*dims.mx, height: 16, color: PDFLib.rgb(0.97,0.97,0.97) });
+    page.drawText(String(r.hp||''), { x: colXs[0], y, size: 10, font: helv, color: gray(0.26) });
+    drawTextRight(page, fmt(r.prev), colXs[1]+colW[1], y, { size: 10, font: helv, color: gray(0.26) });
+    drawTextRight(page, fmt(r.corr), colXs[2]+colW[2], y, { size: 10, font: helv, color: gray(0.26) });
+    drawTextRight(page, fmt(r.fan),  colXs[3]+colW[3], y, { size: 10, font: helv, color: gray(0.26) });
+    // verticals
+    const yTop = y+8, yBot = y-10;
+    [colXs[1]-8,colXs[2]-8,colXs[3]-8].forEach(x=> page.drawLine({ start:{x, y:yBot}, end:{x, y:yTop}, thickness:0.3, color: gray(0.88)}));
+    rule(page, dims.mx, y-3, dims.pageW - dims.mx, gray(0.92), 0.4);
+    y -= 18;
+  });
+  // Note
+  y -= 10; const note = 'Nota: Los precios no incluyen IVA. El precio incluye recolección de equipo dentro del área de Santiago de Querétaro, desarmado, diagnóstico y extracción de baleros.';
+  page.drawRectangle({ x: dims.mx, y: y-18, width: dims.pageW - 2*dims.mx, height: 22, color: PDFLib.rgb(0.96,0.6,0.6), opacity: 0.15, borderColor: PDFLib.rgb(0.86,0.1,0.1), borderWidth: 1 });
+  page.drawText(note, { x: dims.mx + 8, y: y-10, size: 9.8, font: helvB, color: PDFLib.rgb(0.86,0.1,0.1) });
+  const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
+  showProgress(false);
+  if (share && navigator.canShare) {
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const file = new File([blob], `Lista_precios_${year}.pdf`, { type: 'application/pdf' });
+    try { await navigator.share({ files: [file], title: `Precios ${year}` }); } catch {}
+    return;
+  }
+  const url = URL.createObjectURL(new Blob([pdfBytes], { type:'application/pdf' }));
+  const a = document.createElement('a'); a.href = url; a.download = `Lista_precios_${year}.pdf`; a.click(); setTimeout(()=>URL.revokeObjectURL(url), 4000);
+}
+
+// Render tabla de precios al entrar a inicio
+window.addEventListener('load', ()=> setTimeout(()=>{ try{ renderPriceTable(); }catch{} }, 0));

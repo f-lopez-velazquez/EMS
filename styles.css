@@ -1442,3 +1442,26 @@ input, textarea, select, button { -webkit-user-select: text; user-select: text; 
 /* Make detailed sections horizontally scrollable without scrolling whole page */
 .cot-seccion { overflow-x: auto; }
 .cot-seccion-table[data-mode="det"] { min-width: 720px; }
+
+/* Mejor contraste entre secciones */
+.cot-seccion-head { background: rgba(37, 99, 235, 0.08); border: 1px solid var(--azul); border-radius: 6px; padding: 8px; margin-bottom: 6px; }
+.cot-seccion-head .cot-sec-title { font-weight: 600; }
+.cot-seccion-subtotal { border-top: 2px solid rgba(0,0,0,0.06); padding: 8px 4px; margin-top: 6px; color: var(--text-muted); }
+.ems-items-table thead th { background: var(--azul); color: #fff; }
+.ems-items-table tbody tr:nth-child(even) { background: rgba(0,0,0,0.03); }
+
+/* Price list card */
+.ems-price-card { margin: 18px 0; border: 1px solid rgba(0,0,0,0.12); border-radius: 8px; background: #fff; }
+.ems-price-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid rgba(0,0,0,0.08); }
+.ems-price-head h2 { margin: 0; font-size: 1.05rem; color: var(--text); }
+.price-controls { display: flex; gap: 10px; align-items: center; }
+.price-controls label { font-size: .9rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+.price-controls input { width: 96px; height: 32px; padding: 4px 8px; }
+.price-title { text-align: center; background: var(--azul); color: #fff; padding: 8px; font-weight: 700; border-bottom: 1px solid rgba(0,0,0,0.1); }
+.price-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.ems-price-table { width: 100%; border-collapse: collapse; min-width: 720px; }
+.ems-price-table th, .ems-price-table td { padding: 10px 8px; border: 1px solid rgba(0,0,0,0.14); text-align: left; }
+.ems-price-table th { background: rgba(37,99,235,0.95); color:#fff; position: sticky; top:0; }
+.ems-price-table td:nth-child(2), .ems-price-table td:nth-child(3), .ems-price-table td:nth-child(4) { text-align: right; }
+.ems-price-table tbody tr:nth-child(even) { background: rgba(0,0,0,0.03); }
+.price-note { margin: 10px; padding: 10px; border: 1px solid #d33; color: #c00; font-weight: 700; background: #fff4f4; border-radius: 6px; }
