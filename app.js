@@ -795,10 +795,11 @@ function initActionDelegates() {
         case 'cot-share': ev.preventDefault(); try{ await guardarCotizacionDraft(); }catch{} generarPDFCotizacion(true); break;
         case 'del-photo-cot': ev.preventDefault(); const idx = Number(btn.getAttribute('data-idx')); if(!Number.isNaN(idx)) eliminarFotoCot(idx); break;
         // Lista de precios
-case 'open-prices': ev.preventDefault(); openPriceList(); break;
+        case 'open-prices': ev.preventDefault(); renderPreciosView(); break;
         case 'prices-apply': ev.preventDefault(); aplicarAjustePrecios(); break;
         case 'prices-pdf': ev.preventDefault(); generarPDFPrecios(false); break;
         case 'prices-share': ev.preventDefault(); generarPDFPrecios(true); break;
+        case 'back-home': ev.preventDefault(); renderInicio(); break;
         default: break;
       }
     } catch(e){ console.warn('Acción fallida', act, e); }
@@ -3475,5 +3476,33 @@ async function generarPDFPrecios(share=false){
   const a = document.createElement('a'); a.href = url; a.download = `Lista_precios_${year}.pdf`; a.click(); setTimeout(()=>URL.revokeObjectURL(url), 4000);
 }
 
-function openPriceList(){ try{ window.open('./precios.html','_blank','noopener'); }catch(e){ location.href = './precios.html'; } }
+// Vista SPA para Lista de Precios (sin salir de la app)
+function renderPreciosView(){
+  if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
+  const root = document.getElementById('root');
+  root.innerHTML = `
+    <div class="ems-header">
+      <img src="${LOGO_URL}" class="ems-logo">
+      <div style="flex:1">
+        <h1>Electromotores Santana</h1>
+        <span class="ems-subtitle">Lista de precios</span>
+      </div>
+      <button class="btn-mini" data-action="back-home" title="Inicio"><i class="fa fa-arrow-left"></i></button>
+    </div>
+    <div class="ems-price-card" style="margin:16px">
+      <div class="ems-price-head">
+        <h2><i class="fa fa-table"></i> Lista de precios</h2>
+        <div class="price-controls">
+          <label>Año <input type="number" id="plYear" min="2000" max="2100"></label>
+          <label>Ajuste % <input type="number" id="plAdj" step="0.1" placeholder="0"></label>
+          <button class="btn-mini" data-action="prices-apply"><i class="fa fa-rotate"></i> Aplicar</button>
+          <button class="btn-mini" data-action="prices-pdf"><i class="fa fa-file-pdf"></i> PDF</button>
+          <button class="btn-mini" data-action="prices-share"><i class="fa fa-share"></i> Compartir</button>
+        </div>
+      </div>
+      <div id="priceTableWrap"></div>
+    </div>
+  `;
+  try { renderPriceTable(); } catch {}
+}
 
