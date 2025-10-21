@@ -1342,3 +1342,52 @@ input, textarea, select, button { -webkit-user-select: text; user-select: text; 
 /* Help icon for quick hints */
 .ems-help { display: inline-flex; align-items: center; justify-content: center; margin-left: 6px; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--azul, #2563eb); color: var(--azul, #2563eb); font-weight: 700; font-size: 12px; cursor: help; }
 .ems-help:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,.35); }
+
+/* Responsive improvements for detailed quote table */
+@media (max-width: 640px) {
+  .cot-seccion-table[data-mode="det"] thead { display: none; }
+  .cot-seccion-table[data-mode="det"] tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 110px;
+    grid-auto-rows: auto;
+    gap: 8px 10px;
+    padding: 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+    margin-bottom: 10px;
+  }
+  .cot-seccion-table[data-mode="det"] tbody tr td { padding: 0; }
+  .cot-seccion-table[data-mode="det"] tbody tr td:nth-child(1) { grid-column: 1 / -1; }
+  .cot-seccion-table[data-mode="det"] tbody tr td:nth-child(2) { grid-column: 1 / 2; }
+  .cot-seccion-table[data-mode="det"] tbody tr td:nth-child(3) { grid-column: 2 / 3; }
+  .cot-seccion-table[data-mode="det"] tbody tr td:nth-child(4) { grid-column: 1 / 2; }
+  .cot-seccion-table[data-mode="det"] tbody tr td:nth-child(5) { grid-column: 2 / 3; text-align: right; font-weight: 600; color: #0f172a; }
+  .cot-seccion-table[data-mode="det"] tbody tr td:nth-child(6) { grid-column: 2 / 3; justify-self: end; }
+
+  .cot-seccion-table[data-mode="det"] tbody tr td:nth-child(2)::before,
+  .cot-seccion-table[data-mode="det"] tbody tr td:nth-child(3)::before,
+  .cot-seccion-table[data-mode="det"] tbody tr td:nth-child(4)::before,
+  .cot-seccion-table[data-mode="det"] tbody tr td:nth-child(5)::before {
+    display: block;
+    font-size: .72rem;
+    color: #6b7280;
+    margin-bottom: 4px;
+    font-weight: 600;
+    letter-spacing: .02em;
+  }
+  .cot-seccion-table[data-mode="det"] tbody tr td:nth-child(2)::before { content: 'Cant.'; }
+  .cot-seccion-table[data-mode="det"] tbody tr td:nth-child(3)::before { content: 'Unidad'; }
+  .cot-seccion-table[data-mode="det"] tbody tr td:nth-child(4)::before { content: 'P. Unitario'; }
+  .cot-seccion-table[data-mode="det"] tbody tr td:nth-child(5)::before { content: 'Total'; }
+
+  .cot-seccion-table[data-mode="det"] input[type="number"],
+  .cot-seccion-table[data-mode="det"] input[type="text"],
+  .cot-seccion-table[data-mode="det"] textarea {
+    width: 100%;
+    min-height: 40px;
+    font-size: 16px;
+  }
+
+  .cot-seccion-subtotal { margin: 10px 0 16px; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 10px; background: #f8fafc; }
+}
