@@ -191,6 +191,11 @@ Plantilla sugerida:
 - Notas: validaciones, impactos, acciones pendientes
 
 Entradas:
+- Fecha: 2025-10-21 (Fix encoding/U+FFFD + SW v44)
+  - Agente: Codex CLI
+  - Resumen: Eliminados caracteres U+FFFD en app.js que rompían el parseo ("illegal character" en línea ~1282). Estandarizados campos a `descripcion` (sin acento) y actualizado uso de predictivos. Bump SW a v44 para forzar actualización.
+  - Archivos clave: `app.js`, `service-worker.js`, `index.html`
+  - Notas: Error de Firebase desaparece al ejecutarse `initializeApp` tras corregir el parse. Requiere recarga dura de la PWA.
 - Fecha: 2025-10-21 (Bugfix JS + SW v43)
   - Agente: Codex CLI
   - Resumen: Corregido error de sintaxis en app.js (línea con "function //" que rompía la carga: "function statement requires a name"). Se inicializa la delegación global de eventos en onload. Bump del Service Worker a v43 para propagar cambios.
