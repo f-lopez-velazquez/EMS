@@ -18,6 +18,33 @@ function getSettings() {
 function saveSettings(conf) {
   try { localStorage.setItem('EMS_SETTINGS', JSON.stringify(conf||{})); } catch {}
 }
+
+// Decodifica secuencias unicode con barra invertida (soporta "\\uXXXX" y "\uXXXX")
+function decodeU(str) {
+  if (!str || typeof str !== 'string') return str;
+  const single = str.replace(/\\u/g, '\\u');
+  return single.replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+}
+
+// Normaliza placeholders/textos con escapes unicode en el DOM recién insertado
+function normalizeEscapedTexts(root) {
+  try {
+    const scope = root || document;
+    // placeholders
+    scope.querySelectorAll('[placeholder]').forEach(el => {
+      const ph = el.getAttribute('placeholder');
+      if (ph && /\\u[0-9a-fA-F]{4}/.test(ph)) el.setAttribute('placeholder', decodeU(ph));
+    });
+    // textos simples en celdas/labels/spans
+    const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, null);
+    const toFix = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (/\\u[0-9a-fA-F]{4}/.test(node.nodeValue)) toFix.push(node);
+    }
+    toFix.forEach(n => n.nodeValue = decodeU(n.nodeValue));
+  } catch {}
+}
 function hexToRgbArray(hex) {
   if (!hex || typeof hex !== 'string') return EMS_COLOR;
   const m = hex.replace('#','');
@@ -963,7 +990,7 @@ function renderCotSeccion(seccion = {}, rowId) {
   return `
     <div class="cot-seccion" data-secid="${id}">
       <div class="cot-seccion-head">
-        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. RefAcciónes, Mano de obra)" value="${safe(seccion.titulo)}">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
         <div class="cot-sec-actions">
           <button type="button" class="btn-mini" data-action="add-row"><i class="fa fa-plus"></i> Agregar rubro</button>
           <button type="button" class="btn-mini" data-action="remove-section"><i class="fa fa-trash"></i></button>
@@ -2225,7 +2252,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
 
   const ctx = { 
     pages: [], y: 0, dims, fonts, datos, 
-    typeLabel: "COTIZACI\u00D3N", logoImg, _atPageStart: true,
+    typeLabel: decodeU(" COTIZACI\\\\u00D3N\), logoImg, _atPageStart: true,
     opts: { dryRun: false, titleGap: 8, cardGap: 8, blockGap: 6 },
     state: { prevBlock: 'start', inGallery: false, currentSection: null }
   };
@@ -2263,7 +2290,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     if (!isDet) {
       // Cabecera normal
       pT.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      pT.drawText("Descripci\\u00F3n", { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+    pT.drawText(decodeU("Descripci\\u00F3n"), { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
       pT.drawText("Precio", { x: dims.mx + dims.usableW - 120, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
     } else {
       // Cabecera detallada
@@ -2316,7 +2343,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     });
     ctx.y -= 4;
     const pS = currentPage();
-    pS.drawText("Subtotal secci\\u00F3n:", { x: dims.mx + dims.usableW - 180, y: ctx.y, size: 10.5, font: helvB, color: gray(0.3) });
+    pS.drawText(decodeU("Subtotal secci\\u00F3n:"), { x: dims.mx + dims.usableW - 180, y: ctx.y, size: 10.5, font: helvB, color: gray(0.3) });
     drawTextRight(pS, mostrarPrecioLimpio(subSec), dims.mx + dims.usableW - 6, ctx.y, { size: 10.5, font: helvB, color: gray(0.3) });
     ctx.y -= 16;
     delete ctx.__detCols;
@@ -2439,7 +2466,7 @@ function renderCotSeccionDet(seccion = {}, rowId) {
   return `
     <div class="cot-seccion" data-secid="${id}" data-mode="det">
       <div class="cot-seccion-head">
-        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. RefAcciónes, Mano de obra)" value="${safe(seccion.titulo)}">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
         <div class="cot-sec-actions">
           <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
           <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
@@ -3253,7 +3280,7 @@ function renderCotSeccionDet(seccion = {}, rowId) {
   return `
     <div class="cot-seccion" data-secid="${id}" data-mode="det">
       <div class="cot-seccion-head">
-        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. RefAcciónes, Mano de obra)" value="${safe(seccion.titulo)}">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
         <div class="cot-sec-actions">
           <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
           <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
@@ -3291,6 +3318,18 @@ function renderCotSeccionDet(seccion = {}, rowId) {
 
 
 try { if (typeof initActionDelegates === 'function') initActionDelegates(); } catch {}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
