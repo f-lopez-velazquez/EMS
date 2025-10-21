@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <title>EMS - Lista de precios</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Librerías -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app-check.js"></script>
+</head>
+<body>
+  <div class="ems-header" style="position:sticky;top:0;z-index:10;">
+    <img src="./icons/icon-192.png" alt="EMS" class="ems-logo">
+    <div style="flex:1">
+      <h1>Electromotores Santana</h1>
+      <span class="ems-subtitle">Lista de precios</span>
+    </div>
+    <a href="./" class="btn-mini" title="Inicio"><i class="fa fa-home"></i></a>
+  </div>
+
+  <div class="ems-price-card" style="margin:16px">
+    <div class="ems-price-head">
+      <h2><i class="fa fa-table"></i> Lista de precios</h2>
+      <div class="price-controls">
+        <label>Año <input type="number" id="plYear" min="2000" max="2100"></label>
+        <label>Ajuste % <input type="number" id="plAdj" step="0.1" placeholder="0"></label>
+        <button class="btn-mini" data-action="prices-apply"><i class="fa fa-rotate"></i> Aplicar</button>
+        <button class="btn-mini" data-action="prices-pdf"><i class="fa fa-file-pdf"></i> PDF</button>
+        <button class="btn-mini" data-action="prices-share"><i class="fa fa-share"></i> Compartir</button>
+      </div>
+    </div>
+    <div id="priceTableWrap"></div>
+  </div>
+
+  <script src="app.js?v=52"></script>
+  <script>
+    // Render tabla al cargar esta vista
+    window.addEventListener('load', function(){ try{ renderPriceTable(); }catch(e){} });
+  </script>
+</body>
+</html>

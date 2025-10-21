@@ -743,22 +743,10 @@ function renderInicio() {
         <i class="fa fa-gear"></i>
       </button>
     </div>
-    <div class="ems-main-btns">
-      <button onclick="nuevaCotizacion()" class="btn-primary"><i class="fa fa-file-invoice"></i> Nueva COTIZACI\u00D3N</button>
-      <button onclick="nuevoReporte()" class="btn-secondary"><i class="fa fa-clipboard-list"></i> Nuevo Reporte</button>
-    </div>
-        <div class=\"ems-price-card\">
-      <div class=\"ems-price-head\">
-        <h2><i class=\"fa fa-table\"></i> Lista de precios</h2>
-        <div class=\"price-controls\">
-          <label>Año <input type=\"number\" id=\"plYear\" min=\"2000\" max=\"2100\"></label>
-          <label>Ajuste % <input type=\"number\" id=\"plAdj\" step=\"0.1\" placeholder=\"0\"></label>
-          <button class=\"btn-mini\" data-action=\"prices-apply\"><i class=\"fa fa-rotate\"></i> Aplicar</button>
-          <button class=\"btn-mini\" data-action=\"prices-pdf\"><i class=\"fa fa-file-pdf\"></i> PDF</button>
-          <button class=\"btn-mini\" data-action=\"prices-share\"><i class=\"fa fa-share\"></i> Compartir</button>
-        </div>
-      </div>
-      <div id=\"priceTableWrap\"></div>
+        <div class=\"ems-main-btns\">
+      <button onclick=\"nuevaCotizacion()\" class=\"btn-primary\"><i class=\"fa fa-file-invoice\"></i> Nueva COTIZACI\\u00D3N</button>
+      <button onclick=\"nuevoReporte()\" class=\"btn-secondary\"><i class=\"fa fa-clipboard-list\"></i> Nuevo Reporte</button>
+      <button class=\"btn-secondary\" data-action=\"open-prices\"><i class=\"fa fa-table\"></i> Lista de Precios</button>
     </div><div class="ems-historial">
       <div class="ems-historial-header">
         <h2><i class="fa fa-clock"></i> Recientes</h2>
@@ -769,7 +757,6 @@ function renderInicio() {
     <div class="ems-credit">Programado por: Francisco L\u00F3pez Vel\u00E1zquez.</div>
   `;
   cargarHistorialEMS();
-  try { renderPriceTable(); } catch {}
 }
 
 window.onload = () => {
@@ -808,6 +795,7 @@ function initActionDelegates() {
         case 'cot-share': ev.preventDefault(); try{ await guardarCotizacionDraft(); }catch{} generarPDFCotizacion(true); break;
         case 'del-photo-cot': ev.preventDefault(); const idx = Number(btn.getAttribute('data-idx')); if(!Number.isNaN(idx)) eliminarFotoCot(idx); break;
         // Lista de precios
+case 'open-prices': ev.preventDefault(); openPriceList(); break;
         case 'prices-apply': ev.preventDefault(); aplicarAjustePrecios(); break;
         case 'prices-pdf': ev.preventDefault(); generarPDFPrecios(false); break;
         case 'prices-share': ev.preventDefault(); generarPDFPrecios(true); break;
@@ -3432,11 +3420,11 @@ async function generarPDFPrecios(share=false){
   const helvB= await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
   const page = pdfDoc.addPage([dims.pageW, dims.pageH]);
-  // Header
-  let y = dims.pageH - dims.my;
-  page.drawText('Electromotores Santana.', { x: dims.mx, y: y-4, size: 14, font: helvB, color: gray(0.18) });
-  page.drawText('Lista de precios '+year+'.', { x: dims.mx, y: y-20, size: 11, font: helvB, color: gray(0.4) });
-  y -= 36;
+  // Header con logo y footers como cotizaciones
+  const logoImg = await getLogoImage(pdfDoc);
+  const datosHdr = { cliente: '', numero: '', fecha: new Date().toISOString().slice(0,10), hora: ahora() };
+  let y = addHeader(pdfDoc, page, decodeU('LISTA DE PRECIOS'), datosHdr, { reg: helv, bold: helvB }, dims, true, logoImg);
+  y -= 10;
   // Title band
   page.drawRectangle({ x: dims.mx, y: y-24, width: dims.pageW - 2*dims.mx, height: 24, color: emsRgb(), opacity: 0.95 });
   const title = 'PRECIOS '+year;
@@ -3474,6 +3462,7 @@ async function generarPDFPrecios(share=false){
   y -= 10; const note = 'Nota: Los precios no incluyen IVA. El precio incluye recolección de equipo dentro del área de Santiago de Querétaro, desarmado, diagnóstico y extracción de baleros.';
   page.drawRectangle({ x: dims.mx, y: y-18, width: dims.pageW - 2*dims.mx, height: 22, color: PDFLib.rgb(0.96,0.6,0.6), opacity: 0.15, borderColor: PDFLib.rgb(0.86,0.1,0.1), borderWidth: 1 });
   page.drawText(note, { x: dims.mx + 8, y: y-10, size: 9.8, font: helvB, color: PDFLib.rgb(0.86,0.1,0.1) });
+  try { applyFooters(pdfDoc, pdfDoc.getPages(), { reg: helv, bold: helvB }, dims); } catch {}
   const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
   showProgress(false);
   if (share && navigator.canShare) {
@@ -3486,5 +3475,5 @@ async function generarPDFPrecios(share=false){
   const a = document.createElement('a'); a.href = url; a.download = `Lista_precios_${year}.pdf`; a.click(); setTimeout(()=>URL.revokeObjectURL(url), 4000);
 }
 
-// Render tabla de precios al entrar a inicio
-window.addEventListener('load', ()=> setTimeout(()=>{ try{ renderPriceTable(); }catch{} }, 0));
+function openPriceList(){ try{ window.open('./precios.html','_blank','noopener'); }catch(e){ location.href = './precios.html'; } }
+
