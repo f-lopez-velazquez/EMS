@@ -1,7 +1,7 @@
 ﻿// === INICIALIZACI?N Y UTILIDADES ===
 const EMS_CONTACT = {
   empresa: "ELECTROMOTORES SANTANA",
-  direccion: "Carr. a Chichimequillas 306, Colonia Menchaca 2, 76147 Santiago de Quer?taro, Qro.",
+  direccion: "Carr. a Chichimequillas 306, Colonia Menchaca 2, 76147 Santiago de Quer\u00E9taro, Qro.",
   telefono: "cel: 442 469 9895; Tel/Fax: 4422208910",
   correo: "electromotores.santana@gmail.com"
 };
@@ -73,19 +73,19 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// === Cloudinary usado en reportes/cotizaci?n ===
+// === Cloudinary usado en reportes/COTIZACI\u00D3N ===
 const CLOUDINARY_CLOUD = "ds9b1mczi";
 const CLOUDINARY_PRESET = "ml_default";
 
 // Usa ?cono local para coherencia con GH Pages e ?cono de pesta?a
 const LOGO_URL = "./icons/icon-192.png";
 
-// Estado de secciones para Cotizaci?n (en DOM, pero guardamos helpers)
+// Estado de secciones para COTIZACI\u00D3N (en DOM, pero guardamos helpers)
 let cotSeccionesTemp = [];
 
 // ?? IMPORTANTE: fotos por ?TEM con ID estable (no por ?ndice)
 let fotosItemsReporteMap = {}; // { [rowId]: string[] }
-let fotosCotizacion = []; // Hasta 5 fotos por cotizaci?n
+let fotosCotizacion = []; // Hasta 5 fotos por COTIZACI\u00D3N
 let autoSaveTimer = null;
 
 // ---- Helpers generales ----
@@ -192,7 +192,7 @@ function showSaved(msg = "Guardado") {
  * Muestra un modal profesional (reemplaza alert)
  * @param {string} message - Mensaje a mostrar
  * @param {string} type - Tipo: 'info', 'success', 'warning', 'error'
- * @param {string} title - T?tulo del modal (opcional)
+ * @param {string} title - t\u00EDtulo del modal (opcional)
  */
 function showModal(message, type = 'info', title = '') {
   return new Promise((resolve) => {
@@ -208,7 +208,7 @@ function showModal(message, type = 'info', title = '') {
       error: '?'
     };
 
-    // T?tulos por defecto
+    // t\u00EDtulos por defecto
     const titles = {
       info: 'Informaci?n',
       success: '?xito',
@@ -264,7 +264,7 @@ function showModal(message, type = 'info', title = '') {
 /**
  * Muestra un modal de confirmaci?n (reemplaza confirm)
  * @param {string} message - Mensaje a mostrar
- * @param {string} title - T?tulo del modal
+ * @param {string} title - t\u00EDtulo del modal
  */
 function showConfirm(message, title = 'Confirmar') {
   return new Promise((resolve) => {
@@ -416,7 +416,7 @@ function validateInput(input, isValid, errorMsg = '') {
   }
 }
 
-// Inicializar cuando el DOM est? listo
+// Inicializar cuando el DOM est\u00E1 listo
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initNetworkStatus);
 } else {
@@ -431,7 +431,7 @@ let currentPDFPreviewOverlay = null;
 /**
  * Muestra un PDF en el visor de vista previa
  * @param {Uint8Array} pdfBytes - Bytes del PDF generado
- * @param {string} title - T?tulo del documento
+ * @param {string} title - t\u00EDtulo del documento
  * @param {Function} onRefresh - Funci?n a llamar al refrescar
  */
 function mostrarVisorPDF(pdfBytes, title, onRefresh) {
@@ -522,20 +522,20 @@ function mostrarVisorPDF(pdfBytes, title, onRefresh) {
 }
 
 /**
- * Genera y muestra vista previa de cotizaci?n
+ * Genera y muestra vista previa de COTIZACI\u00D3N
  * Usa menor calidad de imagen para velocidad
  */
 async function previsualizarPDFCotizacion() {
   try {
     // Mostrar indicador de carga
-    showProgress(true, 20, "Generando vista previa r?pida...");
+    showProgress(true, 20, "Generando vista previa r\u00E1pida...");
 
     const pdfBytes = await generarPDFCotizacion(false, true); // false = no compartir, true = preview
 
     showProgress(false);
 
     if (pdfBytes) {
-      mostrarVisorPDF(pdfBytes, 'Cotizaci?n - Vista Previa', previsualizarPDFCotizacion);
+      mostrarVisorPDF(pdfBytes, 'COTIZACI\u00D3N - Vista Previa', previsualizarPDFCotizacion);
       showToast('Vista previa generada', 'success', 2000);
     } else {
       showModal('No se pudo generar la vista previa', 'error');
@@ -554,7 +554,7 @@ async function previsualizarPDFCotizacion() {
 async function previsualizarPDFReporte() {
   try {
     // Mostrar indicador de carga
-    showProgress(true, 20, "Generando vista previa r?pida...");
+    showProgress(true, 20, "Generando vista previa r\u00E1pida...");
 
     const pdfBytes = await generarPDFReporte(false, true); // false = no compartir, true = preview
 
@@ -573,7 +573,7 @@ async function previsualizarPDFReporte() {
   }
 }
 
-// --- Envoltura de texto por palabras (m?s est?tica que por caracteres)
+// --- Envoltura de texto por palabras (m?s est\u00E1tica que por caracteres)
 function wrapTextLines(text = "", font, fontSize, maxWidth) {
   const words = String(text || "").replace(/\s+/g, " ").trim().split(" ");
   const lines = [];
@@ -717,17 +717,17 @@ function renderInicio() {
       </button>
     </div>
     <div class="ems-main-btns">
-      <button onclick="nuevaCotizacion()" class="btn-primary"><i class="fa fa-file-invoice"></i> Nueva Cotizaci?n</button>
+      <button onclick="nuevaCotizacion()" class="btn-primary"><i class="fa fa-file-invoice"></i> Nueva COTIZACI\u00D3N</button>
       <button onclick="nuevoReporte()" class="btn-secondary"><i class="fa fa-clipboard-list"></i> Nuevo Reporte</button>
     </div>
     <div class="ems-historial">
       <div class="ems-historial-header">
         <h2><i class="fa fa-clock"></i> Recientes</h2>
-        <input type="text" id="buscarEMS" placeholder="Buscar por cliente, n?mero o fecha...">
+        <input type="text" id="buscarEMS" placeholder="Buscar por cliente, n\u00FAmero o fecha...">
       </div>
       <div id="historialEMS" class="ems-historial-list"></div>
     </div>
-    <div class="ems-credit">Programado por: Francisco L?pez Vel?zquez.</div>
+    <div class="ems-credit">Programado por: Francisco L\u00F3pez Vel\u00E1zquez.</div>
   `;
   cargarHistorialEMS();
 }
@@ -828,7 +828,7 @@ function schedulePendingNotifications() {
       const prev = JSON.parse(localStorage.getItem(keyCounts) || '{"cot":0,"rep":0}');
       // Notificar solo si hay al menos 1 y cambi? vs ?ltima vez
       if (cotPend > 0 && cotPend !== Number(prev.cot||0)) {
-        await notify(`Tienes ${cotPend} cotizaci?n(es) pendiente(s).`);
+        await notify(`Tienes ${cotPend} COTIZACI\u00D3N(es) pendiente(s).`);
       }
       if (repPend > 0 && repPend !== Number(prev.rep||0)) {
         await notify(`Tienes ${repPend} reporte(s) pendiente(s).`);
@@ -882,7 +882,7 @@ async function cargarHistorialEMS(filtro = "") {
     <div class="ems-card-ems ${x.tipo === "cotizacion" ? "ems-cotizacion" : "ems-reporte"}" onclick="abrirDetalleEMS('${x.tipo}', '${x.numero}')">
       <div class="ems-card-ico"><i class="fa ${x.tipo === "cotizacion" ? "fa-file-invoice" : "fa-clipboard-list"}"></i></div>
       <div class="ems-card-main">
-        <div class="ems-card-tipo">${x.tipo === "cotizacion" ? "Cotizaci?n" : "Reporte"}</div>
+        <div class="ems-card-tipo">${x.tipo === "cotizacion" ? "COTIZACI\u00D3N" : "Reporte"}</div>
         <div class="ems-card-cliente"><b>${x.cliente || ""}</b></div>
         <div class="ems-card-fecha">${x.fecha || ""} ${x.hora ? "? " + x.hora : ""}</div>
         <div class="ems-card-numero">#${x.numero || ""}</div>
@@ -897,7 +897,7 @@ document.addEventListener("input", e => {
   }
 });
 
-// ========== Cotizaci?n ==========
+// ========== COTIZACI\u00D3N ==========
 function renderCotItemRow(item = {}) {
   return `
     <tr>
@@ -944,7 +944,7 @@ function toggleCotMode(flag) {
   } catch (e) { console.warn('toggleCotMode', e); }
 }
 
-// ========== NUEVO: Secciones de cotizaci?n ==========
+// ========== NUEVO: Secciones de COTIZACI\u00D3N ==========
 function renderCotSeccion(seccion = {}, rowId) {
   const id = rowId || newUID();
   const items = Array.isArray(seccion.items) ? seccion.items : [];
@@ -1078,7 +1078,7 @@ function recalcTotalesCotizacion() {
   }
 }
 
-// === Fotos de COTIZACI?N (Cloudinary, m?x 5) ===
+// === Fotos de COTIZACI\u00D3N (Cloudinary, m?x 5) ===
 async function subirFotosCot(input) {
   if (!input.files || input.files.length === 0) return;
   const cupo = 5 - (fotosCotizacion?.length || 0);
@@ -1158,7 +1158,7 @@ function nuevaCotizacion() {
       <img src="${LOGO_URL}" class="ems-logo">
       <div>
         <h1>Electromotores Santana</h1>
-        <span class="ems-subtitle">Nueva Cotizaci?n</span>
+        <span class="ems-subtitle">Nueva COTIZACI\u00D3N</span>
       </div>
       <button class="btn-mini" style="margin-left:auto" title="Ajustes" onclick="openSettings()">
         <i class="fa fa-gear"></i>
@@ -1167,7 +1167,7 @@ function nuevaCotizacion() {
     <form id="cotForm" class="ems-form" autocomplete="off" oninput="recalcTotalesCotizacion()">
       <div class="ems-form-row">
         <div class="ems-form-group">
-          <label>No. Cotizaci?n</label>
+          <label>No. COTIZACI\u00D3N</label>
           <input type="text" name="numero" required placeholder="Ej. COT-2024-001">
         </div>
         <div class="ems-form-group">
@@ -1213,9 +1213,9 @@ function nuevaCotizacion() {
           </label>
         </div>
       </div>
-      <!-- SUPERT?TULO GENERAL -->
+      <!-- SUPERt\u00EDtulo GENERAL -->
       <div class="ems-form-group">
-        <label>Supert?tulo general del documento</label>
+        <label>Supert\u00EDtulo general del documento</label>
         <input type="text" name="titulo" placeholder="Ej: Motor de 5 HP, Rebobinado de alternador..." autocomplete="off" spellcheck="true" autocapitalize="sentences">
       </div>
       <!-- Secciones -->
@@ -1259,7 +1259,7 @@ function nuevaCotizacion() {
         <button type="button" class="btn-success" data-action="cot-share"><i class="fa fa-share-alt"></i> Compartir</button>
       </div>
     </form>
-    <div class="ems-credit">Programado por: Francisco L?pez Vel?zquez.</div>
+    <div class="ems-credit">Programado por: Francisco L\u00F3pez Vel\u00E1zquez.</div>
   `;
 
   const form = document.getElementById('cotForm');
@@ -1476,7 +1476,7 @@ function nuevoReporte() {
           <input type="time" name="hora" value="${ahora()}">
         </div>
       </div>
-      <!-- NUEVA SECCI?N: CONCEPTO -->
+      <!-- NUEVA secci\u00F3n: CONCEPTO -->
       <div class="ems-form-group">
         <label>Concepto (ej. MOTOR 4HP)</label>
         <input type="text" name="concepto" list="conceptosEMS" placeholder="Equipo/Trabajo principal" autocomplete="off">
@@ -1511,7 +1511,7 @@ function nuevoReporte() {
         <button type="button" class="btn-success" onclick="guardarReporteDraft(); generarPDFReporte(true)"><i class="fa fa-share-alt"></i> Compartir</button>
       </div>
     </form>
-    <div class="ems-credit">Programado por: Francisco L?pez Vel?zquez.</div>
+    <div class="ems-credit">Programado por: Francisco L\u00F3pez Vel\u00E1zquez.</div>
   `;
   const form = document.getElementById('repForm');
   let draft = localStorage.getItem('EMS_REP_BORRADOR');
@@ -1592,7 +1592,7 @@ async function enviarCotizacion(e) {
   });
   if (!datos.numero || !datos.cliente || !secciones.length) {
     showSaved("Faltan datos");
-    showModal("Por favor completa todos los campos requeridos: n?mero, cliente y al menos una seccion.", "warning");
+    showModal("Por favor completa todos los campos requeridos: n\u00FAmero, cliente y al menos una seccion.", "warning");
     return;
   }
   savePredictEMSCloud("cliente", datos.cliente);
@@ -1621,7 +1621,7 @@ async function enviarCotizacion(e) {
   }
   await db.collection("cotizaciones").doc(datos.numero).set(cotizacion);
   localStorage.removeItem('EMS_COT_BORRADOR');
-  showSaved("?Cotizaci?n guardada!");
+  showSaved("?COTIZACI\u00D3N guardada!");
   renderInicio();
 }
 
@@ -1665,10 +1665,10 @@ async function guardarCotizacionDraft() {
   };
   await db.collection("cotizaciones").doc(datos.numero || "BORRADOR").set(cotizacion);
   localStorage.setItem('EMS_COT_BORRADOR', JSON.stringify(cotizacion));
-  showSaved("Cotizaci?n guardada");
+  showSaved("COTIZACI\u00D3N guardada");
 }
 
-// ====== Helpers PDF est?ticos ======
+// ====== Helpers PDF est\u00E1ticos ======
 function emsRgb(arr = EMS_COLOR) {
   const { rgb } = PDFLib;
   const theme = Array.isArray(arr) ? arr : getThemeRgbArray();
@@ -1686,14 +1686,14 @@ function rule(page, x1, y, x2, color = gray(0.85), thickness = 0.6) {
   page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, thickness, color });
 }
 function drawSectionTitle(page, x, y, text, fonts, opts = {}) {
-  const gap = opts.titleGap ?? 10; // gap extra bajo el t?tulo
+  const gap = opts.titleGap ?? 10; // gap extra bajo el t\u00EDtulo
   if (!opts.dryRun) page.drawRectangle({ x, y: y - 10, width: 4, height: 14, color: emsRgb(), opacity: 0.9 });
   if (!opts.dryRun) page.drawText(String(text || "").toUpperCase(), { x: x + 10, y: y - 6, size: 11.5, font: fonts.bold, color: gray(0.18) });
   return y - 20 - gap;
 }
 
 // === Compactaci?n global (menos blanco) ===
-const FOOTER_SAFE = 70;              // zona reservada inferior (pie de p?gina)
+const FOOTER_SAFE = 70;              // zona reservada inferior (pie de P\u00E1gina)
 const TOP_PAD_NO_HEADER = 6;        // respiro arriba cuando NO hay encabezado
 const WATERMARK_W = 220, WATERMARK_H = 220, WATERMARK_OP = 0.04;
 
@@ -1745,7 +1745,7 @@ async function getLogoImage(pdfDoc) {
   return pdfDoc.__EMS_LOGO_IMG;
 }
 
-// Header con logo (solo se usa en PRIMERA p?gina)
+// Header con logo (solo se usa en PRIMERA P\u00E1gina)
 function addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, isFirst = false, logoImg = null, opts = {}) {
   const { pageW, mx } = dims;
   let yTop = dims.pageH - dims.my;
@@ -1760,27 +1760,27 @@ function addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, isFirst = false,
 
     page.drawText(`Cliente: ${datos.cliente || ""}`, { x: mx + 64, y: yTop - 38, size: 10.5, font: fonts.reg, color: gray(0.25) });
     drawTextRight(page, `No: ${datos.numero || ""}`, pageW - mx, yTop - 4, { size: 10.5, font: fonts.bold, color: gray(0.25) });
-    drawTextRight(page, `Fecha: ${datos.fecha || ""}${datos.hora ? " ? " + datos.hora : ""}`, pageW - mx, yTop - 22, { size: 10.5, font: fonts.bold, color: gray(0.25) });
+    drawTextRight(page, `Fecha: ${datos.fecha || ""}${datos.hora ? " \u00B7 " + datos.hora : ""}`, pageW - mx, yTop - 22, { size: 10.5, font: fonts.bold, color: gray(0.25) });
 
     rule(page, mx, yTop - 48, pageW - mx, gray(0.85), 0.8);
   }
   return yTop - 58;
 }
 
-// Pie de p?gina en TODAS las p?ginas
+// Pie de P\u00E1gina en TODAS las P\u00E1ginas
 function applyFooters(pdfDoc, pages, fonts, dims) {
   const total = pages.length;
   for (let i = 0; i < total; i++) {
     const page = pages[i];
     const y = 56;
     rule(page, dims.mx, y + 14, dims.pageW - dims.mx, gray(0.85), 0.8);
-    page.drawText(`${EMS_CONTACT.empresa}  ?  ${EMS_CONTACT.direccion}`, { x: dims.mx + 8, y: y + 2, size: 9.2, font: fonts.reg, color: gray(0.25) });
-    page.drawText(`Tel: ${EMS_CONTACT.telefono}  ?  ${EMS_CONTACT.correo}`, { x: dims.mx + 8, y: y - 11, size: 9.2, font: fonts.reg, color: gray(0.25) });
-    drawTextRight(page, `P?gina ${i + 1} de ${total}`, dims.pageW - dims.mx, y - 11, { size: 9.2, font: fonts.bold, color: gray(0.45) });
+    page.drawText(`${EMS_CONTACT.empresa}  \u00B7  ${EMS_CONTACT.direccion}`, { x: dims.mx + 8, y: y + 2, size: 9.2, font: fonts.reg, color: gray(0.25) });
+    page.drawText(`Tel: ${EMS_CONTACT.telefono}  \u00B7  ${EMS_CONTACT.correo}`, { x: dims.mx + 8, y: y - 11, size: 9.2, font: fonts.reg, color: gray(0.25) });
+    drawTextRight(page, `P\u00E1gina ${i + 1} de ${total}`, dims.pageW - dims.mx, y - 11, { size: 9.2, font: fonts.bold, color: gray(0.45) });
     try {
       const s = getSettings();
       if (s.showCredit !== false) {
-        page.drawText('Programado por: Francisco L?pez Vel?zquez.', { x: dims.mx + 8, y: y - 24, size: 8.8, font: fonts.reg, color: gray(0.55) });
+        page.drawText('Programado por: Francisco L\u00F3pez Vel\u00E1zquez.', { x: dims.mx + 8, y: y - 24, size: 8.8, font: fonts.reg, color: gray(0.55) });
       }
     } catch {}
   }
@@ -1811,7 +1811,7 @@ function drawWatermark(page, dims, logoImg, op = WATERMARK_OP) {
   try { page.drawImage(logoImg, { x: (dims.pageW - WATERMARK_W) / 2, y: (dims.pageH - WATERMARK_H) / 2, width: WATERMARK_W, height: WATERMARK_H, opacity: op }); } catch {}
 }
 
-// === Control de salto de p?gina (sin encabezado en p?ginas siguientes)
+// === Control de salto de P\u00E1gina (sin encabezado en P\u00E1ginas siguientes)
 function ensureSpace(pdfDoc, ctx, needed) {
   const { dims, logoImg, opts } = ctx;
   const bottomSafe = FOOTER_SAFE; // m?s compacto
@@ -1819,7 +1819,7 @@ function ensureSpace(pdfDoc, ctx, needed) {
     const page = pdfDoc.addPage([dims.pageW, dims.pageH]);
     ctx.pages.push(page);
     if (!opts.dryRun && logoImg) drawWatermark(page, dims, logoImg, WATERMARK_OP);
-    // Arranque de p?gina SIN encabezado: casi al tope
+    // Arranque de P\u00E1gina SIN encabezado: casi al tope
     ctx.y = dims.pageH - dims.my - TOP_PAD_NO_HEADER;
     ctx._atPageStart = true;
     ctx.state.prevBlock = "page-start";
@@ -1948,7 +1948,7 @@ async function drawSingleImageBlock(pdfDoc, ctx, url, { maxWFactor = 0.92, maxH 
   ctx.state.prevBlock = "image";
 }
 
-// == Grid 2x2 inteligente (garantiza 4 por p?gina al inicio) ==
+// == Grid 2x2 inteligente (garantiza 4 por P\u00E1gina al inicio) ==
 async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 8, pad = 6, vGap = 8 } = {}) {
   const { dims, opts } = ctx;
 
@@ -2051,11 +2051,11 @@ async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 8, rowPad = 5, targ
 
 /**
  * Galer?a "packed" profesional (m?s compacta):
- * - En inicio de p?gina usa grid 2?2 para asegurar 4 fotos por hoja.
+ * - En inicio de P\u00E1gina usa grid 2?2 para asegurar 4 fotos por hoja.
  * - Evita filas de 1 imagen (funde con la siguiente).
  * - Ajusta din?micamente la altura objetivo a lo disponible.
  * - ?ltima fila centrada sin estirar de m?s.
- * - Marca continuidad de seccion cuando salta de p?gina.
+ * - Marca continuidad de seccion cuando salta de P\u00E1gina.
  */
 async function drawSmartGallery(
   pdfDoc,
@@ -2077,7 +2077,7 @@ async function drawSmartGallery(
 
   if (!Array.isArray(images) || images.length === 0) return;
 
-  // T?tulo opcional
+  // t\u00EDtulo opcional
   if (title) {
     ensureSpace(pdfDoc, ctx, 24 + (opts.titleGap ?? 8));
     ctx.y = drawSectionTitle(page(), dims.mx, ctx.y, title, fonts, { titleGap: opts.titleGap ?? 8, dryRun: opts.dryRun });
@@ -2099,7 +2099,7 @@ async function drawSmartGallery(
   ctx.state.inGallery = true;
 
   while (i < emb.length) {
-    // Si estamos al inicio de p?gina y hay >= 4 im?genes, aplicar grid 2x2
+    // Si estamos al inicio de P\u00E1gina y hay >= 4 im?genes, aplicar grid 2x2
     if (ctx._atPageStart && (emb.length - i) >= 4) {
       await drawFourUpGrid(pdfDoc, ctx,
         [images[i], images[i+1]],
@@ -2141,7 +2141,7 @@ async function drawSmartGallery(
     let rowH = (dims.usableW - gutter * (row.length - 1)) / sumRatios;
     rowH = clamp(rowH, minRowH, maxRowH);
 
-    // Asegurar que cabe en la p?gina
+    // Asegurar que cabe en la P\u00E1gina
     const boxH = rowPad * 2 + rowH + (captions ? 16 : 0) + (opts.blockGap || 6);
     ensureSpace(pdfDoc, ctx, boxH);
 
@@ -2190,7 +2190,7 @@ async function drawSmartGallery(
   ctx.state.inGallery = false;
 }
 
-// ====== COTIZACI?N: PDF ======
+// ====== COTIZACI\u00D3N: PDF ======
 async function generarPDFCotizacion(share = false, isPreview = false) {
   // Configuraci?n de calidad seg?n modo
   const imgQuality = isPreview
@@ -2225,7 +2225,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
 
   const ctx = { 
     pages: [], y: 0, dims, fonts, datos, 
-    typeLabel: "COTIZACI?N", logoImg, _atPageStart: true,
+    typeLabel: "COTIZACI\u00D3N", logoImg, _atPageStart: true,
     opts: { dryRun: false, titleGap: 8, cardGap: 8, blockGap: 6 },
     state: { prevBlock: 'start', inGallery: false, currentSection: null }
   };
@@ -2236,7 +2236,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   ctx.y = addHeader(pdfDoc, first, ctx.typeLabel, datos, fonts, dims, true, logoImg);
   ctx._atPageStart = true;
 
-  // SUPERT?TULO (opcional)
+  // SUPERt\u00EDtulo (opcional)
   if ((datos.titulo || "").trim()) {
     const titulo = datos.titulo.trim();
     const rectH = 32;
@@ -2305,9 +2305,9 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
         const precioUnit = Number(it.precioUnit)||0;
         const totalRow = (it.total!=null ? Number(it.total) : (cantidad*precioUnit));
         p.drawText(String(it.concepto||""), { x: cols.xConcept, y: ctx.y, size: 10, font: helv, color: gray(0.24) });
-        drawTextRight(p, String(cantidad), cols.xUnidad - 8, ctx.y, { size: 10, font: helv, color: gray(0.28) });
+        drawTextRight(p, String(cantidad), (cols.xCant + cols.widths.cant) - 6, ctx.y, { size: 10, font: helv, color: gray(0.28) });
         p.drawText(unidad, { x: cols.xUnidad, y: ctx.y, size: 10, font: helv, color: gray(0.28) });
-        drawTextRight(p, mostrarPrecioLimpio(precioUnit), cols.xTotal - 8, ctx.y, { size: 10, font: helv, color: gray(0.24) });
+        drawTextRight(p, mostrarPrecioLimpio(precioUnit), (cols.xPunit + cols.widths.punit) - 6, ctx.y, { size: 10, font: helv, color: gray(0.24) });
         drawTextRight(p, mostrarPrecioLimpio(totalRow), dims.mx + dims.usableW - 6, ctx.y, { size: 10, font: helvB, color: gray(0.24) });
         subSec += Number(totalRow)||0;
       }
@@ -2339,12 +2339,12 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   drawTextRight(pTot, mostrarPrecioLimpio(total), dims.pageW - dims.mx, ctx.y, { size: 11.5, font: helvB, color: emsRgb() });
   ctx.y -= 14;
 
-  // Anexos fotogr?ficos ? galer?a packed
+  // Anexos fotogr\u00E1ficos ? galer?a packed
   if (Array.isArray(fotosCotizacion) && fotosCotizacion.length) {
     const s = getSettings();
     const pdfCfg = s?.pdf || {};
     await drawSmartGallery(pdfDoc, ctx, fotosCotizacion.slice(0, 10), {
-      title: "Anexos fotogr?ficos",
+      title: "Anexos fotogr\u00E1ficos",
       captions: false,
       baseTargetRowH: Number(pdfCfg.galleryBase)||200,
       minRowH: Number(pdfCfg.galleryMin)||160,
@@ -2361,18 +2361,18 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, "Observaciones", fonts, { titleGap: 8, dryRun: false });
     const itemsObs = parseObservaciones(datos.notas);
     if (itemsObs.length) {
-      drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "?", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+      drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "-", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
     }
   }
 
-  // T?rminos y Condiciones (desde ajustes o por defecto)
+  // T\u00E9rminos y Condiciones (desde ajustes o por defecto)
   try {
     const s = getSettings();
-    const tc = (s && typeof s.tc === 'string' && s.tc.trim()) || 'Vigencia: 15 d?as naturales a partir de la fecha de cotizaci?n.\nPrecios en MXN. El IVA se incluye s?lo si est? indicado.\nTiempo de entrega sujeto a confirmaci?n. Garant?a limitada por defecto de fabricaci?n y/o servicio seg?n aplique.';
+    const tc = (s && typeof s.tc === 'string' && s.tc.trim()) || 'Vigencia: 15 d\u00EDas naturales a partir de la fecha de COTIZACI\u00D3N.\nPrecios en MXN. El IVA se incluye s\u00F3lo si est\u00E1 indicado.\nTiempo de entrega sujeto a confirmaci?n. Garant?a limitada por defecto de fabricaci?n y/o servicio seg?n aplique.';
     if (tc && String(tc).trim()) {
       ensureSpace(pdfDoc, ctx, 48);
-      ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, "T?rminos y Condiciones", fonts, { titleGap: 8, dryRun: false });
-      drawLabeledCard(pdfDoc, ctx, { label: "T?rminos", text: String(tc).trim(), fontSize: 10 });
+      ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, "T\u00E9rminos y Condiciones", fonts, { titleGap: 8, dryRun: false });
+      drawLabeledCard(pdfDoc, ctx, { label: "T\u00E9rminos", text: String(tc).trim(), fontSize: 10 });
     }
   } catch {}
 
@@ -2401,10 +2401,10 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
       document.body.appendChild(a); a.click();
       document.body.removeChild(a);
     }
-    // Compartir (si aplica y est? soportado)
+    // Compartir (si aplica y est\u00E1 soportado)
     if (share && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: "Cotizaci?n", text: `Cotizaci?n ${datos.numero||""} de Electromotores Santana` });
+        await navigator.share({ files: [file], title: "COTIZACI\u00D3N", text: `COTIZACI\u00D3N ${datos.numero||""} de Electromotores Santana` });
       } catch (_) { /* usuario cancel? o no disponible */ }
     }
   } finally {
@@ -2505,7 +2505,7 @@ function editarCotizacion(datos) {
 // ----- Abrir detalle desde Historial -----
 async function abrirReporte(numero) {
   let doc = await db.collection("reportes").doc(numero).get();
-  if (!doc.exists) return showModal("No se encontr? el reporte con el n?mero especificado.", "error");
+  if (!doc.exists) return showModal("No se encontr? el reporte con el n\u00FAmero especificado.", "error");
   const datos = doc.data();
   nuevoReporte();
   const form = document.getElementById("repForm");
@@ -2534,7 +2534,7 @@ async function abrirReporte(numero) {
 async function abrirDetalleEMS(tipo, numero) {
   if (tipo === "cotizacion") {
     let doc = await db.collection("cotizaciones").doc(numero).get();
-    if (!doc.exists) return showModal("No se encontr? la cotizaci?n con el n?mero especificado.", "error");
+    if (!doc.exists) return showModal("No se encontr? la COTIZACI\u00D3N con el n\u00FAmero especificado.", "error");
     editarCotizacion(doc.data());
   } else if (tipo === "reporte") {
     window.editandoReporte = true;
@@ -2575,7 +2575,7 @@ async function composeReportePDF({ datos, items, params, dryRun = false }) {
     audit: { pages: 0 }
   };
 
-  // Primera p?gina
+  // Primera P\u00E1gina
   let page = pdfDoc.addPage([dims.pageW, dims.pageH]);
   ctx.pages.push(page);
   if (!dryRun) {
@@ -2642,7 +2642,7 @@ async function composeReportePDF({ datos, items, params, dryRun = false }) {
 
     const itemsObs = parseObservaciones(datos.notas);
     if (itemsObs.length) {
-      drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "?", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
+      drawBulletList(pdfDoc, ctx, itemsObs, { bullet: "-", fontSize: 10, lineGap: 4, leftPad: 8, bulletGap: 6 });
     }
   }
 
@@ -2667,7 +2667,7 @@ async function enviarReporte(e) {
   });
   if (!datos.numero || !datos.cliente || !items.length) {
     showSaved("Faltan datos");
-    showModal("Por favor completa todos los campos requeridos: n?mero, cliente y al menos un item.", "warning");
+    showModal("Por favor completa todos los campos requeridos: n\u00FAmero, cliente y al menos un item.", "warning");
     return;
   }
   savePredictEMSCloud("cliente", datos.cliente);
@@ -2775,18 +2775,18 @@ async function generarPDFReporte(share = false, isPreview = false) {
   // --- Render final (no dry run) ---
   const { pdfDoc, ctx } = await composeReportePDF({ datos, items, params, dryRun: false });
 
-  // T?rminos y Condiciones (desde ajustes o por defecto)
+  // T\u00E9rminos y Condiciones (desde ajustes o por defecto)
   try {
     const s = getSettings();
-    const tc = (s && typeof s.tc === 'string' && s.tc.trim()) || 'Vigencia: 15 d?as naturales a partir de la fecha de cotizaci?n.\nPrecios en MXN. El IVA se incluye s?lo si est? indicado.\nTiempo de entrega sujeto a confirmaci?n. Garant?a limitada por defecto de fabricaci?n y/o servicio seg?n aplique.';
+    const tc = (s && typeof s.tc === 'string' && s.tc.trim()) || 'Vigencia: 15 d\u00EDas naturales a partir de la fecha de COTIZACI\u00D3N.\nPrecios en MXN. El IVA se incluye s\u00F3lo si est\u00E1 indicado.\nTiempo de entrega sujeto a confirmaci?n. Garant?a limitada por defecto de fabricaci?n y/o servicio seg?n aplique.';
     if (tc && String(tc).trim()) {
       ensureSpace(pdfDoc, ctx, 48);
-      ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], ctx.dims.mx, ctx.y, "T?rminos y Condiciones", ctx.fonts, { titleGap: 8, dryRun: false });
-      drawLabeledCard(pdfDoc, ctx, { label: "T?rminos", text: String(tc).trim(), fontSize: 10 });
+      ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], ctx.dims.mx, ctx.y, "T\u00E9rminos y Condiciones", ctx.fonts, { titleGap: 8, dryRun: false });
+      drawLabeledCard(pdfDoc, ctx, { label: "T\u00E9rminos", text: String(tc).trim(), fontSize: 10 });
     }
   } catch {}
 
-  // Pie de p?gina en todas
+  // Pie de P\u00E1gina en todas
   applyFooters(pdfDoc, ctx.pages, ctx.fonts, ctx.dims);
 
   const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
@@ -2818,7 +2818,7 @@ async function generarPDFReporte(share = false, isPreview = false) {
       a.click();
       document.body.removeChild(a);
     }
-    // Compartir si fue solicitado y est? soportado
+    // Compartir si fue solicitado y est\u00E1 soportado
     if (share && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
       try { await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` }); } catch {}
     }
@@ -2834,16 +2834,16 @@ async function eliminarCotizacionCompleta(numero) {
     const form = document.getElementById('cotForm');
     if (form && form.numero && form.numero.value) numero = form.numero.value;
   }
-  if (!numero) return showModal("No se encontr? el n?mero de cotizaci?n.", "error");
-  const confirmed = await showConfirm("?Est?s seguro que deseas eliminar esta cotizaci?n? Esta Acción no se puede deshacer.", "Confirmar eliminaci?n");
+  if (!numero) return showModal("No se encontr? el n\u00FAmero de COTIZACI\u00D3N.", "error");
+  const confirmed = await showConfirm("?est\u00E1s seguro que deseas eliminar esta COTIZACI\u00D3N? Esta Acción no se puede deshacer.", "Confirmar eliminaci?n");
   if (!confirmed) return;
   try {
     await db.collection("cotizaciones").doc(numero).delete();
-    showSaved("Cotizaci?n eliminada");
+    showSaved("COTIZACI\u00D3N eliminada");
     localStorage.removeItem('EMS_COT_BORRADOR');
     renderInicio();
   } catch (e) {
-    showModal("Error eliminando cotizaci?n: " + (e.message || e), "error");
+    showModal("Error eliminando COTIZACI\u00D3N: " + (e.message || e), "error");
   }
 }
 async function eliminarReporteCompleto(numero) {
@@ -2851,8 +2851,8 @@ async function eliminarReporteCompleto(numero) {
     const form = document.getElementById('repForm');
     if (form && form.numero && form.numero.value) numero = form.numero.value;
   }
-  if (!numero) return showModal("No se encontr? el n?mero de reporte.", "error");
-  const confirmed = await showConfirm("?Est?s seguro que deseas eliminar este reporte? Esta Acción no se puede deshacer.", "Confirmar eliminaci?n");
+  if (!numero) return showModal("No se encontr? el n\u00FAmero de reporte.", "error");
+  const confirmed = await showConfirm("?est\u00E1s seguro que deseas eliminar este reporte? Esta Acción no se puede deshacer.", "Confirmar eliminaci?n");
   if (!confirmed) return;
   try {
     await db.collection("reportes").doc(numero).delete();
@@ -2919,7 +2919,7 @@ function confirmByTyping(seed = 'eliminar', title = 'Confirmar Acción', onConfi
 // Re-definir eliminaciones puntuales para requerir confirmaci?n por palabra
 const __orig_eliminarCotItemRow = typeof eliminarCotItemRow === 'function' ? eliminarCotItemRow : null;
 function eliminarCotItemRow(btn){
-  confirmByTyping('eliminar','Eliminar este elemento de cotizaci?n',()=>{
+  confirmByTyping('eliminar','Eliminar este elemento de COTIZACI\u00D3N',()=>{
     try{ const tr = btn.closest('tr'); tr && tr.remove(); recalcTotalesCotizacion?.(); }catch{}
   });
 }
@@ -2952,7 +2952,7 @@ function eliminarFotoRepItem(btn, id, fidx){
 
 const __orig_eliminarFotoCot = typeof eliminarFotoCot === 'function' ? eliminarFotoCot : null;
 function eliminarFotoCot(index){
-  confirmByTyping('borrar','Eliminar esta imagen de la cotizaci?n',()=>{
+  confirmByTyping('borrar','Eliminar esta imagen de la COTIZACI\u00D3N',()=>{
     try{ fotosCotizacion.splice(index,1); renderCotFotosPreview(); guardarCotizacionDraft?.(); }catch{}
   });
 }
@@ -2960,17 +2960,17 @@ function eliminarFotoCot(index){
 const __orig_eliminarCotizacionCompleta = typeof eliminarCotizacionCompleta === 'function' ? eliminarCotizacionCompleta : null;
 async function eliminarCotizacionCompleta(numero){
   if (!numero){ const form = document.getElementById('cotForm'); if (form && form.numero && form.numero.value) numero=form.numero.value; }
-  if (!numero) return showModal('No se encontr? el n?mero de cotizaci?n.', 'error');
+  if (!numero) return showModal('No se encontr? el n\u00FAmero de COTIZACI\u00D3N.', 'error');
   confirmByTyping('eliminar','Para confirmar escribe la palabra indicada', async ()=>{
-    try{ await db.collection('cotizaciones').doc(numero).delete(); showSaved('Cotizaci?n eliminada'); localStorage.removeItem('EMS_COT_BORRADOR'); renderInicio(); }
-    catch(e){ showModal('Error eliminando cotizaci?n: '+(e?.message||e), 'error'); }
+    try{ await db.collection('cotizaciones').doc(numero).delete(); showSaved('COTIZACI\u00D3N eliminada'); localStorage.removeItem('EMS_COT_BORRADOR'); renderInicio(); }
+    catch(e){ showModal('Error eliminando COTIZACI\u00D3N: '+(e?.message||e), 'error'); }
   });
 }
 
 const __orig_eliminarReporteCompleto = typeof eliminarReporteCompleto === 'function' ? eliminarReporteCompleto : null;
 async function eliminarReporteCompleto(numero){
   if (!numero){ const form = document.getElementById('repForm'); if (form && form.numero && form.numero.value) numero=form.numero.value; }
-  if (!numero) return showModal('No se encontr? el n?mero de reporte.', 'error');
+  if (!numero) return showModal('No se encontr? el n\u00FAmero de reporte.', 'error');
   confirmByTyping('eliminar','Para confirmar escribe la palabra indicada', async ()=>{
     try{ await db.collection('reportes').doc(numero).delete(); showSaved('Reporte eliminado'); localStorage.removeItem('EMS_REP_BORRADOR'); renderInicio(); }
     catch(e){ showModal('Error eliminando reporte: '+(e?.message||e), 'error'); }
@@ -2992,7 +2992,7 @@ function openSettings() {
       <div class="ems-settings-body">
         <div class="ems-form-row">
           <div class="ems-form-group"><label>Color principal</label><input type="color" id="setThemeColor" value="${themeHex}"></div>
-          <div class="ems-form-group"><label>Mostrar cr?dito (pie de p?gina)</label><select id="setShowCredit"><option value="1" ${s.showCredit!==false?'selected':''}>S?</option><option value="0" ${s.showCredit===false?'selected':''}>No</option></select></div>
+          <div class="ems-form-group"><label>Mostrar cr?dito (pie de P\u00E1gina)</label><select id="setShowCredit"><option value="1" ${s.showCredit!==false?'selected':''}>S?</option><option value="0" ${s.showCredit===false?'selected':''}>No</option></select></div>
         </div>
         <div class="ems-form-row">
           <div class="ems-form-group"><label>Tama?o base de fotos (px)</label><input type="number" id="setGalBase" min="120" max="300" value="${pdf.galleryBase||200}"></div>
@@ -3000,13 +3000,13 @@ function openSettings() {
           <div class="ems-form-group"><label>Tama?o m?ximo (px)</label><input type="number" id="setGalMax" min="160" max="300" value="${pdf.galleryMax||235}"></div>
         </div>
         <div class="ems-form-row">
-          <div class="ems-form-group"><label>Espaciado de t?tulos</label><input type="number" id="setTitleGap" min="4" max="20" value="${pdf.titleGap||8}"></div>
+          <div class="ems-form-group"><label>Espaciado de t\u00EDtulos</label><input type="number" id="setTitleGap" min="4" max="20" value="${pdf.titleGap||8}"></div>
           <div class="ems-form-group"><label>Espaciado entre tarjetas</label><input type="number" id="setCardGap" min="4" max="20" value="${pdf.cardGap||8}"></div>
           <div class="ems-form-group"><label>Espaciado entre bloques</label><input type="number" id="setBlockGap" min="4" max="20" value="${pdf.blockGap||6}"></div>
         </div>
         <div class="ems-form-group">
-          <label>T?rminos y Condiciones (aparecen al final del PDF)</label>
-          <textarea id="setTC" rows="4" placeholder="Escribe aqu? tus t?rminos...">${(s.tc||'')}</textarea>
+          <label>T\u00E9rminos y Condiciones (aparecen al final del PDF)</label>
+          <textarea id="setTC" rows="4" placeholder="Escribe aqu? tus T\u00E9rminos...">${(s.tc||'')}</textarea>
           <small>Se guardan en el dispositivo y se incluyen en Cotizaciones y Reportes.</small>
         </div>
       </div>
@@ -3023,13 +3023,13 @@ function openSettings() {
     if (body && !overlay.querySelector('#setCotDet')) {
       const row = document.createElement('div');
       row.className = 'ems-form-row';
-      row.innerHTML = `<div class="ems-form-group"><label>Tabla detallada de cotizaci?n</label>
+      row.innerHTML = `<div class="ems-form-group"><label>Tabla detallada de COTIZACI\u00D3N</label>
         <label class="ems-switch"><input type="checkbox" id="setCotDet" ${getSettings()?.cotDetallado? 'checked':''}><span class="ems-switch-ui" aria-hidden="true"></span></label>
       </div>`;
       body.insertBefore(row, body.firstElementChild?.nextElementSibling || null);
     }
   } catch {}
-  // Ayudas r?pidas (??)
+  // Ayudas r\u00E1pidas (??)
   try {
     const addHelpFor = (sel, tip) => {
       const el = overlay.querySelector(sel);
@@ -3047,15 +3047,15 @@ function openSettings() {
     addHelpFor('#setGalBase', 'Altura objetivo de las filas de fotos en el PDF.');
     addHelpFor('#setGalMin', 'Altura m?nima posible de una fila de fotos.');
     addHelpFor('#setGalMax', 'Altura m?xima posible de una fila de fotos.');
-    addHelpFor('#setTitleGap', 'Espacio inferior bajo cada t?tulo en el PDF.');
+    addHelpFor('#setTitleGap', 'Espacio inferior bajo cada t\u00EDtulo en el PDF.');
     addHelpFor('#setCardGap', 'Separaci?n entre bloques de texto tipo tarjeta.');
     addHelpFor('#setBlockGap', 'Separaci?n general entre secciones.');
     // Default de T&C si vac?o
     const tc = overlay.querySelector('#setTC');
     if (tc && !String(tc.value||'').trim()) {
-      tc.value = 'Vigencia: 15 d?as naturales a partir de la fecha de cotizaci?n.\nPrecios en MXN. El IVA se incluye s?lo si est? indicado.\nTiempo de entrega sujeto a confirmaci?n. Garant?a limitada por defecto de fabricaci?n y/o servicio seg?n aplique.';
+      tc.value = 'Vigencia: 15 d\u00EDas naturales a partir de la fecha de COTIZACI\u00D3N.\nPrecios en MXN. El IVA se incluye s\u00F3lo si est\u00E1 indicado.\nTiempo de entrega sujeto a confirmaci?n. Garant?a limitada por defecto de fabricaci?n y/o servicio seg?n aplique.';
     }
-    addHelpFor('#setTC', 'Se insertan al final del PDF (cotizaci?n y reporte).');
+    addHelpFor('#setTC', 'Se insertan al final del PDF (COTIZACI\u00D3N y reporte).');
   } catch {}
   overlay.querySelector('#btnSaveSettings').onclick = () => {
     const next = {
@@ -3291,4 +3291,12 @@ function renderCotSeccionDet(seccion = {}, rowId) {
 
 
 try { if (typeof initActionDelegates === 'function') initActionDelegates(); } catch {}
+
+
+
+
+
+
+
+
 

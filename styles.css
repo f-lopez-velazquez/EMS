@@ -1433,3 +1433,9 @@ input, textarea, select, button { -webkit-user-select: text; user-select: text; 
     font-size: 16px;
   }
 }
+/* Horizontal scroll for detailed cotizacion tables */
+.cot-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.cot-table-scroll > table { min-width: 720px; }
+@media (max-width: 640px) {
+  .cot-table-scroll > table[data-mode="det"] { min-width: 720px; }
+}
