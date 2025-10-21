@@ -3517,8 +3517,8 @@ async function generarPDFPrecios(share=false){
   y -= 10;
   const note = 'Nota: Los precios no incluyen IVA. El precio incluye recolección de equipo dentro del área de Santiago de Querétaro, desarmado, diagnóstico y extracción de baleros.';
   const noteSize = 9.6;
-  const cw = (dims.pageW - 2*dims.mx);
-  const noteLines = wrapTextLines(String(note), helvB, noteSize, cw - 16);
+  const noteCw = (dims.pageW - 2*dims.mx);
+  const noteLines = wrapTextLines(String(note), helvB, noteSize, noteCw - 16);
   const noteRectH = 14 + (noteLines.length * 12);
   // Salto si no cabe
   if (y - noteRectH < 60) {
@@ -3526,7 +3526,7 @@ async function generarPDFPrecios(share=false){
     try { if (wmLogo) drawWatermark(page, dims, wmLogo, WATERMARK_OP); } catch {}
     y = dims.pageH - dims.my - 24;
   }
-  page.drawRectangle({ x: dims.mx, y: y - noteRectH + 10, width: cw, height: noteRectH, color: PDFLib.rgb(0.96,0.6,0.6), opacity: 0.15, borderColor: PDFLib.rgb(0.86,0.1,0.1), borderWidth: 1 });
+  page.drawRectangle({ x: dims.mx, y: y - noteRectH + 10, width: noteCw, height: noteRectH, color: PDFLib.rgb(0.96,0.6,0.6), opacity: 0.15, borderColor: PDFLib.rgb(0.86,0.1,0.1), borderWidth: 1 });
   let ny = y - 12;
   noteLines.forEach(line => { page.drawText(line, { x: dims.mx + 8, y: ny, size: noteSize, font: helvB, color: PDFLib.rgb(0.86,0.1,0.1) }); ny -= 12; });
   // No aplicar pie con numeración para precios (requisito)
