@@ -1,0 +1,6 @@
+UI Cotización: secciones y rubros simétricos.
+- Plantillas normal/detallado con estructura consistente
+- .ems-price para precio compacto
+- Sin estilos inline y sin onclick
+- Eliminar duplicado renderCotSeccionDet
+- SW/App bust v61

@@ -1,4 +1,4 @@
-# AGENTS.md · Guía para agentes/CLIs
+﻿# AGENTS.md · Guía para agentes/CLIs
 
 Este documento orienta a cualquier CLI/IA que intervenga en este proyecto. Mantenerlo actualizado es obligatorio al tocar arquitectura, contratos o flujos.
 
@@ -191,7 +191,12 @@ Plantilla sugerida:
 - Notas: validaciones, impactos, acciones pendientes
 
 Entradas:
-- Fecha: 2025-10-21 (Fix doble rubro + UI textboxes)
+Entradas:
+- Fecha: 2025-10-21 (Secciones/Rubros simétricos + fix UI)
+  - Agente: Codex CLI
+  - Resumen: Reorganización completa de secciones y rubros para simetría y funcionalidad: filas normal/detallado con estructura consistente, sin estilos inline, contenedor de precio compacto (.ems-price), eliminación del duplicado de renderCotSeccionDet y sin onclick inline (delegación global). Mejora visual de textareas e inputs para alineación limpia.
+  - Archivos clave: pp.js (renderCotSeccion, renderCotSeccionDet, agregarRubroEnSeccion), styles.css (.ems-price), index.html (bust v61), service-worker.js (v61)
+  - Notas: Si no se ven cambios, recargar duro la PWA por el SW.
   - Agente: Codex CLI
   - Resumen: Corregido el bug donde al agregar una nueva sección se insertaban 2 rubros por defecto; ahora solo 1. Unificada la delegación de eventos en secciones detalladas (sin onclick inline) para botones Agregar rubro/Eliminar sección y Eliminar fila. Mejora visual menor en los textboxes (acciones consistentes, sin duplicados inesperados).
   - Archivos clave: `app.js` (agregarCotSeccion, agregarCotSeccionDet, renderCotSeccionDet, agregarRubroEnSeccion), `index.html` (SW bust v61)

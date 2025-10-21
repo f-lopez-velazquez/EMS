@@ -507,17 +507,26 @@ button.btn-mini {
   border-bottom: none;
 }
 
+
 .ems-items-table input,
 .ems-items-table textarea {
   font-size: 14px;
   padding: 6px 8px;
   height: 34px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .ems-items-table textarea {
   min-height: 34px;
   height: 40px;
 }
+
+/* Precio compacto y simétrico en celdas de precio */
+.ems-price { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ems-price > span { color: #13823b; font-weight: 700; }
+.ems-price input[type="number"] { width: 100px; }
+.ems-items-table .btn-mini { margin-left: 6px; }
 
 /* Acciones de formulario */
 .ems-form-actions {

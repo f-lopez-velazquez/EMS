@@ -995,10 +995,11 @@ function renderCotSeccion(seccion = {}, rowId) {
       <tr>
         <td><input type="text" name="concepto" value="${safe(it.concepto)}" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
         <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..." spellcheck="true" autocapitalize="sentences">${safe(it.descripcion)}</textarea></td>
-        <td style="white-space:nowrap;display:flex;align-items:center;">
-          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
-          <input type="number" name="precioSec" min="0" step="0.01" value="${safe(it.precio)}" style="width:100px;">
-          <button type="button" class="btn-mini" data-action="remove-row"><i class="fa fa-trash"></i></button>
+        <td>
+          <div class="ems-price"><span>$</span>
+            <input type="number" name="precioSec" min="0" step="0.01" value="${safe(it.precio)}">
+            <button type="button" class="btn-mini" data-action="remove-row" title="Eliminar fila"><i class="fa fa-trash"></i></button>
+          </div>
         </td>
       </tr>
   `).join('');
@@ -1014,9 +1015,9 @@ function renderCotSeccion(seccion = {}, rowId) {
       <table class="ems-items-table cot-seccion-table">
         <thead>
           <tr>
-            <th style="width:30%">Concepto</th>
+            <th>Concepto</th>
             <th>Descripci\\u00F3n</th>
-            <th style="width:180px">Precio</th>
+            <th>Precio</th>
           </tr>
         </thead>
         <tbody>
@@ -1058,14 +1059,15 @@ function agregarRubroEnSeccion(btn) {
     tbody.insertAdjacentHTML('beforeend', `
       <tr>
         <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
-        <td style="width:80px"><input type="number" name="cantidadSec" min="0" step="1" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))"></td>
-        <td style="width:100px"><input type="text" name="unidadSec" list="unidadesEMS" autocomplete="off"></td>
-        <td style="white-space:nowrap;display:flex;align-items:center;">
-          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
-          <input type="number" name="precioUnitSec" min="0" step="0.01" style="width:100px;" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))">
+        <td><input type="number" name="cantidadSec" min="0" step="1" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))"></td>
+        <td><input type="text" name="unidadSec" list="unidadesEMS" autocomplete="off"></td>
+        <td>
+          <div class="ems-price"><span>$</span>
+            <input type="number" name="precioUnitSec" min="0" step="0.01" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))">
+          </div>
         </td>
-        <td style="width:110px"><span class="cot-row-total">$0.00</span></td>
-        <td><button type="button" class="btn-mini" data-action="remove-row"><i class="fa fa-trash"></i></button></td>
+        <td><span class="cot-row-total">$0.00</span></td>
+        <td><button type="button" class="btn-mini" data-action="remove-row" title="Eliminar fila"><i class="fa fa-trash"></i></button></td>
       </tr>
     `);
   } else {
@@ -1073,10 +1075,11 @@ function agregarRubroEnSeccion(btn) {
       <tr>
         <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
         <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..." spellcheck="true" autocapitalize="sentences"></textarea></td>
-        <td style="white-space:nowrap;display:flex;align-items:center;">
-          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
-          <input type="number" name="precioSec" min="0" step="0.01" style="width:100px;">
-          <button type="button" class="btn-mini" data-action="remove-row"><i class="fa fa-trash"></i></button>
+        <td>
+          <div class="ems-price"><span>$</span>
+            <input type="number" name="precioSec" min="0" step="0.01">
+            <button type="button" class="btn-mini" data-action="remove-row" title="Eliminar fila"><i class="fa fa-trash"></i></button>
+          </div>
         </td>
       </tr>
     `);
@@ -2541,14 +2544,15 @@ function renderCotSeccionDet(seccion = {}, rowId) {
     return `
       <tr>
         <td><input type="text" name="concepto" value="${safe(it.concepto)}" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
-        <td style="width:80px"><input type="number" name="cantidadSec" min="0" step="1" value="${safe(cantidad)}" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))"></td>
-        <td style="width:100px"><input type="text" name="unidadSec" value="${safe(unidad)}" list="unidadesEMS" autocomplete="off"></td>
-        <td style="white-space:nowrap;display:flex;align-items:center;">
-          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
-          <input type="number" name="precioUnitSec" min="0" step="0.01" value="${safe(punit)}" style="width:100px;" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))">
+        <td><input type="number" name="cantidadSec" min="0" step="1" value="${safe(cantidad)}" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))"></td>
+        <td><input type="text" name="unidadSec" value="${safe(unidad)}" list="unidadesEMS" autocomplete="off"></td>
+        <td>
+          <div class="ems-price"><span>$</span>
+            <input type="number" name="precioUnitSec" min="0" step="0.01" value="${safe(punit)}" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))">
+          </div>
         </td>
-        <td style="width:110px"><span class="cot-row-total">${mostrarPrecioLimpio(tot)}</span></td>
-        <td><button type="button" class="btn-mini" onclick="this.closest('tr').remove(); recalcSeccionSubtotal(this.closest('.cot-seccion'))"><i class="fa fa-trash"></i></button></td>
+        <td><span class="cot-row-total">${mostrarPrecioLimpio(tot)}</span></td>
+        <td><button type="button" class="btn-mini" data-action="remove-row" title="Eliminar fila"><i class="fa fa-trash"></i></button></td>
       </tr>
     `;
   }).join('');
@@ -2564,12 +2568,12 @@ function renderCotSeccionDet(seccion = {}, rowId) {
       <table class="ems-items-table cot-seccion-table" data-mode="det">
         <thead>
           <tr>
-            <th style="width:30%">Concepto</th>
-            <th style="width:80px">Cant.</th>
-            <th style="width:100px">Unidad</th>
-            <th style="width:140px">P. Unitario</th>
-            <th style="width:120px">Total</th>
-            <th style="width:40px"></th>
+            <th>Concepto</th>
+            <th>Cant.</th>
+            <th>Unidad</th>
+            <th>P. Unitario</th>
+            <th>Total</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -3344,57 +3348,7 @@ function agregarCotSeccionDet(preload = null) {
   recalcTotalesCotizacion();
 }
 
-// Render de seccion DETALLADA (Concepto, Cantidad, Unidad, P. Unitario, Total)
-function renderCotSeccionDet(seccion = {}, rowId) {
-  const id = rowId || newUID();
-  const items = Array.isArray(seccion.items) ? seccion.items : [];
-  const itemsHtml = items.map(it => {
-    const cantidad = it.cantidad ?? '';
-    const unidad = it.unidad ?? '';
-    const punit = it.precioUnit ?? '';
-    const tot = (Number(cantidad)||0) * (Number(punit)||0);
-    return `
-      <tr>
-        <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences" value="${safe(it.concepto)}"></td>
-        <td style="width:80px"><input type="number" name="cantidadSec" min="0" step="1" value="${safe(cantidad)}" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))"></td>
-        <td style="width:100px"><input type="text" name="unidadSec" list="unidadesEMS" autocomplete="off" value="${safe(unidad)}"></td>
-        <td style="white-space:nowrap;display:flex;align-items:center;">
-          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
-          <input type="number" name="precioUnitSec" min="0" step="0.01" style="width:100px;" value="${safe(punit)}" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))">
-        </td>
-        <td style="width:110px"><span class="cot-row-total">${mostrarPrecioLimpio(tot)}</span></td>
-        <td><button type="button" class="btn-mini" data-action="remove-row"><i class="fa fa-trash"></i></button></td>
-      </tr>
-    `;
-  }).join('');
-  return `
-    <div class="cot-seccion" data-secid="${id}" data-mode="det">
-      <div class="cot-seccion-head">
-        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
-        <div class="cot-sec-actions">
-          <button type="button" class="btn-mini" data-action="add-row"><i class="fa fa-plus"></i> Agregar rubro</button>
-          <button type="button" class="btn-mini" data-action="remove-section"><i class="fa fa-trash"></i></button>
-        </div>
-      </div>
-      <table class="ems-items-table cot-seccion-table" data-mode="det">
-        <thead>
-          <tr>
-            <th style="width:30%">Concepto</th>
-            <th style="width:80px">Cant.</th>
-            <th style="width:100px">Unidad</th>
-            <th style="width:140px">P. Unitario</th>
-            <th style="width:120px">Total</th>
-            <th style="width:40px"></th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemsHtml}
-        </tbody>
-      </table>
-      <div class="cot-seccion-subtotal"><span>Subtotal secci\\u00F3n:</span> <b class="cot-subtotal-val">$0.00</b></div>
-    </div>
-  `;
-}
+// (duplicado eliminado) renderCotSeccionDet se define anteriormente como versión canónica
 
 
 
