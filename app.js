@@ -955,7 +955,7 @@ function renderCotSeccion(seccion = {}, rowId) {
         <td style="white-space:nowrap;display:flex;align-items:center;">
           <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
           <input type="number" name="precioSec" min="0" step="0.01" value="${safe(it.precio)}" style="width:100px;">
-          <button type="button" class="btn-mini" onclick="this.closest('tr').remove(); recalcSeccionSubtotal(this.closest('.cot-seccion'))"><i class="fa fa-trash"></i></button>
+          <button type="button" class="btn-mini" data-action="remove-row"><i class="fa fa-trash"></i></button>
         </td>
       </tr>
   `).join('');
@@ -964,8 +964,8 @@ function renderCotSeccion(seccion = {}, rowId) {
       <div class="cot-seccion-head">
         <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. RefAcciónes, Mano de obra)" value="${safe(seccion.titulo)}">
         <div class="cot-sec-actions">
-          <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
-          <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
+          <button type="button" class="btn-mini" data-action="add-row"><i class="fa fa-plus"></i> Agregar rubro</button>
+          <button type="button" class="btn-mini" data-action="remove-section"><i class="fa fa-trash"></i></button>
         </div>
       </div>
       <table class="ems-items-table cot-seccion-table">
@@ -1014,7 +1014,7 @@ function agregarRubroEnSeccion(btn) {
           <input type="number" name="precioUnitSec" min="0" step="0.01" style="width:100px;" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))">
         </td>
         <td style="width:110px"><span class="cot-row-total">$0.00</span></td>
-        <td><button type="button" class="btn-mini" onclick="this.closest('tr').remove(); recalcSeccionSubtotal(this.closest('.cot-seccion'))"><i class="fa fa-trash"></i></button></td>
+        <td><button type="button" class="btn-mini" data-action="remove-row"><i class="fa fa-trash"></i></button></td>
       </tr>
     `);
   } else {
@@ -1222,8 +1222,8 @@ function nuevaCotizacion() {
         <label>Secciones</label>
         <div id="cotSeccionesWrap"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-          <button type="button" class="btn-secondary" onclick="agregarCotSeccion()"><i class="fa fa-list"></i> Seccion (normal)</button>
-          <button type="button" class="btn-secondary" onclick="agregarCotSeccionDet()"><i class="fa fa-table"></i> Seccion detallada</button>
+          <button type="button" class="btn-secondary" data-action="add-section"><i class="fa fa-list"></i> Sección (normal)</button>
+          <button type="button" class="btn-secondary" data-action="add-section-det"><i class="fa fa-table"></i> Sección detallada</button>
         </div>
         <small>Normal: concepto+descripci�n+precio. Detallada: concepto+cantidad+unidad+precio unitario+total.</small>
       </div>
@@ -1250,12 +1250,12 @@ function nuevaCotizacion() {
         <small>Se suben a Cloudinary y se insertan al final del PDF.</small>
       </div>
       <div class="ems-form-actions">
-        <button type="button" class="btn-mini" onclick="renderInicio(); localStorage.removeItem('EMS_COT_BORRADOR')"><i class="fa fa-arrow-left"></i> Cancelar</button>
-        <button type="button" class="btn-secondary" onclick="undoCot()"><i class="fa fa-undo"></i> Deshacer</button>
+        <button type="button" class="btn-mini" data-action="cot-cancel"><i class="fa fa-arrow-left"></i> Cancelar</button>
+        <button type="button" class="btn-secondary" data-action="cot-undo"><i class="fa fa-undo"></i> Deshacer</button>
         <button type="submit" class="btn-primary"><i class="fa fa-save"></i> Guardar</button>
-        <button type="button" class="btn-secondary" onclick="previsualizarPDFCotizacion()" title="Ver vista previa antes de generar el PDF final"><i class="fa fa-eye"></i> Vista Previa</button>
-        <button type="button" class="btn-secondary" onclick="guardarCotizacionDraft(); generarPDFCotizacion()"><i class="fa fa-file-pdf"></i> PDF</button>
-        <button type="button" class="btn-success" onclick="guardarCotizacionDraft(); generarPDFCotizacion(true)"><i class="fa fa-share-alt"></i> Compartir</button>
+        <button type="button" class="btn-secondary" data-action="cot-preview" title="Ver vista previa antes de generar el PDF final"><i class="fa fa-eye"></i> Vista Previa</button>
+        <button type="button" class="btn-secondary" data-action="cot-pdf"><i class="fa fa-file-pdf"></i> PDF</button>
+        <button type="button" class="btn-success" data-action="cot-share"><i class="fa fa-share-alt"></i> Compartir</button>
       </div>
     </form>
     <div class="ems-credit">Programado por: Francisco L?pez Vel?zquez.</div>
