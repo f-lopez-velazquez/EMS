@@ -662,7 +662,7 @@ async function actualizarPredictsEMSCloud(user = "general") {
   let conceptos = await getPredictEMSCloud("concepto", user);
   let unidades = await getPredictEMSCloud("unidad", user);
   let clientes = await getPredictEMSCloud("cliente", user);
-  let descs    = await getPredictEMSCloud("descripci�n", user);
+  let descs    = await getPredictEMSCloud("descripcion", user);
 
   const datalistConceptos = document.getElementById("conceptosEMS");
   if (datalistConceptos) datalistConceptos.innerHTML = conceptos.map(v=>`<option value="${v}">`).join('');
@@ -695,7 +695,7 @@ function activarPredictivosInstantaneos() {
   document.querySelectorAll('textarea[name="descripcion"]').forEach(input => {
     if (!input.hasAttribute('data-predictivo')) {
       input.setAttribute('data-predictivo', '1');
-      input.addEventListener('blur', () => savePredictEMSCloud('descripci�n', input.value));
+      input.addEventListener('blur', () => savePredictEMSCloud('descripcion', input.value));
     }
   });
 }
@@ -1226,7 +1226,7 @@ function nuevaCotizacion() {
           <button type="button" class="btn-secondary" data-action="add-section"><i class="fa fa-list"></i> Sección (normal)</button>
           <button type="button" class="btn-secondary" data-action="add-section-det"><i class="fa fa-table"></i> Sección detallada</button>
         </div>
-        <small>Normal: concepto+descripci�n+precio. Detallada: concepto+cantidad+unidad+precio unitario+total.</small>
+        <small>Normal: concepto+descripcion+precio. Detallada: concepto+cantidad+unidad+precio unitario+total.</small>
       </div>
 
       <!-- Resumen Totales -->
@@ -1279,7 +1279,7 @@ function nuevaCotizacion() {
     if (Array.isArray(draft.secciones) && draft.secciones.length) {
       draft.secciones.forEach(sec => agregarCotSeccion(sec));
     } else if (Array.isArray(draft.items) && draft.items.length) {
-      const sec = { titulo: 'General', items: draft.items.map(it=>({ concepto: it.concepto, descripci�n: '', precio: it.precio })) };
+      const sec = { titulo: 'General', items: draft.items.map(it=>({ concepto: it.concepto, descripcion: '', precio: it.precio })) };
       agregarCotSeccion(sec);
     } else {
       agregarCotSeccion({ titulo: 'General', items: [{},{},] });
@@ -1352,7 +1352,7 @@ function renderRepItemRow(item = {}, rowId, modoEdicion = true) {
   return `
     <tr data-rowid="${id}">
       <td>
-        <textarea name="descripcion" list="descEMS" rows="2" required placeholder="Describe la actividad" style="width:97%" spellcheck="true" autocapitalize="sentences">${item.descripci�n||""}</textarea>
+        <textarea name="descripcion" list="descEMS" rows="2" required placeholder="Describe la actividad" style="width:97%" spellcheck="true" autocapitalize="sentences">${item.descripcion||""}</textarea>
         <datalist id="descEMS"></datalist>
       </td>
       <td>
@@ -1413,7 +1413,7 @@ async function subirFotoRepItem(input, id) {
   // Re-renderiza la fila
   const tr = document.querySelector(`#repItemsTable tbody tr[data-rowid="${id}"]`);
   const desc = tr?.querySelector("textarea")?.value || "";
-  if (tr) tr.outerHTML = renderRepItemRow({ descripci�n: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
+  if (tr) tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
   showSaved("?Imagen(es) subida(s)!");
@@ -1425,7 +1425,7 @@ function eliminarFotoRepItem(btn, id, fidx) {
   fotosItemsReporteMap[id].splice(fidx, 1);
   const tr = btn.closest('tr');
   const desc = tr?.querySelector("textarea")?.value || "";
-  tr.outerHTML = renderRepItemRow({ descripci�n: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
+  tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
 }
@@ -1583,9 +1583,9 @@ async function enviarCotizacion(e) {
         const total = cantidad * precioUnit;
         if (concepto || cantidad || unidad || precioUnit) items.push({ concepto, cantidad, unidad, precioUnit, total });
       } else {
-        const descripci�n = tr.querySelector('textarea[name="descripcion"]').value;
+        const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
         const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
-        if (concepto || descripci�n || precio) items.push({ concepto, descripci�n, precio });
+        if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
       }
     });
     if (titulo || items.length) secciones.push({ titulo, items });
@@ -1642,9 +1642,9 @@ async function guardarCotizacionDraft() {
         const total = cantidad * precioUnit;
         if (concepto || cantidad || unidad || precioUnit) items.push({ concepto, cantidad, unidad, precioUnit, total });
       } else {
-        const descripci�n = tr.querySelector('textarea[name="descripcion"]').value;
+        const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
         const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
-        if (concepto || descripci�n || precio) items.push({ concepto, descripci�n, precio });
+        if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
       }
     });
     if (titulo || items.length) secciones.push({ titulo, items });
@@ -2209,9 +2209,9 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     const items = [];
     sec.querySelectorAll('tbody tr').forEach(tr => {
       const concepto = tr.querySelector('input[name="concepto"]').value;
-      const descripci�n = tr.querySelector('textarea[name="descripcion"]').value;
+      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
       const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
-      if (concepto || descripci�n || precio) items.push({ concepto, descripci�n, precio });
+      if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
     });
     if (titulo || items.length) secciones.push({ titulo, items });
   });
@@ -2463,7 +2463,7 @@ function editarCotizacion(datos) {
   if (Array.isArray(datos.secciones) && datos.secciones.length) {
     datos.secciones.forEach(sec => agregarCotSeccion(sec));
   } else if (Array.isArray(datos.items) && datos.items.length) {
-    const sec = { titulo: 'General', items: datos.items.map(it=>({ concepto: it.concepto, descripci�n: '', precio: it.precio })) };
+    const sec = { titulo: 'General', items: datos.items.map(it=>({ concepto: it.concepto, descripcion: '', precio: it.precio })) };
     agregarCotSeccion(sec);
   } else {
     agregarCotSeccion({ titulo: 'General', items: [{},{}] });
@@ -2638,7 +2638,7 @@ async function enviarReporte(e) {
     const id = tr.getAttribute('data-rowid') || newUID();
     items.push({
       _id: id,
-      descripci�n: tr.querySelector('textarea[name="descripcion"]').value,
+      descripcion: tr.querySelector('textarea[name="descripcion"]').value,
       fotos: (fotosItemsReporteMap[id] || [])
     });
   });
@@ -2649,7 +2649,7 @@ async function enviarReporte(e) {
   }
   savePredictEMSCloud("cliente", datos.cliente);
   if (datos.concepto) savePredictEMSCloud("concepto", datos.concepto);
-  items.forEach(it => savePredictEMSCloud("descripci�n", it.descripcion));
+  items.forEach(it => savePredictEMSCloud("descripcion", it.descripcion));
   const reporte = {
     ...datos,
     items,
@@ -2678,7 +2678,7 @@ async function guardarReporteDraft() {
     const id = tr.getAttribute('data-rowid') || newUID();
     items.push({
       _id: id,
-      descripci�n: tr.querySelector('textarea[name="descripcion"]').value,
+      descripcion: tr.querySelector('textarea[name="descripcion"]').value,
       fotos: (fotosItemsReporteMap[id] || [])
     });
   });
@@ -2714,7 +2714,7 @@ async function generarPDFReporte(share = false, isPreview = false) {
     const id = tr.getAttribute('data-rowid') || newUID();
     items.push({
       _id: id,
-      descripci�n: tr.querySelector('textarea[name="descripcion"]').value,
+      descripcion: tr.querySelector('textarea[name="descripcion"]').value,
       fotos: (fotosItemsReporteMap[id] || []).slice(0, 6),
     });
   });
@@ -2921,7 +2921,7 @@ function eliminarFotoRepItem(btn, id, fidx){
       fotosItemsReporteMap[id].splice(fidx,1);
       const tr = btn.closest('tr');
       const desc = tr?.querySelector('textarea')?.value || '';
-      tr.outerHTML = renderRepItemRow({ descripci�n: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
+      tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
       agregarDictadoMicros(); activarPredictivosInstantaneos();
     }catch{}
   });
@@ -3067,9 +3067,9 @@ function serializeCotizacionForm() {
     const items = [];
     sec.querySelectorAll('tbody tr').forEach(tr=>{
       const concepto = tr.querySelector('input[name="concepto"]').value;
-      const descripci�n = tr.querySelector('textarea[name="descripcion"]').value;
+      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
       const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
-      if (concepto || descripci�n || precio) items.push({ concepto, descripci�n, precio });
+      if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
     });
     if (titulo || items.length) secciones.push({ titulo, items });
   });
@@ -3131,7 +3131,7 @@ function serializeReporteForm() {
   const items = [];
   form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
     const id = tr.getAttribute('data-rowid') || newUID();
-    items.push({ _id: id, descripci�n: tr.querySelector('textarea[name="descripcion"]').value, fotos: (fotosItemsReporteMap[id]||[]).slice(0) });
+    items.push({ _id: id, descripcion: tr.querySelector('textarea[name="descripcion"]').value, fotos: (fotosItemsReporteMap[id]||[]).slice(0) });
   });
   return { ...datos, items };
 }
@@ -3268,3 +3268,4 @@ function renderCotSeccionDet(seccion = {}, rowId) {
 
 
 try { if (typeof initActionDelegates === 'function') initActionDelegates(); } catch {}
+
