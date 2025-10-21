@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
   <meta name="theme-color" content="#2563eb">
-  <meta name="description" content="Sistema de gestión de cotizaciones y reportes para Electromotores Santana. Aplicación web progresiva optimizada para dispositivos móviles.">
+  <meta name="description" content="Sistema de gestiÃ³n de cotizaciones y reportes para Electromotores Santana. AplicaciÃ³n web progresiva optimizada para dispositivos mÃ³viles.">
 
   <!-- PWA Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -101,7 +101,7 @@
     // Service Worker Registration with Update Detection
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        // Solo usar versión, NO timestamp (evita updates falsos)
+        // Solo usar versiÃ³n, NO timestamp (evita updates falsos)
         navigator.serviceWorker.register('./service-worker.js?v=47')
           .then(function(registration) {
             console.log('SW registered:', registration.scope);
@@ -116,9 +116,9 @@
 
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // Verificar que realmente es un update (no la primera instalación)
+                  // Verificar que realmente es un update (no la primera instalaciÃ³n)
                   if (typeof showToast === 'function') {
-                    showToast('Nueva versión disponible. Recarga para actualizar.', 'info', 8000);
+                    showToast('Nueva versiÃ³n disponible. Recarga para actualizar.', 'info', 8000);
                   }
                 }
               });
@@ -132,3 +132,4 @@
   </script>
 </body>
 </html>
+
