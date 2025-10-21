@@ -1391,3 +1391,45 @@ input, textarea, select, button { -webkit-user-select: text; user-select: text; 
 
   .cot-seccion-subtotal { margin: 10px 0 16px; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 10px; background: #f8fafc; }
 }
+
+/* Responsive improvements for normal quote table */
+@media (max-width: 640px) {
+  .cot-seccion-table:not([data-mode="det"]) thead { display: none; }
+  .cot-seccion-table:not([data-mode="det"]) tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Concepto full row, luego 2 cols */
+    grid-auto-rows: auto;
+    gap: 8px 10px;
+    padding: 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+    margin-bottom: 10px;
+  }
+  .cot-seccion-table:not([data-mode="det"]) tbody tr td { padding: 0; }
+  .cot-seccion-table:not([data-mode="det"]) tbody tr td:nth-child(1) { grid-column: 1 / -1; }
+  .cot-seccion-table:not([data-mode="det"]) tbody tr td:nth-child(2) { grid-column: 1 / -1; }
+  .cot-seccion-table:not([data-mode="det"]) tbody tr td:nth-child(3) { grid-column: 1 / -1; text-align: right; }
+
+  .cot-seccion-table:not([data-mode="det"]) tbody tr td:nth-child(1)::before,
+  .cot-seccion-table:not([data-mode="det"]) tbody tr td:nth-child(2)::before,
+  .cot-seccion-table:not([data-mode="det"]) tbody tr td:nth-child(3)::before {
+    display: block;
+    font-size: .72rem;
+    color: #6b7280;
+    margin-bottom: 4px;
+    font-weight: 600;
+    letter-spacing: .02em;
+  }
+  .cot-seccion-table:not([data-mode="det"]) tbody tr td:nth-child(1)::before { content: 'Concepto'; }
+  .cot-seccion-table:not([data-mode="det"]) tbody tr td:nth-child(2)::before { content: 'Descripción'; }
+  .cot-seccion-table:not([data-mode="det"]) tbody tr td:nth-child(3)::before { content: 'Precio'; }
+
+  .cot-seccion-table:not([data-mode="det"]) input[type="number"],
+  .cot-seccion-table:not([data-mode="det"]) input[type="text"],
+  .cot-seccion-table:not([data-mode="det"]) textarea {
+    width: 100%;
+    min-height: 40px;
+    font-size: 16px;
+  }
+}

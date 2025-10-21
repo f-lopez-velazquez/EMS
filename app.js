@@ -80,7 +80,7 @@ const CLOUDINARY_PRESET = "ml_default";
 // Usa ?cono local para coherencia con GH Pages e ?cono de pesta?a
 const LOGO_URL = "./icons/icon-192.png";
 
-// Estado de secciónes para Cotizaci?n (en DOM, pero guardamos helpers)
+// Estado de secciones para Cotizaci?n (en DOM, pero guardamos helpers)
 let cotSeccionesTemp = [];
 
 // ?? IMPORTANTE: fotos por ?TEM con ID estable (no por ?ndice)
@@ -918,9 +918,9 @@ function toggleCotMode(flag) {
 }
 
 // ========== NUEVO: Secciones de cotizaci?n ==========
-function renderCotSeccion(sección = {}, rowId) {
+function renderCotSeccion(seccion = {}, rowId) {
   const id = rowId || newUID();
-  const items = Array.isArray(sección.items) ? sección.items : [];
+  const items = Array.isArray(seccion.items) ? seccion.items : [];
   const isDet = (getSettings()?.cotDetallado === true) || items.some(x=> x && (x.cantidad!==undefined || x.unidad!==undefined || x.precioUnit!==undefined));
   const itemsHtml = items.map(it => `
       <tr>
@@ -936,7 +936,7 @@ function renderCotSeccion(sección = {}, rowId) {
   return `
     <div class="cot-seccion" data-secid="${id}">
       <div class="cot-seccion-head">
-        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(sección.titulo)}">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
         <div class="cot-sec-actions">
           <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
           <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
@@ -1196,8 +1196,8 @@ function nuevaCotizacion() {
         <label>Secciones</label>
         <div id="cotSeccionesWrap"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-          <button type="button" class="btn-secondary" onclick="agregarCotSeccion()"><i class="fa fa-list"></i> Secci�n (normal)</button>
-          <button type="button" class="btn-secondary" onclick="agregarCotSeccionDet()"><i class="fa fa-table"></i> Secci�n detallada</button>
+          <button type="button" class="btn-secondary" onclick="agregarCotSeccion()"><i class="fa fa-list"></i> Seccion (normal)</button>
+          <button type="button" class="btn-secondary" onclick="agregarCotSeccionDet()"><i class="fa fa-table"></i> Seccion detallada</button>
         </div>
         <small>Normal: concepto+descripci�n+precio. Detallada: concepto+cantidad+unidad+precio unitario+total.</small>
       </div>
@@ -1244,13 +1244,13 @@ function nuevaCotizacion() {
   if (draft) {
     draft = JSON.parse(draft);
     Object.keys(draft).forEach(k => {
-      if (k !== "items" && k !== "fotos" && k !== "secciónes" && form[k] !== undefined) form[k].value = draft[k];
+      if (k !== "items" && k !== "fotos" && k !== "secciones" && form[k] !== undefined) form[k].value = draft[k];
     });
     // Secciones nuevas o fallback a items
     const wrap = document.getElementById('cotSeccionesWrap');
     wrap.innerHTML = '';
-    if (Array.isArray(draft.secciónes) && draft.secciónes.length) {
-      draft.secciónes.forEach(sec => agregarCotSeccion(sec));
+    if (Array.isArray(draft.secciones) && draft.secciones.length) {
+      draft.secciones.forEach(sec => agregarCotSeccion(sec));
     } else if (Array.isArray(draft.items) && draft.items.length) {
       const sec = { titulo: 'General', items: draft.items.map(it=>({ concepto: it.concepto, descripci�n: '', precio: it.precio })) };
       agregarCotSeccion(sec);
@@ -1263,7 +1263,7 @@ function nuevaCotizacion() {
     }
     if (Array.isArray(draft.fotos)) fotosCotizacion = [...draft.fotos];
   } else {
-    // Inicial con una sección
+    // Inicial con una seccion
     agregarCotSeccion({ titulo: 'General', items: [{},{}] });
   }
 
@@ -1542,8 +1542,8 @@ async function enviarCotizacion(e) {
   showSaved("Guardando...");
   const form = document.getElementById('cotForm');
   const datos = Object.fromEntries(new FormData(form));
-  // Tomar secciónes
-  const secciónes = [];
+  // Tomar secciones
+  const secciones = [];
   document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
     const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
     const items = [];
@@ -1561,23 +1561,23 @@ async function enviarCotizacion(e) {
         if (concepto || descripci�n || precio) items.push({ concepto, descripci�n, precio });
       }
     });
-    if (titulo || items.length) secciónes.push({ titulo, items });
+    if (titulo || items.length) secciones.push({ titulo, items });
   });
-  if (!datos.numero || !datos.cliente || !secciónes.length) {
+  if (!datos.numero || !datos.cliente || !secciones.length) {
     showSaved("Faltan datos");
-    showModal("Por favor completa todos los campos requeridos: n?mero, cliente y al menos una sección.", "warning");
+    showModal("Por favor completa todos los campos requeridos: n?mero, cliente y al menos una seccion.", "warning");
     return;
   }
   savePredictEMSCloud("cliente", datos.cliente);
-  secciónes.forEach(sec => (sec.items||[]).forEach(it => { savePredictEMSCloud("concepto", it.concepto); }));
+  secciones.forEach(sec => (sec.items||[]).forEach(it => { savePredictEMSCloud("concepto", it.concepto); }));
   // C?lculos
-  const subtotal = secciónes.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (it.total!=null? Number(it.total): Number(it.precio)||0),0), 0);
+  const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (it.total!=null? Number(it.total): Number(it.precio)||0),0), 0);
   const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
   const iva = incluyeIVA ? subtotal*0.16 : 0;
   const total = subtotal + iva;
   const cotizacion = {
     ...datos,
-    secciónes,
+    secciones,
     subtotal,
     iva,
     total,
@@ -1602,7 +1602,7 @@ async function guardarCotizacionDraft() {
   const form = document.getElementById('cotForm');
   if (!form) return;
   const datos = Object.fromEntries(new FormData(form));
-  const secciónes = [];
+  const secciones = [];
   document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
     const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
     const items = [];
@@ -1620,15 +1620,15 @@ async function guardarCotizacionDraft() {
         if (concepto || descripci�n || precio) items.push({ concepto, descripci�n, precio });
       }
     });
-    if (titulo || items.length) secciónes.push({ titulo, items });
+    if (titulo || items.length) secciones.push({ titulo, items });
   });
-  const subtotal = secciónes.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (it.total!=null? Number(it.total): Number(it.precio)||0), 0), 0);
+  const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (it.total!=null? Number(it.total): Number(it.precio)||0), 0), 0);
   const incluyeIVA = datos.incluyeIVA === 'on';
   const iva = incluyeIVA ? subtotal*0.16 : 0;
   const total = subtotal + iva;
   const cotizacion = {
     ...datos,
-    secciónes,
+    secciones,
     subtotal, iva, total,
     fotos: fotosCotizacion.slice(0,5),
     tipo: 'cotizacion',
@@ -1670,7 +1670,7 @@ const FOOTER_SAFE = 70;              // zona reservada inferior (pie de p?gina)
 const TOP_PAD_NO_HEADER = 6;        // respiro arriba cuando NO hay encabezado
 const WATERMARK_W = 220, WATERMARK_H = 220, WATERMARK_OP = 0.04;
 
-// --- Banda de sección (mejora de contraste y asociaci?n) con reserva anti-solape
+// --- Banda de seccion (mejora de contraste y asociaci?n) con reserva anti-solape
 function drawSectionBand(pdfDoc, ctx, label, { continuation = false, preservePageStart = false } = {}) {
   const { fonts, dims } = ctx;
   const bandH = 26;
@@ -2028,7 +2028,7 @@ async function drawTwoImageRow(pdfDoc, ctx, urls, { gutter = 8, rowPad = 5, targ
  * - Evita filas de 1 imagen (funde con la siguiente).
  * - Ajusta din?micamente la altura objetivo a lo disponible.
  * - ?ltima fila centrada sin estirar de m?s.
- * - Marca continuidad de sección cuando salta de p?gina.
+ * - Marca continuidad de seccion cuando salta de p?gina.
  */
 async function drawSmartGallery(
   pdfDoc,
@@ -2176,7 +2176,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   const form = document.getElementById('cotForm');
   const datos = Object.fromEntries(new FormData(form));
   // Secciones
-  const secciónes = [];
+  const secciones = [];
   form.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
     const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
     const items = [];
@@ -2186,10 +2186,10 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
       const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
       if (concepto || descripci�n || precio) items.push({ concepto, descripci�n, precio });
     });
-    if (titulo || items.length) secciónes.push({ titulo, items });
+    if (titulo || items.length) secciones.push({ titulo, items });
   });
 
-  let subtotal = secciónes.reduce((acc, sec)=> acc + (sec.items||[]).reduce((a,it)=> a + (Number(it.precio)||0), 0), 0);
+  let subtotal = secciones.reduce((acc, sec)=> acc + (sec.items||[]).reduce((a,it)=> a + (Number(it.precio)||0), 0), 0);
   const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
   const iva = incluyeIVA ? subtotal * 0.16 : 0;
   const total = subtotal + iva;
@@ -2232,10 +2232,10 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   }
 
   const currentPage = () => ctx.pages[ctx.pages.length - 1];
-  for (let s = 0; s < secciónes.length; s++) {
-    const sec = secciónes[s];
-    // Banda de sección
-    drawSectionBand(pdfDoc, ctx, sec.titulo || `Secci?n ${s+1}`);
+  for (let s = 0; s < secciones.length; s++) {
+    const sec = secciones[s];
+    // Banda de seccion
+    drawSectionBand(pdfDoc, ctx, sec.titulo || `Seccion ${s+1}`);
     // Encabezado de tabla
     ensureSpace(pdfDoc, ctx, 24);
     const pT = currentPage();
@@ -2364,9 +2364,9 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
 }
 
 // Variante detallada: Concepto, Cantidad, Unidad, P. Unitario, Total
-function renderCotSeccionDet(sección = {}, rowId) {
+function renderCotSeccionDet(seccion = {}, rowId) {
   const id = rowId || newUID();
-  const items = Array.isArray(sección.items) ? sección.items : [];
+  const items = Array.isArray(seccion.items) ? seccion.items : [];
   const itemsHtml = items.map(it => {
     const cantidad = it.cantidad ?? '';
     const unidad = it.unidad ?? '';
@@ -2389,7 +2389,7 @@ function renderCotSeccionDet(sección = {}, rowId) {
   return `
     <div class="cot-seccion" data-secid="${id}" data-mode="det">
       <div class="cot-seccion-head">
-        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(sección.titulo)}">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
         <div class="cot-sec-actions">
           <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
           <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
@@ -2433,8 +2433,8 @@ function editarCotizacion(datos) {
 
   const wrap = document.getElementById('cotSeccionesWrap');
   wrap.innerHTML = '';
-  if (Array.isArray(datos.secciónes) && datos.secciónes.length) {
-    datos.secciónes.forEach(sec => agregarCotSeccion(sec));
+  if (Array.isArray(datos.secciones) && datos.secciones.length) {
+    datos.secciones.forEach(sec => agregarCotSeccion(sec));
   } else if (Array.isArray(datos.items) && datos.items.length) {
     const sec = { titulo: 'General', items: datos.items.map(it=>({ concepto: it.concepto, descripci�n: '', precio: it.precio })) };
     agregarCotSeccion(sec);
@@ -2554,8 +2554,8 @@ async function composeReportePDF({ datos, items, params, dryRun = false }) {
     // Garantiza que todo el bloque inicial del ?tem entre junto
     ensureSpace(pdfDoc, ctx, bandH + cardH + reserveFirstRow);
 
-    // Banda de sección
-    ctx.state.currentSection = `Secci?n ${i + 1}`;
+    // Banda de seccion
+    ctx.state.currentSection = `Seccion ${i + 1}`;
     drawSectionBand(pdfDoc, ctx, ctx.state.currentSection);
 
     // DESCRIPCI?N (p?ldora) con reserva de la primera fila de fotos
@@ -2999,7 +2999,7 @@ function openSettings() {
     addHelpFor('#setGalMax', 'Altura m?xima posible de una fila de fotos.');
     addHelpFor('#setTitleGap', 'Espacio inferior bajo cada t?tulo en el PDF.');
     addHelpFor('#setCardGap', 'Separaci?n entre bloques de texto tipo tarjeta.');
-    addHelpFor('#setBlockGap', 'Separaci?n general entre secciónes.');
+    addHelpFor('#setBlockGap', 'Separaci?n general entre secciones.');
     // Default de T&C si vac?o
     const tc = overlay.querySelector('#setTC');
     if (tc && !String(tc.value||'').trim()) {
@@ -3034,7 +3034,7 @@ function serializeCotizacionForm() {
   const form = document.getElementById('cotForm');
   if (!form) return null;
   const datos = Object.fromEntries(new FormData(form));
-  const secciónes = [];
+  const secciones = [];
   document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
     const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
     const items = [];
@@ -3044,9 +3044,9 @@ function serializeCotizacionForm() {
       const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
       if (concepto || descripci�n || precio) items.push({ concepto, descripci�n, precio });
     });
-    if (titulo || items.length) secciónes.push({ titulo, items });
+    if (titulo || items.length) secciones.push({ titulo, items });
   });
-  return { ...datos, secciónes, fotos: (fotosCotizacion||[]).slice(0) };
+  return { ...datos, secciones, fotos: (fotosCotizacion||[]).slice(0) };
 }
 function applyCotSnapshot(snap) {
   if (!snap) return;
@@ -3074,7 +3074,7 @@ function serializeCotizacionForm() {
   const form = document.getElementById('cotForm');
   if (!form) return null;
   const datos = Object.fromEntries(new FormData(form));
-  const secciónes = [];
+  const secciones = [];
   document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
     const titulo = (sec.querySelector('input[name="sec_titulo"]')?.value || '').trim();
     const items = [];
@@ -3092,9 +3092,9 @@ function serializeCotizacionForm() {
         if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
       }
     });
-    if (titulo || items.length) secciónes.push({ titulo, items });
+    if (titulo || items.length) secciones.push({ titulo, items });
   });
-  return { ...datos, secciónes, fotos: (window.fotosCotizacion||[]).slice(0) };
+  return { ...datos, secciones, fotos: (window.fotosCotizacion||[]).slice(0) };
 }
 
 function serializeReporteForm() {
@@ -3167,7 +3167,7 @@ function installUndoHandlers() {
 
 
 
-// Agrega una sección DETALLADA expl�citamente desde la UI
+// Agrega una seccion DETALLADA expl�citamente desde la UI
 function agregarCotSeccionDet(preload = null) {
   const wrap = document.getElementById('cotSeccionesWrap');
   if (!wrap) return;
@@ -3177,10 +3177,10 @@ function agregarCotSeccionDet(preload = null) {
   recalcTotalesCotizacion();
 }
 
-// Render de sección DETALLADA (Concepto, Cantidad, Unidad, P. Unitario, Total)
-function renderCotSeccionDet(sección = {}, rowId) {
+// Render de seccion DETALLADA (Concepto, Cantidad, Unidad, P. Unitario, Total)
+function renderCotSeccionDet(seccion = {}, rowId) {
   const id = rowId || newUID();
-  const items = Array.isArray(sección.items) ? sección.items : [];
+  const items = Array.isArray(seccion.items) ? seccion.items : [];
   const itemsHtml = items.map(it => {
     const cantidad = it.cantidad ?? '';
     const unidad = it.unidad ?? '';
@@ -3203,7 +3203,7 @@ function renderCotSeccionDet(sección = {}, rowId) {
   return `
     <div class="cot-seccion" data-secid="${id}" data-mode="det">
       <div class="cot-seccion-head">
-        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(sección.titulo)}">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
         <div class="cot-sec-actions">
           <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
           <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
