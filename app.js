@@ -993,13 +993,8 @@ function renderCotSeccion(seccion = {}, rowId) {
   const isDet = (getSettings()?.cotDetallado === true) || items.some(x=> x && (x.cantidad!==undefined || x.unidad!==undefined || x.precioUnit!==undefined));
   const itemsHtml = items.map(it => `
       <tr>
-        <td><input type="text" name="concepto" value="${safe(it.concepto)}" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
-        <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..." spellcheck="true" autocapitalize="sentences">${safe(it.descripcion)}</textarea></td>
-        <td style="white-space:nowrap;display:flex;align-items:center;">
-          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
-          <input type="number" name="precioSec" min="0" step="0.01" value="${safe(it.precio)}" style="width:100px;">
-          <button type="button" class="btn-mini" data-action="remove-row" title="Eliminar fila"><i class="fa fa-trash"></i></button>
-        </td>
+        <td><input type=\"text\" name=\"concepto\" value=\"${safe(it.concepto)}\" list=\"conceptosEMS\" autocomplete=\"off\" spellcheck=\"true\" autocapitalize=\"sentences\"></td>
+        <td style=\"white-space:nowrap;display:flex;align-items:center;\">\n          <span style=\\\"margin-right:4px;color:#13823b;font-weight:bold;\\\">$</span>\n          <input type=\\\"number\\\" name=\\\"precioSec\\\" min=\\\"0\\\" step=\\\"0.01\\\" value=\\\"${safe(it.precio)}\\\" style=\\\"width:100px;\\\">\n          <button type=\\\"button\\\" class=\\\"btn-mini\\\" data-action=\\\"remove-row\\\" title=\\\"Eliminar fila\\\"><i class=\\\"fa fa-trash\\\"></i></button>\n        </td>
       </tr>
   `).join('');
   return `
@@ -1014,9 +1009,8 @@ function renderCotSeccion(seccion = {}, rowId) {
       <table class="ems-items-table cot-seccion-table">
         <thead>
           <tr>
-            <th style="width:30%">Concepto</th>
-            <th>Descripci\\u00F3n</th>
-            <th style="width:180px">Precio</th>
+            <th>Concepto</th>
+            <th>Precio</th>
           </tr>
         </thead>
         <tbody>
@@ -1035,12 +1029,7 @@ function agregarCotSeccion(preload = null) {
   const html = isDet ? renderCotSeccionDet(preload||{ items:[{}] }) : renderCotSeccion(preload||{ items:[{}] });
   wrap.insertAdjacentHTML('beforeend', html);
   try { normalizeEscapedTexts(wrap.lastElementChild || wrap); } catch {}
-  try {
-    const sec = wrap.lastElementChild;
-    if (sec && !sec.querySelector('[data-mode="det"]')) {
-      initDescControlsForSection(sec);
-    }
-  } catch {}
+  // Nota: se ha quitado la columna Descripción en UI; no insertamos controles ON/OFF
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
   recalcTotalesCotizacion();
@@ -1072,7 +1061,6 @@ function agregarRubroEnSeccion(btn) {
     tbody.insertAdjacentHTML('beforeend', `
       <tr>
         <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
-        <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..." spellcheck="true" autocapitalize="sentences"></textarea></td>
         <td style="white-space:nowrap;display:flex;align-items:center;">
           <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
           <input type="number" name="precioSec" min="0" step="0.01" style="width:100px;">
@@ -1083,7 +1071,7 @@ function agregarRubroEnSeccion(btn) {
   }
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
-  try { initDescControlsForSection(sec); } catch {}
+  // Sin controles de descripción en UI
   recalcSeccionSubtotal(sec);
 }
 
@@ -2365,13 +2353,17 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     const thY = ctx.y;
     pT.drawRectangle({ x: dims.mx, y: thY - 18, width: dims.usableW, height: 20, color: emsRgb(), opacity: 0.98 });
     if (!isDet) {
-      // Cabecera normal
+      // Cabecera normal (omite Descripción si todos vacíos)
+      const hasDesc = items.some(it => String(it.descripcion||'').trim() !== '');
+      ctx.__normalHasDesc = hasDesc;
+      const xPrecio = dims.mx + dims.usableW - 120;
+      ctx.__normalXPrecio = xPrecio;
       pT.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      pT.drawText(decodeU("Descripci\\u00F3n"), { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      pT.drawText("Precio", { x: dims.mx + dims.usableW - 120, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      if (hasDesc) pT.drawText(decodeU("Descripci\\u00F3n"), { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText("Precio", { x: xPrecio, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
       // Líneas verticales header (normal)
-      pT.drawLine({ start:{ x: (dims.mx + 180) - 6, y: thY - 18 }, end:{ x: (dims.mx + 180) - 6, y: thY + 2 }, thickness: 0.6, color: rgb(1,1,1) });
-      pT.drawLine({ start:{ x: (dims.mx + dims.usableW - 120) - 6, y: thY - 18 }, end:{ x: (dims.mx + dims.usableW - 120) - 6, y: thY + 2 }, thickness: 0.6, color: rgb(1,1,1) });
+      if (hasDesc) pT.drawLine({ start:{ x: (dims.mx + 180) - 6, y: thY - 18 }, end:{ x: (dims.mx + 180) - 6, y: thY + 2 }, thickness: 0.6, color: rgb(1,1,1) });
+      pT.drawLine({ start:{ x: (xPrecio) - 6, y: thY - 18 }, end:{ x: (xPrecio) - 6, y: thY + 2 }, thickness: 0.6, color: rgb(1,1,1) });
     } else {
       // Cabecera detallada
       const widths = { cant: 60, unidad: 90, punit: 100, total: 100 }; const conceptW = dims.usableW - (widths.cant + widths.unidad + widths.punit + widths.total) - 20;
@@ -2401,11 +2393,19 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
         p.drawRectangle({ x: dims.mx, y: ctx.y - 2, width: dims.usableW, height: 18, color: rgb(0.98,0.91,0.75), opacity: 0.16 });
       }
       if (!isDet) {
-        p.drawText(String(it.concepto||""), { x: dims.mx + 6, y: ctx.y, size: 10, font: helv, color: gray(0.24) });
-        const maxW = dims.usableW - 120 - (180 - 6);
-        const lines = wrapTextLines(String(it.descripcion||""), helv, 10, maxW);
-        let yy = ctx.y;
-        lines.slice(0,3).forEach((ln)=>{ p.drawText(ln, { x: dims.mx + 180, y: yy, size: 10, font: helv, color: gray(0.28) }); yy -= 12; });
+        const hasDesc = !!ctx.__normalHasDesc;
+        if (hasDesc) {
+          p.drawText(String(it.concepto||""), { x: dims.mx + 6, y: ctx.y, size: 10, font: helv, color: gray(0.24) });
+          const maxW = dims.usableW - 120 - (180 - 6);
+          const lines = wrapTextLines(String(it.descripcion||""), helv, 10, maxW);
+          let yy = ctx.y;
+          lines.slice(0,3).forEach((ln)=>{ p.drawText(ln, { x: dims.mx + 180, y: yy, size: 10, font: helv, color: gray(0.28) }); yy -= 12; });
+        } else {
+          const maxW2 = dims.usableW - 120 - 12;
+          const lines2 = wrapTextLines(String(it.concepto||""), helv, 10, maxW2);
+          let yy2 = ctx.y;
+          lines2.slice(0,3).forEach((ln)=>{ p.drawText(ln, { x: dims.mx + 6, y: yy2, size: 10, font: helv, color: gray(0.24) }); yy2 -= 12; });
+        }
         drawTextRight(p, mostrarPrecioLimpio(it.precio), dims.mx + dims.usableW - 4, ctx.y, { size: 10, font: helv, color: gray(0.24) });
         subSec += Number(it.precio)||0;
       } else {
@@ -3567,5 +3567,7 @@ function renderPreciosView(){
   `;
   try { renderPriceTable(); } catch {}
 }
+
+
 
 

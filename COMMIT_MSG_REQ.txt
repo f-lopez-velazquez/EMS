@@ -1,0 +1,4 @@
+﻿UI Cotización: tabla simple por fila (Concepto + Precio).
+- Quitar descripción en UI (solo Concepto + Precio)
+- PDF: omitir columna Descripción si toda vacía en una sección
+- Quitar controles de toggle-desc en UI
