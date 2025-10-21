@@ -2361,7 +2361,12 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
         drawTextRight(p, String(cantidad), (cols.xCant + cols.widths.cant) - 4, ctx.y, { size: 10, font: helv, color: gray(0.28) });
         p.drawText(unidad, { x: cols.xUnidad + 4, y: ctx.y, size: 10, font: helv, color: gray(0.28) });
         drawTextRight(p, mostrarPrecioLimpio(precioUnit), (cols.xPunit + cols.widths.punit) - 4, ctx.y, { size: 10, font: helv, color: gray(0.24) });
-        drawTextRight(p, mostrarPrecioLimpio(totalRow), dims.mx + dims.usableW - 4, ctx.y, { size: 10, font: helvB, color: gray(0.24) });`n        // Separadores verticales por fila (grid sutil)`n        const yTop = ctx.y + 8, yBot = ctx.y - 10;`n        [cols.xCant - 3, cols.xUnidad - 3, cols.xPunit - 3, cols.xTotal - 3].forEach(x => {`n          p.drawLine({ start: { x, y: yBot }, end: { x, y: yTop }, thickness: 0.3, color: gray(0.88) });`n        });
+        drawTextRight(p, mostrarPrecioLimpio(totalRow), dims.mx + dims.usableW - 4, ctx.y, { size: 10, font: helvB, color: gray(0.24) });
+        // Separadores verticales por fila (grid sutil)
+        const yTop = ctx.y + 8, yBot = ctx.y - 10;
+        [cols.xCant - 3, cols.xUnidad - 3, cols.xPunit - 3, cols.xTotal - 3].forEach(x => {
+          p.drawLine({ start: { x, y: yBot }, end: { x, y: yTop }, thickness: 0.3, color: gray(0.88) });
+        });
         subSec += Number(totalRow)||0;
       }
       rule(p, dims.mx, ctx.y - 3, dims.pageW - dims.mx, gray(0.93), 0.4);
