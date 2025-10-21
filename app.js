@@ -3426,41 +3426,72 @@ async function generarPDFPrecios(share=false){
   const helvB= await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
   const page = pdfDoc.addPage([dims.pageW, dims.pageH]);
-  // Header con logo y footers como cotizaciones
-  const logoImg = await getLogoImage(pdfDoc);
-  const datosHdr = { cliente: '', numero: '', fecha: new Date().toISOString().slice(0,10), hora: ahora() };
-  let y = addHeader(pdfDoc, page, decodeU('LISTA DE PRECIOS'), datosHdr, { reg: helv, bold: helvB }, dims, true, logoImg);
-  y -= 10;
+  // Header minimal (sin cliente, No., fecha ni paginación)
+  let y = dims.pageH - dims.my;
+  try {
+    const logo = await getLogoImage(pdfDoc);
+    if (logo) page.drawImage(logo, { x: dims.mx, y: y - 44, width: 44, height: 44 });
+  } catch {}
+  page.drawText(EMS_CONTACT.empresa, { x: dims.mx + 52, y: y - 6, size: 16, font: helvB, color: gray(0.18) });
+  rule(page, dims.mx, y - 48, dims.pageW - dims.mx, gray(0.85), 0.8);
+  y -= 58;
+  // Banda de título
+  page.drawRectangle({ x: dims.mx, y: y - 24, width: (dims.pageW - 2*dims.mx), height: 24, color: emsRgb(), opacity: 0.95 });
+  const title = `PRECIOS ${year}`;
+  const tw = helvB.widthOfTextAtSize(title, 12.5);
+  page.drawText(title, { x: dims.mx + ((dims.pageW - 2*dims.mx) - tw)/2, y: y - 16, size: 12.5, font: helvB, color: PDFLib.rgb(1,1,1) });
+  y -= 34;
   // Title band
   page.drawRectangle({ x: dims.mx, y: y-24, width: dims.pageW - 2*dims.mx, height: 24, color: emsRgb(), opacity: 0.95 });
   const title = 'PRECIOS '+year;
   const w = helvB.widthOfTextAtSize(title, 12.5);
   page.drawText(title, { x: dims.mx + (dims.pageW - 2*dims.mx - w)/2, y: y-16, size: 12.5, font: helvB, color: PDFLib.rgb(1,1,1) });
   y -= 34;
-  const colXs = [dims.mx+8, dims.mx+200, dims.mx+404, dims.mx+504];
-  const colW  = [192, 200, 100, 80];
-  // Table header
-  page.drawRectangle({ x: dims.mx, y: y-18, width: dims.pageW - 2*dims.mx, height: 20, color: emsRgb(), opacity: 0.98 });
-  const th = ['Potencia en HP/KW','Mantenimiento Preventivo','Mantenimiento Correctivo (Embobinado)','Abanico de Enfriamiento'];
-  [0,1,2,3].forEach(i=> page.drawText(th[i], { x: colXs[i], y: y-12, size: 10.5, font: helvB, color: PDFLib.rgb(1,1,1) }));
-  // vertical lines header
-  [colXs[1]-8,colXs[2]-8,colXs[3]-8].forEach(x=> page.drawLine({ start:{x, y:y-18}, end:{x, y:y+2}, thickness:0.6, color: PDFLib.rgb(1,1,1)}));
+  // Columnas proporcionales (encajan en el ancho útil)
+  const cw = (dims.pageW - 2*dims.mx);
+  const pad = 8;
+  const w1 = Math.round(cw * 0.22); // HP/KW
+  const w2 = Math.round(cw * 0.30); // Preventivo
+  const w3 = Math.round(cw * 0.30); // Correctivo
+  const w4 = cw - w1 - w2 - w3;     // Abanico (restante)
+  const b1 = dims.mx, b2 = b1 + w1, b3 = b2 + w2, b4 = b3 + w3, b5 = b4 + w4;
+  // Encabezado de tabla
+  page.drawRectangle({ x: dims.mx, y: y-18, width: cw, height: 20, color: emsRgb(), opacity: 0.98 });
+  page.drawText('Potencia en HP/KW',                 { x: b1 + pad, y: y-12, size: 10.5, font: helvB, color: PDFLib.rgb(1,1,1) });
+  page.drawText('Mantenimiento Preventivo',          { x: b2 + pad, y: y-12, size: 10.5, font: helvB, color: PDFLib.rgb(1,1,1) });
+  page.drawText('Mantenimiento Correctivo (Embobinado)', { x: b3 + pad, y: y-12, size: 10.5, font: helvB, color: PDFLib.rgb(1,1,1) });
+  page.drawText('Abanico de Enfriamiento',           { x: b4 + pad, y: y-12, size: 10.5, font: helvB, color: PDFLib.rgb(1,1,1) });
+  // Separadores verticales del header
+  [b2, b3, b4].forEach(x=> page.drawLine({ start:{x, y:y-18}, end:{x, y:y+2}, thickness:0.6, color: PDFLib.rgb(1,1,1)}));
   y -= 28;
   // Rows
   const fmt = v => mostrarPrecioLimpio(Math.round(Number(v||0)*mul));
   (pl.rows||[]).forEach((r,idx)=>{
     if (y < 90){ // new page
       const p2 = pdfDoc.addPage([dims.pageW, dims.pageH]);
-      y = dims.pageH - dims.my - 24;
+      // Header mínimo en páginas siguientes
+      y = dims.pageH - dims.my - 10;
+      rule(p2, dims.mx, y - 12, dims.pageW - dims.mx, gray(0.85), 0.6);
+      y -= 22;
+      // Duplicar encabezado de tabla en nueva página
+      p2.drawRectangle({ x: dims.mx, y: y-18, width: cw, height: 20, color: emsRgb(), opacity: 0.98 });
+      p2.drawText('Potencia en HP/KW', { x: b1 + pad, y: y-12, size: 10.5, font: helvB, color: PDFLib.rgb(1,1,1) });
+      p2.drawText('Mantenimiento Preventivo', { x: b2 + pad, y: y-12, size: 10.5, font: helvB, color: PDFLib.rgb(1,1,1) });
+      p2.drawText('Mantenimiento Correctivo (Embobinado)', { x: b3 + pad, y: y-12, size: 10.5, font: helvB, color: PDFLib.rgb(1,1,1) });
+      p2.drawText('Abanico de Enfriamiento', { x: b4 + pad, y: y-12, size: 10.5, font: helvB, color: PDFLib.rgb(1,1,1) });
+      [b2, b3, b4].forEach(x=> p2.drawLine({ start:{x, y:y-18}, end:{x, y:y+2}, thickness:0.6, color: PDFLib.rgb(1,1,1)}));
+      y -= 28;
+      page = p2;
     }
-    if (idx % 2 === 0) page.drawRectangle({ x: dims.mx, y: y-2, width: dims.pageW - 2*dims.mx, height: 16, color: PDFLib.rgb(0.97,0.97,0.97) });
-    page.drawText(String(r.hp||''), { x: colXs[0], y, size: 10, font: helv, color: gray(0.26) });
-    drawTextRight(page, fmt(r.prev), colXs[1]+colW[1], y, { size: 10, font: helv, color: gray(0.26) });
-    drawTextRight(page, fmt(r.corr), colXs[2]+colW[2], y, { size: 10, font: helv, color: gray(0.26) });
-    drawTextRight(page, fmt(r.fan),  colXs[3]+colW[3], y, { size: 10, font: helv, color: gray(0.26) });
-    // verticals
+    if (idx % 2 === 0) page.drawRectangle({ x: dims.mx, y: y-2, width: cw, height: 16, color: PDFLib.rgb(0.97,0.97,0.97) });
+    // Contenido de celdas
+    page.drawText(String(r.hp||''), { x: b1 + pad, y, size: 10, font: helv, color: gray(0.26) });
+    drawTextRight(page, fmt(r.prev), b3 - pad, y, { size: 10, font: helv, color: gray(0.26) });
+    drawTextRight(page, fmt(r.corr), b4 - pad, y, { size: 10, font: helv, color: gray(0.26) });
+    drawTextRight(page, fmt(r.fan),  b5 - pad, y, { size: 10, font: helv, color: gray(0.26) });
+    // Verticales por fila
     const yTop = y+8, yBot = y-10;
-    [colXs[1]-8,colXs[2]-8,colXs[3]-8].forEach(x=> page.drawLine({ start:{x, y:yBot}, end:{x, y:yTop}, thickness:0.3, color: gray(0.88)}));
+    [b2, b3, b4].forEach(x=> page.drawLine({ start:{x, y:yBot}, end:{x, y:yTop}, thickness:0.3, color: gray(0.88)}));
     rule(page, dims.mx, y-3, dims.pageW - dims.mx, gray(0.92), 0.4);
     y -= 18;
   });
@@ -3468,7 +3499,7 @@ async function generarPDFPrecios(share=false){
   y -= 10; const note = 'Nota: Los precios no incluyen IVA. El precio incluye recolección de equipo dentro del área de Santiago de Querétaro, desarmado, diagnóstico y extracción de baleros.';
   page.drawRectangle({ x: dims.mx, y: y-18, width: dims.pageW - 2*dims.mx, height: 22, color: PDFLib.rgb(0.96,0.6,0.6), opacity: 0.15, borderColor: PDFLib.rgb(0.86,0.1,0.1), borderWidth: 1 });
   page.drawText(note, { x: dims.mx + 8, y: y-10, size: 9.8, font: helvB, color: PDFLib.rgb(0.86,0.1,0.1) });
-  try { applyFooters(pdfDoc, pdfDoc.getPages(), { reg: helv, bold: helvB }, dims); } catch {}
+  // No aplicar pie con numeración para precios (requisito)
   const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
   showProgress(false);
   if (share && navigator.canShare) {
