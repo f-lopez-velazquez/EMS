@@ -3068,6 +3068,35 @@ function undoCot() {
   showSaved('Deshecho');
 }
 
+// ===== Hotfix: serializeCotizacionForm robusto (modo normal y detallado) =====
+// Re-declaramos la función al final del archivo para asegurar que esta versión prevalezca
+function serializeCotizacionForm() {
+  const form = document.getElementById('cotForm');
+  if (!form) return null;
+  const datos = Object.fromEntries(new FormData(form));
+  const secciones = [];
+  document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
+    const titulo = (sec.querySelector('input[name="sec_titulo"]')?.value || '').trim();
+    const items = [];
+    sec.querySelectorAll('tbody tr').forEach(tr => {
+      const concepto = tr.querySelector('input[name="concepto"]')?.value || '';
+      if (tr.querySelector('input[name="precioUnitSec"]')) {
+        const cantidad = Number(tr.querySelector('input[name="cantidadSec"]')?.value || 0) || 0;
+        const unidad = tr.querySelector('input[name="unidadSec"]')?.value || '';
+        const precioUnit = Number(tr.querySelector('input[name="precioUnitSec"]')?.value || 0) || 0;
+        const total = cantidad * precioUnit;
+        if (concepto || cantidad || unidad || precioUnit) items.push({ concepto, cantidad, unidad, precioUnit, total });
+      } else {
+        const descripcion = tr.querySelector('textarea[name="descripcion"]')?.value || '';
+        const precio = Number(tr.querySelector('input[name="precioSec"]')?.value || 0) || 0;
+        if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
+      }
+    });
+    if (titulo || items.length) secciones.push({ titulo, items });
+  });
+  return { ...datos, secciones, fotos: (window.fotosCotizacion||[]).slice(0) };
+}
+
 function serializeReporteForm() {
   const form = document.getElementById('repForm');
   if (!form) return null;
@@ -3199,3 +3228,4 @@ function renderCotSeccionDet(seccion = {}, rowId) {
     </div>
   `;
 }
+
