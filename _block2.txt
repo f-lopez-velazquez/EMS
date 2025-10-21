@@ -1,0 +1,7 @@
+      }
+    } catch(e){ console.warn('Acción fallida', act, e); }
+  });
+}
+  try { installUndoHandlers(); } catch {}
+  try { schedulePendingNotifications(); } catch {}
+};

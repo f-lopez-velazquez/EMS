@@ -1,0 +1,15 @@
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA') e.preventDefault();
+    }, true);
+  } catch (e) {}
+  try { applyThemeFromSettings(); } catch {}
+  try { typeof showOffline === "function" && showOffline(true); } catch {}
+
+// Delegación global de Acciónes para evitar inline handlers (CSP-friendly)
+function // Delegación global de acciones para evitar inline handlers (CSP-friendly)
+function initActionDelegates() {
+  document.addEventListener('click', async (ev) => {
+    const btn = ev.target && ev.target.closest('[data-action]');
+    if (!btn) return;
+    const act = btn.getAttribute('data-action');
+    try {

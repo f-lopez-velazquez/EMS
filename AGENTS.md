@@ -17,11 +17,14 @@ Este documento orienta a cualquier CLI/IA que intervenga en este proyecto. Mante
   - Términos y Condiciones editables (guardado en `EMS_SETTINGS.tc`) e incluidos en PDFs.
   - Compartir: al compartir, se descarga y además se abre el share del sistema (Web Share API cuando esté disponible).
   - Notificaciones esporádicas de pendientes (toasts/Notifications) con `schedulePendingNotifications()`.
+  - Cotización con “Tabla detallada” opcional (Concepto, Cantidad, Unidad, P. Unitario, Total) y detección automática por sección.
+  - UX móvil profesional: tablas normal y detallada se apilan en tarjetas en ≤640px (labels virtuales, inputs full‑width).
+  - Delegación global de eventos (CSP‑friendly): uso de `data-action` + `initActionDelegates()` en lugar de `onclick` inline.
 
 ## Estructura
 - `index.html`: Entrypoint. Carga `styles.css`, `app.js`, PDFLib y Firebase. Registra el Service Worker (bust `?v=XX`).
 - `styles.css`: Diseño mobile-first, accesible y de alto contraste. Evitar degradados. Variables CSS. Incluye estilos `ems-toggle`, `ems-file-btn`, `ems-busy-mask`.
-- `app.js`: Lógica de UI, persistencia, generación de PDFs, Undo/Redo y confirmaciones. UI tipo app (bloqueo atrás/context menu), notificaciones, y share.
+- `app.js`: Lógica de UI, persistencia, generación de PDFs, Undo/Redo y confirmaciones. UI tipo app (bloqueo atrás/context menu), notificaciones, share, modo detallado, y delegación global de eventos con `data-action`.
 - `service-worker.js`: Caché de assets y control de actualización. No interceptar Firestore/Cloudinary.
 - `manifest.json`: PWA (start_url/scope relativos) e iconos.
 - `icons/`: Íconos (favicon/apple-touch). El logo se usa desde `./icons/icon-192.png`.
@@ -58,6 +61,7 @@ Este documento orienta a cualquier CLI/IA que intervenga en este proyecto. Mante
     - `themeColor`, `showCredit`, `pdf` ({`galleryBase`,`galleryMin`,`galleryMax`,`titleGap`,`cardGap`,`blockGap`})
     - `tc` (Términos y Condiciones editables, string)
   - Undo stacks en memoria: `window.__EMS_UNDO_COT`, `window.__EMS_UNDO_REP` (no persistente).
+  - Encoding: mantener archivos en UTF‑8. Para textos sensibles en template strings (placeholders), preferir escapes Unicode (`\u00F3` para ó) si el host altera encoding.
 
 ## PDF
 - Librería: PDFLib (desde CDN). No hay servidor.
@@ -71,6 +75,7 @@ Este documento orienta a cualquier CLI/IA que intervenga en este proyecto. Mante
   - Incluir T&C si `getSettings().tc` no está vacío: usar `drawLabeledCard(..., { label: 'Términos y Condiciones', text: s.tc })`.
 - Estilo:
   - Sin degradados ni colores de bajo contraste. Usar `emsRgb()` (derivado de tema) y `gray()`.
+  - Modo detallado: si un ítem de la sección contiene `cantidad`/`unidad`/`precioUnit`/`total`, el encabezado y las filas se renderizan como detallados; de lo contrario, se usa el formato normal (Descripción/Precio).
 
 ## Service Worker
 - Cache name debe incrementarse en cada cambio relevante (`CACHE_NAME = 'ems-cache-vXX'`).
@@ -116,10 +121,13 @@ Este documento orienta a cualquier CLI/IA que intervenga en este proyecto. Mante
 - Verificar que botones de borrar muestran icono (FA o fallback).
 - Verificar toggles `.ems-toggle` en cotización.
 - Verificar botón “Agregar fotos” abre cámara/galería y sube a Cloudinary.
+- No agregar `onclick` inline. Usar `data-action` + `initActionDelegates()`.
+- Revisar UX móvil (≤640px): tablas normal/detallada apiladas, labels claros, inputs full‑width.
 2) PDFs
 - Probar `generarPDFCotizacion` y `generarPDFReporte` (chrome/ios).
 - Confirmar que `ctx.state` está inicializado y que `ensureSpace` se usa correctamente.
 - Confirmar inclusión de Términos y Condiciones cuando existan en ajustes.
+- En cotización verificar que secciones “detalladas” muestran encabezado y totales por renglón; secciones “normales” usan Descripción/Precio.
 3) Service Worker
 - Bump de `CACHE_NAME`.
 - Asegurar bypass de Firestore/Cloudinary.
@@ -160,6 +168,8 @@ Si el push falla por credenciales, configura `user.name`, `user.email` y PAT de 
 - Notificaciones: `schedulePendingNotifications()` - verifica pendientes y avisa esporádicamente
 - Cargando global: `showProgress(visible, percent, msg)` - muestra barra y bloquea interacción
 - Archivos/fotos: `subirFotosCot(input)` - sube a Cloudinary (máx 5)
+- Eventos (CSP): `initActionDelegates()` y acciones `data-action` (ver sección CSP/Eventos)
+- Cotización detallada: `agregarCotSeccionDet()`, `renderCotSeccionDet()`, `recalcSeccionSubtotal()` (modo normal/detallado)
 
 ## Notas para futuras IA/CLI
 - Si cambias contratos (forma de `secciones`, PDFs o SW), actualiza este AGENTS.md.
@@ -181,6 +191,16 @@ Plantilla sugerida:
 - Notas: validaciones, impactos, acciones pendientes
 
 Entradas:
+- Fecha: 2025-10-21 (Bugfix JS + SW v43)
+  - Agente: Codex CLI
+  - Resumen: Corregido error de sintaxis en app.js (línea con "function //" que rompía la carga: "function statement requires a name"). Se inicializa la delegación global de eventos en onload. Bump del Service Worker a v43 para propagar cambios.
+  - Archivos clave: `app.js`, `service-worker.js`, `index.html`
+  - Notas: El error de Firebase "No Firebase App '[DEFAULT]'" desaparece al ejecutarse `firebase.initializeApp()` tras el fix. PWA requiere recarga dura para tomar SW.
+- Fecha: 2025-10-21 (UX móvil + Delegación eventos)
+  - Agente: Codex CLI
+  - Resumen: Tablas normal y detallada apiladas en móvil (grid con labels virtuales, inputs full‑width). Migración a `data-action` con `initActionDelegates()` (CSP‑friendly) en Cotización. Correcciones de acentos/encoding y serializador robusto para modo detallado/normal.
+  - Archivos clave: `styles.css` (responsive tablas), `app.js` (delegación y fixes)
+  - Notas: PDF refleja encabezados/filas según el tipo de sección. Pendiente (opcional): migrar Reporte a `data-action` para eliminar todos los `onclick`.
 - Fecha: 2025-10-20 (Versión 2.0 - UX nativa + Share + T&C)
   - Agente: Codex CLI
   - Resumen: Experiencia tipo app (bloqueo atrás y sin menú contextual en contenido), overlay de “cargando” que bloquea edición durante generación de PDFs y subidas de fotos, botón de fotos mejorado con acceso a cámara/galería, checkboxes reemplazados por toggles deslizables, Términos y Condiciones editables (guardados y añadidos a PDFs), y compartir que descarga y además abre el share del sistema. Notificaciones esporádicas de pendientes con Firestore. SW v42.
@@ -227,3 +247,26 @@ Entradas:
   - Resumen: Rediseño con alto contraste (sin degradados), íconos de borrado/mic con fallback, confirmación por palabra en eliminaciones, Undo (Ctrl+Z) para cotización y reporte, corrección de PDFs (ctx.state en cotización) y SW v33 con bypass explícito para Firestore/Cloudinary. Creado AGENTS.md.
   - Archivos clave: `styles.css`, `app.js`, `index.html`, `service-worker.js`, `AGENTS.md`
   - Notas: probado generación de PDF y navegación. Requiere hard reload/PWA relanzar para tomar SW.
+- CSP / Eventos
+  - Evitar handlers inline (`onclick`). Usar `data-action` y el delegado `initActionDelegates()`.
+  - Acciones soportadas (Cotización): `add-section`, `add-section-det`, `add-row`, `remove-row`, `remove-section`, `cot-cancel`, `cot-undo`, `cot-preview`, `cot-pdf`, `cot-share`, `del-photo-cot`.
+
+  Acciones delegadas (mapa rápido)
+  - `add-section` → `agregarCotSeccion()`
+  - `add-section-det` → `agregarCotSeccionDet()`
+  - `add-row` → `agregarRubroEnSeccion(btn)` (usa el botón clickeado para ubicar la sección)
+  - `remove-row` → elimina la fila y llama `recalcSeccionSubtotal(sec)` (resuelto en el switch del delegado)
+  - `remove-section` → `eliminarCotSeccion(btn)`
+  - `cot-cancel` → limpia borrador de cotización + `renderInicio()`
+  - `cot-undo` → `undoCot()`
+  - `cot-preview` → `previsualizarPDFCotizacion()`
+  - `cot-pdf` → `guardarCotizacionDraft()`; `generarPDFCotizacion()`
+  - `cot-share` → `guardarCotizacionDraft()`; `generarPDFCotizacion(true)`
+  - `del-photo-cot` → `eliminarFotoCot(idx)` (leer índice de `data-idx`)
+
+  Cómo añadir un nuevo botón/acción
+  - En el HTML/plantilla, agrega el atributo `data-action="mi-accion"` al botón o enlace. Evita `onclick`.
+  - En `initActionDelegates()` (app.js), añade un `case 'mi-accion':` dentro del `switch` y llama a la función necesaria.
+  - Si requiere parámetros, pásalos con `data-*` (ej. `data-id`, `data-idx`) y léelos con `getAttribute` en el delegado.
+  - Para acciones destructivas, usa `confirmByTyping()` antes de ejecutar.
+  - Si el cambio afecta al PDF o contratos, actualiza este AGENTS.md y valida ambos modos (normal/detallado).

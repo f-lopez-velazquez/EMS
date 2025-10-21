@@ -1,0 +1,5 @@
+
+// Delegación global de Acciónes para evitar inline handlers (CSP-friendly)
+function // Delegación global de acciones para evitar inline handlers (CSP-friendly)
+function initActionDelegates() {
+  document.addEventListener('click', async (ev) => {
