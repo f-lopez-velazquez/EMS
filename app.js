@@ -1785,7 +1785,7 @@ function addHeader(pdfDoc, page, typeLabel, datos, fonts, dims, isFirst = false,
 
   if (!opts.dryRun) {
     page.drawText(EMS_CONTACT.empresa, { x: mx + 64, y: yTop - 4, size: 16.5, font: fonts.bold, color: gray(0.18) });
-    page.drawText(typeLabel, { x: mx + 64, y: yTop - 22, size: 12, font: fonts.bold, color: emsRgb() });
+    page.drawText(decodeU(typeLabel), { x: mx + 64, y: yTop - 22, size: 12, font: fonts.bold, color: emsRgb() });
 
     page.drawText(`Cliente: ${datos.cliente || ""}`, { x: mx + 64, y: yTop - 38, size: 10.5, font: fonts.reg, color: gray(0.25) });
     drawTextRight(page, `No: ${datos.numero || ""}`, pageW - mx, yTop - 4, { size: 10.5, font: fonts.bold, color: gray(0.25) });
@@ -3320,6 +3320,8 @@ function renderCotSeccionDet(seccion = {}, rowId) {
 
 
 try { if (typeof initActionDelegates === 'function') initActionDelegates(); } catch {}
+
+
 
 
 
