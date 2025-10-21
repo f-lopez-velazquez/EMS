@@ -191,6 +191,11 @@ Plantilla sugerida:
 - Notas: validaciones, impactos, acciones pendientes
 
 Entradas:
+- Fecha: 2025-10-21 (Fix doble rubro + UI textboxes)
+  - Agente: Codex CLI
+  - Resumen: Corregido el bug donde al agregar una nueva sección se insertaban 2 rubros por defecto; ahora solo 1. Unificada la delegación de eventos en secciones detalladas (sin onclick inline) para botones Agregar rubro/Eliminar sección y Eliminar fila. Mejora visual menor en los textboxes (acciones consistentes, sin duplicados inesperados).
+  - Archivos clave: `app.js` (agregarCotSeccion, agregarCotSeccionDet, renderCotSeccionDet, agregarRubroEnSeccion), `index.html` (SW bust v61)
+  - Notas: Se mantiene el diseño mobile‑first existente. Si no se ve el cambio, recargar PWA; el SW se registra con `?v=61`.
 - Fecha: 2025-10-21 (Cotización UI: descripciones auto/ON-OFF + scroll)
   - Agente: Codex CLI
   - Resumen: Mejorada la disposición de inputs en cotización. En modo simple, la columna Descripción se oculta automáticamente si todas están vacías y puede alternarse con un botón "Descripciones: ON/OFF" por sección. En modo detallado se aumentó el ancho de Cantidad y se fuerza scroll horizontal dentro de la tabla (no en toda la app). Se añadieron reglas CSS para overflow y para ocultar/mostrar la columna sin romper el layout.

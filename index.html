@@ -72,7 +72,7 @@
   <div id="progress-bar" style="display:none;"></div>
 
   <!-- Main App Script -->
-  <script src="app.js?v=59"></script>
+  <script src="app.js?v=61"></script>
 
   <!-- Firebase & Service Worker Initialization -->
   <script>
@@ -102,7 +102,7 @@
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
         // Solo usar versiÃ³n, NO timestamp (evita updates falsos)
-        navigator.serviceWorker.register('./service-worker.js?v=47')
+        navigator.serviceWorker.register('./service-worker.js?v=61')
           .then(function(registration) {
             console.log('SW registered:', registration.scope);
 

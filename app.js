@@ -1031,7 +1031,8 @@ function agregarCotSeccion(preload = null) {
   const wrap = document.getElementById('cotSeccionesWrap');
   if (!wrap) return;
   const isDet = (getSettings()?.cotDetallado === true) || (preload && Array.isArray(preload.items) && preload.items.some(it=> it && (it.cantidad!==undefined || it.unidad!==undefined || it.precioUnit!==undefined)));
-  const html = isDet ? renderCotSeccionDet(preload||{ items:[{},{},] }) : renderCotSeccion(preload||{ items:[{},{},] });
+  // Default: 1 rubro en nueva sección (antes agregaba 2 por defecto)
+  const html = isDet ? renderCotSeccionDet(preload||{ items:[{}] }) : renderCotSeccion(preload||{ items:[{}] });
   wrap.insertAdjacentHTML('beforeend', html);
   try { normalizeEscapedTexts(wrap.lastElementChild || wrap); } catch {}
   try {
@@ -1075,7 +1076,7 @@ function agregarRubroEnSeccion(btn) {
         <td style="white-space:nowrap;display:flex;align-items:center;">
           <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
           <input type="number" name="precioSec" min="0" step="0.01" style="width:100px;">
-          <button type="button" class="btn-mini" onclick="this.closest('tr').remove(); recalcSeccionSubtotal(this.closest('.cot-seccion'))"><i class="fa fa-trash"></i></button>
+          <button type="button" class="btn-mini" data-action="remove-row"><i class="fa fa-trash"></i></button>
         </td>
       </tr>
     `);
@@ -1362,7 +1363,7 @@ function nuevaCotizacion() {
       const sec = { titulo: 'General', items: draft.items.map(it=>({ concepto: it.concepto, descripcion: '', precio: it.precio })) };
       agregarCotSeccion(sec);
     } else {
-      agregarCotSeccion({ titulo: 'General', items: [{},{},] });
+      agregarCotSeccion({ titulo: 'General', items: [{}] });
     }
     if (form.anticipo && form.anticipo.checked) {
       form.anticipoPorc.parentElement.style.display = '';
@@ -1371,7 +1372,7 @@ function nuevaCotizacion() {
     if (Array.isArray(draft.fotos)) fotosCotizacion = [...draft.fotos];
   } else {
     // Inicial con una seccion
-    agregarCotSeccion({ titulo: 'General', items: [{},{}] });
+    agregarCotSeccion({ titulo: 'General', items: [{}] });
   }
 
   renderCotFotosPreview();
@@ -2556,8 +2557,8 @@ function renderCotSeccionDet(seccion = {}, rowId) {
       <div class="cot-seccion-head">
         <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
         <div class="cot-sec-actions">
-          <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
-          <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
+          <button type="button" class="btn-mini" data-action="add-row"><i class="fa fa-plus"></i> Agregar rubro</button>
+          <button type="button" class="btn-mini" data-action="remove-section"><i class="fa fa-trash"></i></button>
         </div>
       </div>
       <table class="ems-items-table cot-seccion-table" data-mode="det">
@@ -2604,7 +2605,7 @@ function editarCotizacion(datos) {
     const sec = { titulo: 'General', items: datos.items.map(it=>({ concepto: it.concepto, descripcion: '', precio: it.precio })) };
     agregarCotSeccion(sec);
   } else {
-    agregarCotSeccion({ titulo: 'General', items: [{},{}] });
+    agregarCotSeccion({ titulo: 'General', items: [{}] });
   }
 
   fotosCotizacion = Array.isArray(datos.fotos) ? [...datos.fotos] : [];
@@ -3336,7 +3337,8 @@ function installUndoHandlers() {
 function agregarCotSeccionDet(preload = null) {
   const wrap = document.getElementById('cotSeccionesWrap');
   if (!wrap) return;
-  wrap.insertAdjacentHTML('beforeend', renderCotSeccionDet(preload||{ items:[{},{},] }));
+  // Default: 1 rubro por sección (antes eran 2 y causaba duplicado)
+  wrap.insertAdjacentHTML('beforeend', renderCotSeccionDet(preload||{ items:[{}] }));
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
   recalcTotalesCotizacion();
@@ -3361,7 +3363,7 @@ function renderCotSeccionDet(seccion = {}, rowId) {
           <input type="number" name="precioUnitSec" min="0" step="0.01" style="width:100px;" value="${safe(punit)}" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))">
         </td>
         <td style="width:110px"><span class="cot-row-total">${mostrarPrecioLimpio(tot)}</span></td>
-        <td><button type="button" class="btn-mini" onclick="this.closest('tr').remove(); recalcSeccionSubtotal(this.closest('.cot-seccion'))"><i class="fa fa-trash"></i></button></td>
+        <td><button type="button" class="btn-mini" data-action="remove-row"><i class="fa fa-trash"></i></button></td>
       </tr>
     `;
   }).join('');
@@ -3370,8 +3372,8 @@ function renderCotSeccionDet(seccion = {}, rowId) {
       <div class="cot-seccion-head">
         <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
         <div class="cot-sec-actions">
-          <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
-          <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
+          <button type="button" class="btn-mini" data-action="add-row"><i class="fa fa-plus"></i> Agregar rubro</button>
+          <button type="button" class="btn-mini" data-action="remove-section"><i class="fa fa-trash"></i></button>
         </div>
       </div>
       <table class="ems-items-table cot-seccion-table" data-mode="det">

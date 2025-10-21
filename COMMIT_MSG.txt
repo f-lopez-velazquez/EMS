@@ -1,0 +1,5 @@
+Fix: Cotización secciones y rubros
+- Nueva sección crea 1 rubro (antes 2)
+- Delegación en secciones detalladas (sin onclick)
+- UI textboxes: textarea 40px
+- SW bust v61

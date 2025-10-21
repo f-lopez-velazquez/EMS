@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = 'ems-cache-v60';
+const CACHE_NAME = 'ems-cache-v61';
 const toCache = [
   './',
   './index.html',
@@ -55,7 +55,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // NavegaciÃ³n: network-first, fallback a cache
+  // Navegación: network-first, fallback a cache
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
@@ -78,7 +78,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Assets same-origin: cache-first con actualizaciÃ³n pasiva
+  // Assets same-origin: cache-first con actualización pasiva
   if (url.origin === self.location.origin) {
     event.respondWith(
       caches.match(req).then(cached => {
@@ -111,6 +111,4 @@ self.addEventListener('message', event => {
     self.skipWaiting();
   }
 });
-
-
 

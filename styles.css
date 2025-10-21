@@ -1501,7 +1501,7 @@ input, textarea, select, button { -webkit-user-select: text; user-select: text; 
   .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) td:nth-child(1) { width: 65%; }
   .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) th:last-child,
   .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) td:last-child { width: 35%; }
-  .cot-seccion-table td textarea { height: 36px; }
+.cot-seccion-table td textarea { height: 40px; }
   .cot-seccion .btn-mini { height: 26px; }
 }
 
