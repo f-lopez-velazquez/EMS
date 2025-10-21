@@ -3136,3 +3136,66 @@ function installUndoHandlers() {
 
 
 
+
+
+// Agrega una sección DETALLADA explícitamente desde la UI
+function agregarCotSeccionDet(preload = null) {
+  const wrap = document.getElementById('cotSeccionesWrap');
+  if (!wrap) return;
+  wrap.insertAdjacentHTML('beforeend', renderCotSeccionDet(preload||{ items:[{},{},] }));
+  agregarDictadoMicros();
+  activarPredictivosInstantaneos();
+  recalcTotalesCotizacion();
+}
+
+// Render de sección DETALLADA (Concepto, Cantidad, Unidad, P. Unitario, Total)
+function renderCotSeccionDet(seccion = {}, rowId) {
+  const id = rowId || newUID();
+  const items = Array.isArray(seccion.items) ? seccion.items : [];
+  const itemsHtml = items.map(it => {
+    const cantidad = it.cantidad ?? '';
+    const unidad = it.unidad ?? '';
+    const punit = it.precioUnit ?? '';
+    const tot = (Number(cantidad)||0) * (Number(punit)||0);
+    return `
+      <tr>
+        <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences" value="${safe(it.concepto)}"></td>
+        <td style="width:80px"><input type="number" name="cantidadSec" min="0" step="1" value="${safe(cantidad)}" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))"></td>
+        <td style="width:100px"><input type="text" name="unidadSec" list="unidadesEMS" autocomplete="off" value="${safe(unidad)}"></td>
+        <td style="white-space:nowrap;display:flex;align-items:center;">
+          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
+          <input type="number" name="precioUnitSec" min="0" step="0.01" style="width:100px;" value="${safe(punit)}" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))">
+        </td>
+        <td style="width:110px"><span class="cot-row-total">${mostrarPrecioLimpio(tot)}</span></td>
+        <td><button type="button" class="btn-mini" onclick="this.closest('tr').remove(); recalcSeccionSubtotal(this.closest('.cot-seccion'))"><i class="fa fa-trash"></i></button></td>
+      </tr>
+    `;
+  }).join('');
+  return `
+    <div class="cot-seccion" data-secid="${id}" data-mode="det">
+      <div class="cot-seccion-head">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="Título de sección (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
+        <div class="cot-sec-actions">
+          <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
+          <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
+        </div>
+      </div>
+      <table class="ems-items-table cot-seccion-table" data-mode="det">
+        <thead>
+          <tr>
+            <th style="width:30%">Concepto</th>
+            <th style="width:80px">Cant.</th>
+            <th style="width:100px">Unidad</th>
+            <th style="width:140px">P. Unitario</th>
+            <th style="width:120px">Total</th>
+            <th style="width:40px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+      </table>
+      <div class="cot-seccion-subtotal"><span>Subtotal sección:</span> <b class="cot-subtotal-val">$0.00</b></div>
+    </div>
+  `;
+}
