@@ -191,6 +191,11 @@ Plantilla sugerida:
 - Notas: validaciones, impactos, acciones pendientes
 
 Entradas:
+- Fecha: 2025-10-21 (PDF detallado + textos + UX tabla)
+  - Agente: Codex CLI
+  - Resumen: Alineación correcta de columnas en tabla detallada del PDF (Cant./Unidad/P. Unit./Total) y subtotales por sección. Normalización de acentos con decodificador unicode en PDF y UI (se eliminan literales \uXXXX visibles). En la UI, la tabla detallada es horizontal con scroll dentro de la tabla (no en toda la página). Footer con separadores “·”, “Página” y datos corregidos.
+  - Archivos clave: `app.js`, `styles.css`, `index.html`, `service-worker.js`
+  - Notas: SW v46 para forzar actualización. Si persiste texto con \uXXXX en algún lugar de la UI, se corrige en runtime con `normalizeEscapedTexts()`. Hard reload/reabrir PWA tras el deploy.
 - Fecha: 2025-10-21 (Fix encoding/U+FFFD + SW v44)
   - Agente: Codex CLI
   - Resumen: Eliminados caracteres U+FFFD en app.js que rompían el parseo ("illegal character" en línea ~1282). Estandarizados campos a `descripcion` (sin acento) y actualizado uso de predictivos. Bump SW a v44 para forzar actualización.
