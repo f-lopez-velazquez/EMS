@@ -22,7 +22,7 @@ function saveSettings(conf) {
 // Decodifica secuencias unicode con barra invertida (soporta "\\uXXXX" y "\uXXXX")
 function decodeU(str) {
   if (!str || typeof str !== 'string') return str;
-  const single = str.replace(/\\u/g, '\\u');
+  const single = str.replace(/\\\\u/g, '\\u');
   return single.replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
 }
 
@@ -2254,7 +2254,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
 
   const ctx = { 
     pages: [], y: 0, dims, fonts, datos, 
-    typeLabel: decodeU(" COTIZACI\\\\u00D3N\), logoImg, _atPageStart: true,
+    typeLabel: decodeU("COTIZACI\u00D3N"), logoImg, _atPageStart: true,
     opts: { dryRun: false, titleGap: 8, cardGap: 8, blockGap: 6 },
     state: { prevBlock: 'start', inGallery: false, currentSection: null }
   };
