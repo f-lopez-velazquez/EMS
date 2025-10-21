@@ -1718,6 +1718,11 @@ function drawTextRight(page, text, xRight, y, opts) {
   page.drawText(text, { x: xRight - width, y, ...opts });
 }
 
+// Línea horizontal (helper clásico usado por headers/footers/tablas)
+function rule(page, x1, y, x2, color = gray(0.85), thickness = 0.6) {
+  page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, thickness, color });
+}
+
 function vrule(page, x, y1, y2, color = gray(0.88), thickness = 0.5) {
   page.drawLine({ start: { x, y: y1 }, end: { x, y: y2 }, thickness, color });
 }
