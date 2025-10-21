@@ -3462,21 +3462,25 @@ async function generarPDFPrecios(share=false){
   const cw = (dims.pageW - 2*dims.mx);
   const pad = 8;
   const w1 = Math.round(cw * 0.22); // HP/KW
-  const w2 = Math.round(cw * 0.30); // Preventivo
-  const w3 = Math.round(cw * 0.30); // Correctivo
+  const w2 = Math.round(cw * 0.27); // Preventivo
+  const w3 = Math.round(cw * 0.33); // Correctivo (más ancho)
   const w4 = cw - w1 - w2 - w3;     // Abanico (restante)
   const b1 = dims.mx, b2 = b1 + w1, b3 = b2 + w2, b4 = b3 + w3, b5 = b4 + w4;
   // Encabezado de tabla (alto 28px para 2 líneas)
-  const headerH = 28;
+  const headerH = 30;
   page.drawRectangle({ x: dims.mx, y: y - headerH + 10, width: cw, height: headerH, color: emsRgb(), opacity: 0.98 });
-  const headerStyle = { font: helvB, size: 10.5, color: PDFLib.rgb(1,1,1) };
+  const headerStyle = { font: helvB, size: 9.8, color: PDFLib.rgb(1,1,1) };
   drawWrapped(page, 'Potencia en HP/KW', b1 + pad, y - 12, headerStyle, w1 - pad*2);
   drawWrapped(page, 'Mantenimiento Preventivo', b2 + pad, y - 12, headerStyle, w2 - pad*2);
-  drawWrapped(page, 'Mantenimiento Correctivo (Embobinado)', b3 + pad, y - 12, headerStyle, w3 - pad*2);
-  drawWrapped(page, 'Abanico de Enfriamiento', b4 + pad, y - 12, headerStyle, w4 - pad*2);
+  // Forzar dos líneas para Correctivo
+  page.drawText('Mantenimiento Correctivo', { x: b3 + pad, y: y - 12, size: headerStyle.size, font: headerStyle.font, color: headerStyle.color });
+  page.drawText('(Embobinado)', { x: b3 + pad, y: y - 23, size: headerStyle.size, font: headerStyle.font, color: headerStyle.color });
+  // Forzar dos líneas para Abanico
+  page.drawText('Abanico de', { x: b4 + pad, y: y - 12, size: headerStyle.size, font: headerStyle.font, color: headerStyle.color });
+  page.drawText('Enfriamiento', { x: b4 + pad, y: y - 23, size: headerStyle.size, font: headerStyle.font, color: headerStyle.color });
   // Separadores verticales del header
   [b2, b3, b4].forEach(x=> page.drawLine({ start:{x, y:y-18}, end:{x, y:y+2}, thickness:0.6, color: PDFLib.rgb(1,1,1)}));
-  y -= headerH + 2;
+  y -= headerH + 6;
   // Rows
   const fmt = v => mostrarPrecioLimpio(Math.round(Number(v||0)*mul));
   (pl.rows||[]).forEach((r,idx)=>{
@@ -3490,8 +3494,10 @@ async function generarPDFPrecios(share=false){
       p2.drawRectangle({ x: dims.mx, y: y - headerH + 10, width: cw, height: headerH, color: emsRgb(), opacity: 0.98 });
       drawWrapped(p2, 'Potencia en HP/KW', b1 + pad, y - 12, headerStyle, w1 - pad*2);
       drawWrapped(p2, 'Mantenimiento Preventivo', b2 + pad, y - 12, headerStyle, w2 - pad*2);
-      drawWrapped(p2, 'Mantenimiento Correctivo (Embobinado)', b3 + pad, y - 12, headerStyle, w3 - pad*2);
-      drawWrapped(p2, 'Abanico de Enfriamiento', b4 + pad, y - 12, headerStyle, w4 - pad*2);
+      p2.drawText('Mantenimiento Correctivo', { x: b3 + pad, y: y - 12, size: headerStyle.size, font: headerStyle.font, color: headerStyle.color });
+      p2.drawText('(Embobinado)', { x: b3 + pad, y: y - 23, size: headerStyle.size, font: headerStyle.font, color: headerStyle.color });
+      p2.drawText('Abanico de', { x: b4 + pad, y: y - 12, size: headerStyle.size, font: headerStyle.font, color: headerStyle.color });
+      p2.drawText('Enfriamiento', { x: b4 + pad, y: y - 23, size: headerStyle.size, font: headerStyle.font, color: headerStyle.color });
       [b2, b3, b4].forEach(x=> p2.drawLine({ start:{x, y:y - headerH + 10}, end:{x, y:y + 2}, thickness:0.6, color: PDFLib.rgb(1,1,1)}));
       y -= headerH + 2;
       page = p2;
