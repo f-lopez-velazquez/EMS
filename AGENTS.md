@@ -196,6 +196,7 @@ Entradas:
   - Resumen: Mejorada la disposición de inputs en cotización. En modo simple, la columna Descripción se oculta automáticamente si todas están vacías y puede alternarse con un botón "Descripciones: ON/OFF" por sección. En modo detallado se aumentó el ancho de Cantidad y se fuerza scroll horizontal dentro de la tabla (no en toda la app). Se añadieron reglas CSS para overflow y para ocultar/mostrar la columna sin romper el layout.
   - Archivos clave: `app.js` (initDescControlsForSection, refreshDescVisibility, delegación `toggle-desc`), `styles.css` (scroll y ocultar columna), `AGENTS.md`.
   - Notas: El serializer tolera ausencia de `descripcion`. Los botones de acciones siguen usando `data-action` (CSP-friendly).
+  - Ajustes posteriores: Anchos por columna en simple (40/40/20; 70/30 sin descripción) y detallada (38/12/18/16/16); inputs 100% del ancho de celda y textareas 40px de alto para mantener filas compactas.
 - Fecha: 2025-10-21 (PDF detallado + textos + UX tabla)
   - Agente: Codex CLI
   - Resumen: Alineación correcta de columnas en tabla detallada del PDF (Cant./Unidad/P. Unit./Total) y subtotales por sección. Normalización de acentos con decodificador unicode en PDF y UI (se eliminan literales \uXXXX visibles). En la UI, la tabla detallada es horizontal con scroll dentro de la tabla (no en toda la página). Footer con separadores “·”, “Página” y datos corregidos.

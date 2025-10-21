@@ -1442,12 +1442,66 @@ input, textarea, select, button { -webkit-user-select: text; user-select: text; 
 /* Make detailed sections horizontally scrollable without scrolling whole page */
 .cot-seccion { overflow-x: auto; }
 .cot-seccion-table[data-mode="det"] { min-width: 720px; }
-.cot-seccion .cot-seccion-table { min-width: 640px; }
+.cot-seccion .cot-seccion-table { min-width: 600px; }
 /* Ocultar columna Descripción cuando la sección no la usa */
 .cot-seccion.no-desc:not([data-mode="det"]) th:nth-child(2),
 .cot-seccion.no-desc:not([data-mode="det"]) td:nth-child(2) { display: none; }
 /* Cantidad más ancha en detallada */
 .cot-seccion-table input[name="cantidadSec"] { width: 110px !important; }
+
+/* Distribución en fila tipo tabla (simple) */
+.cot-seccion-table:not([data-mode="det"]) th:nth-child(1),
+.cot-seccion-table:not([data-mode="det"]) td:nth-child(1) { width: 40%; }
+.cot-seccion-table:not([data-mode="det"]) th:nth-child(2),
+.cot-seccion-table:not([data-mode="det"]) td:nth-child(2) { width: 40%; }
+.cot-seccion-table:not([data-mode="det"]) th:nth-child(3),
+.cot-seccion-table:not([data-mode="det"]) td:nth-child(3) { width: 20%; }
+.cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) th:nth-child(1),
+.cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) td:nth-child(1) { width: 70%; }
+.cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) th:last-child,
+.cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) td:last-child { width: 30%; }
+
+/* Distribución en fila tipo tabla (detallada) */
+.cot-seccion-table[data-mode="det"] th:nth-child(1),
+.cot-seccion-table[data-mode="det"] td:nth-child(1) { width: 38%; }
+.cot-seccion-table[data-mode="det"] th:nth-child(2),
+.cot-seccion-table[data-mode="det"] td:nth-child(2) { width: 12%; }
+.cot-seccion-table[data-mode="det"] th:nth-child(3),
+.cot-seccion-table[data-mode="det"] td:nth-child(3) { width: 18%; }
+.cot-seccion-table[data-mode="det"] th:nth-child(4),
+.cot-seccion-table[data-mode="det"] td:nth-child(4) { width: 16%; }
+.cot-seccion-table[data-mode="det"] th:nth-child(5),
+.cot-seccion-table[data-mode="det"] td:nth-child(5) { width: 16%; }
+
+/* Inputs ocupan su celda sin alargar filas */
+.cot-seccion-table td input[type="text"],
+.cot-seccion-table td input[type="number"],
+.cot-seccion-table td textarea { width: 100%; box-sizing: border-box; }
+.cot-seccion-table td textarea { height: 40px; min-height: 36px; max-height: 80px; }
+.cot-seccion-table td input[name="precioSec"] { width: 100% !important; max-width: 120px; }
+.cot-seccion-table td input[name="precioUnitSec"] { width: 100% !important; max-width: 120px; }
+.cot-seccion-table td { vertical-align: middle; }
+
+/* Tabla verdaderamente fija (evita que inputs expandan columnas) */
+.cot-seccion-table { table-layout: fixed; width: 100%; }
+.cot-seccion-table th, .cot-seccion-table td { overflow: hidden; text-overflow: ellipsis; }
+.cot-seccion-table thead th { position: sticky; top: 0; z-index: 1; }
+
+/* Mobile tuning */
+@media (max-width: 640px) {
+  .cot-seccion .cot-seccion-table { min-width: 520px; }
+  .cot-seccion-table:not([data-mode="det"]) th:nth-child(1),
+  .cot-seccion-table:not([data-mode="det"]) td:nth-child(1) { width: 45%; }
+  .cot-seccion-table:not([data-mode="det"]) th:nth-child(2),
+  .cot-seccion-table:not([data-mode="det"]) td:nth-child(2) { width: 35%; }
+  .cot-seccion-table:not([data-mode="det"]) th:nth-child(3),
+  .cot-seccion-table:not([data-mode="det"]) td:nth-child(3) { width: 20%; }
+  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) th:nth-child(1),
+  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) td:nth-child(1) { width: 65%; }
+  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) th:last-child,
+  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) td:last-child { width: 35%; }
+  .cot-seccion-table td textarea { height: 36px; }
+}
 
 /* Mejor contraste entre secciones */
 .cot-seccion-head { background: rgba(37, 99, 235, 0.08); border: 1px solid var(--azul); border-radius: 6px; padding: 8px; margin-bottom: 6px; }
