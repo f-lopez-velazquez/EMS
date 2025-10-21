@@ -2200,24 +2200,15 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   showProgress(true, 10, isPreview ? "Generando vista previa..." : "Generando PDF...");
   if (!isPreview) await guardarCotizacionDraft();
 
-  const form = document.getElementById('cotForm');
-  const datos = Object.fromEntries(new FormData(form));
-  // Secciones
-  const secciones = [];
-  form.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
-    const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
-    const items = [];
-    sec.querySelectorAll('tbody tr').forEach(tr => {
-      const concepto = tr.querySelector('input[name="concepto"]').value;
-      const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
-      const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
-      if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
-    });
-    if (titulo || items.length) secciones.push({ titulo, items });
-  });
+  // Usar serializador robusto (normal/detallado)
+  const snap = serializeCotizacionForm();
+  const datos = { ...snap };
+  const secciones = (snap && Array.isArray(snap.secciones)) ? snap.secciones : [];
 
-  let subtotal = secciones.reduce((acc, sec)=> acc + (sec.items||[]).reduce((a,it)=> a + (Number(it.precio)||0), 0), 0);
-  const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
+  // Subtotal soporta filas normales (precio) y detalladas (total)
+  let subtotal = secciones.reduce((acc, sec)=> acc + (sec.items||[]).reduce((a,it)=> a + (it.total!=null ? Number(it.total) : Number(it.precio)||0), 0), 0);
+  const form = document.getElementById('cotForm');
+  const incluyeIVA = form && form.incluyeIVA && form.incluyeIVA.checked;
   const iva = incluyeIVA ? subtotal * 0.16 : 0;
   const total = subtotal + iva;
 
@@ -2261,42 +2252,74 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   const currentPage = () => ctx.pages[ctx.pages.length - 1];
   for (let s = 0; s < secciones.length; s++) {
     const sec = secciones[s];
+    const items = sec.items || [];
+    const isDet = items.some(it => it && (it.precioUnit != null || it.cantidad != null || it.unidad != null || it.total != null));
     // Banda de seccion
     drawSectionBand(pdfDoc, ctx, sec.titulo || `Seccion ${s+1}`);
-    // Encabezado de tabla
     ensureSpace(pdfDoc, ctx, 24);
     const pT = currentPage();
     const thY = ctx.y;
     pT.drawRectangle({ x: dims.mx, y: thY - 18, width: dims.usableW, height: 20, color: emsRgb(), opacity: 0.98 });
-    pT.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-    pT.drawText("Descripci\\u00F3n", { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-    pT.drawText("Precio", { x: dims.mx + dims.usableW - 120, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+    if (!isDet) {
+      // Cabecera normal
+      pT.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText("Descripci\\u00F3n", { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText("Precio", { x: dims.mx + dims.usableW - 120, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+    } else {
+      // Cabecera detallada
+      const widths = { cant: 60, unidad: 90, punit: 100, total: 100 };
+      const conceptW = dims.usableW - (widths.cant + widths.unidad + widths.punit + widths.total) - 18;
+      var xConcept = dims.mx + 6;
+      var xCant    = xConcept + conceptW + 6;
+      var xUnidad  = xCant + widths.cant + 6;
+      var xPunit   = xUnidad + widths.unidad + 6;
+      var xTotal   = xPunit + widths.punit + 6;
+      pT.drawText("Concepto", { x: xConcept, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText("Cant.",    { x: xCant,    y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText("Unidad",   { x: xUnidad,  y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText("P. Unit.", { x: xPunit,   y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText("Total",    { x: xTotal,   y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      // Guardar en ctx para filas
+      ctx.__detCols = { widths, conceptW, xConcept, xCant, xUnidad, xPunit, xTotal };
+    }
     ctx.y = thY - 24;
     let subSec = 0;
-    (sec.items||[]).forEach((it, idx) => {
+    items.forEach((it, idx) => {
       ensureSpace(pdfDoc, ctx, 22);
       const p = currentPage();
       if (idx % 2 === 0) {
         p.drawRectangle({ x: dims.mx, y: ctx.y - 2, width: dims.usableW, height: 18, color: rgb(0.98,0.91,0.75), opacity: 0.16 });
       }
-      p.drawText(String(it.concepto||""), { x: dims.mx + 6, y: ctx.y, size: 10, font: helv, color: gray(0.24) });
-      const maxW = dims.usableW - 120 - (180 - 6);
-      const lines = wrapTextLines(String(it.descripcion||""), helv, 10, maxW);
-      let yy = ctx.y;
-      lines.slice(0,3).forEach((ln)=>{
-        p.drawText(ln, { x: dims.mx + 180, y: yy, size: 10, font: helv, color: gray(0.28) });
-        yy -= 12;
-      });
-      drawTextRight(p, mostrarPrecioLimpio(it.precio), dims.mx + dims.usableW - 6, ctx.y, { size: 10, font: helv, color: gray(0.24) });
+      if (!isDet) {
+        p.drawText(String(it.concepto||""), { x: dims.mx + 6, y: ctx.y, size: 10, font: helv, color: gray(0.24) });
+        const maxW = dims.usableW - 120 - (180 - 6);
+        const lines = wrapTextLines(String(it.descripcion||""), helv, 10, maxW);
+        let yy = ctx.y;
+        lines.slice(0,3).forEach((ln)=>{ p.drawText(ln, { x: dims.mx + 180, y: yy, size: 10, font: helv, color: gray(0.28) }); yy -= 12; });
+        drawTextRight(p, mostrarPrecioLimpio(it.precio), dims.mx + dims.usableW - 6, ctx.y, { size: 10, font: helv, color: gray(0.24) });
+        subSec += Number(it.precio)||0;
+      } else {
+        const cols = ctx.__detCols;
+        const cantidad = Number(it.cantidad)||0;
+        const unidad = String(it.unidad||"");
+        const precioUnit = Number(it.precioUnit)||0;
+        const totalRow = (it.total!=null ? Number(it.total) : (cantidad*precioUnit));
+        p.drawText(String(it.concepto||""), { x: cols.xConcept, y: ctx.y, size: 10, font: helv, color: gray(0.24) });
+        drawTextRight(p, String(cantidad), cols.xUnidad - 8, ctx.y, { size: 10, font: helv, color: gray(0.28) });
+        p.drawText(unidad, { x: cols.xUnidad, y: ctx.y, size: 10, font: helv, color: gray(0.28) });
+        drawTextRight(p, mostrarPrecioLimpio(precioUnit), cols.xTotal - 8, ctx.y, { size: 10, font: helv, color: gray(0.24) });
+        drawTextRight(p, mostrarPrecioLimpio(totalRow), dims.mx + dims.usableW - 6, ctx.y, { size: 10, font: helvB, color: gray(0.24) });
+        subSec += Number(totalRow)||0;
+      }
       rule(p, dims.mx, ctx.y - 3, dims.pageW - dims.mx, gray(0.93), 0.4);
       ctx.y -= 18;
-      subSec += Number(it.precio)||0;
     });
     ctx.y -= 4;
     const pS = currentPage();
     pS.drawText("Subtotal secci\\u00F3n:", { x: dims.mx + dims.usableW - 180, y: ctx.y, size: 10.5, font: helvB, color: gray(0.3) });
     drawTextRight(pS, mostrarPrecioLimpio(subSec), dims.mx + dims.usableW - 6, ctx.y, { size: 10.5, font: helvB, color: gray(0.3) });
     ctx.y -= 16;
+    delete ctx.__detCols;
   }
 
   // Totales generales
