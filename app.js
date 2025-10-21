@@ -3446,10 +3446,9 @@ async function generarPDFPrecios(share=false){
   let page = pdfDoc.addPage([dims.pageW, dims.pageH]);
   // Header minimal (sin cliente, No., fecha ni paginación)
   let y = dims.pageH - dims.my;
-  try {
-    const logo = await getLogoImage(pdfDoc);
-    if (logo) page.drawImage(logo, { x: dims.mx, y: y - 44, width: 44, height: 44 });
-  } catch {}
+  const wmLogo = await getLogoImage(pdfDoc);
+  try { if (wmLogo) page.drawImage(wmLogo, { x: dims.mx, y: y - 44, width: 44, height: 44 }); } catch {}
+  try { if (wmLogo) drawWatermark(page, dims, wmLogo, WATERMARK_OP); } catch {}
   // Bloque derecho con textos (idéntico al ejemplo)
   const xRight = dims.pageW - dims.mx;
   drawTextRight(page, decodeU('Electromotores Santana.'), xRight, y - 6, { size: 12, font: helvB, color: gray(0.22) });
@@ -3487,6 +3486,7 @@ async function generarPDFPrecios(share=false){
   (pl.rows||[]).forEach((r,idx)=>{
     if (y < 90){ // new page
       const p2 = pdfDoc.addPage([dims.pageW, dims.pageH]);
+      try { if (wmLogo) drawWatermark(p2, dims, wmLogo, WATERMARK_OP); } catch {}
       // Header mínimo en páginas siguientes
       y = dims.pageH - dims.my - 10;
       rule(p2, dims.mx, y - 12, dims.pageW - dims.mx, gray(0.85), 0.6);
@@ -3513,10 +3513,22 @@ async function generarPDFPrecios(share=false){
     rule(page, dims.mx, y-3, dims.pageW - dims.mx, gray(0.92), 0.4);
     y -= 18;
   });
-  // Note
-  y -= 10; const note = 'Nota: Los precios no incluyen IVA. El precio incluye recolección de equipo dentro del área de Santiago de Querétaro, desarmado, diagnóstico y extracción de baleros.';
-  page.drawRectangle({ x: dims.mx, y: y-18, width: dims.pageW - 2*dims.mx, height: 22, color: PDFLib.rgb(0.96,0.6,0.6), opacity: 0.15, borderColor: PDFLib.rgb(0.86,0.1,0.1), borderWidth: 1 });
-  page.drawText(note, { x: dims.mx + 8, y: y-10, size: 9.8, font: helvB, color: PDFLib.rgb(0.86,0.1,0.1) });
+  // Note (envuelta dentro del ancho útil y sin salirse de la hoja)
+  y -= 10;
+  const note = 'Nota: Los precios no incluyen IVA. El precio incluye recolección de equipo dentro del área de Santiago de Querétaro, desarmado, diagnóstico y extracción de baleros.';
+  const noteSize = 9.6;
+  const cw = (dims.pageW - 2*dims.mx);
+  const noteLines = wrapTextLines(String(note), helvB, noteSize, cw - 16);
+  const noteRectH = 14 + (noteLines.length * 12);
+  // Salto si no cabe
+  if (y - noteRectH < 60) {
+    page = pdfDoc.addPage([dims.pageW, dims.pageH]);
+    try { if (wmLogo) drawWatermark(page, dims, wmLogo, WATERMARK_OP); } catch {}
+    y = dims.pageH - dims.my - 24;
+  }
+  page.drawRectangle({ x: dims.mx, y: y - noteRectH + 10, width: cw, height: noteRectH, color: PDFLib.rgb(0.96,0.6,0.6), opacity: 0.15, borderColor: PDFLib.rgb(0.86,0.1,0.1), borderWidth: 1 });
+  let ny = y - 12;
+  noteLines.forEach(line => { page.drawText(line, { x: dims.mx + 8, y: ny, size: noteSize, font: helvB, color: PDFLib.rgb(0.86,0.1,0.1) }); ny -= 12; });
   // No aplicar pie con numeración para precios (requisito)
   const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
   showProgress(false);
