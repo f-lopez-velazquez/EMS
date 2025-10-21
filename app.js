@@ -3450,9 +3450,14 @@ async function generarPDFPrecios(share=false){
     const logo = await getLogoImage(pdfDoc);
     if (logo) page.drawImage(logo, { x: dims.mx, y: y - 44, width: 44, height: 44 });
   } catch {}
-  page.drawText(EMS_CONTACT.empresa, { x: dims.mx + 52, y: y - 6, size: 16, font: helvB, color: gray(0.18) });
-  rule(page, dims.mx, y - 48, dims.pageW - dims.mx, gray(0.85), 0.8);
-  y -= 58;
+  // Bloque derecho con textos (idéntico al ejemplo)
+  const xRight = dims.pageW - dims.mx;
+  drawTextRight(page, decodeU('Electromotores Santana.'), xRight, y - 6, { size: 12, font: helvB, color: gray(0.22) });
+  drawTextRight(page, `Lista de precios ${year}.`, xRight, y - 20, { size: 11, font: helvB, color: gray(0.35) });
+  drawTextRight(page, EMS_CONTACT.direccion, xRight, y - 34, { size: 9.2, font: helv, color: gray(0.45) });
+  drawTextRight(page, decodeU('Tel\u00E9fono: ') + EMS_CONTACT.telefono, xRight, y - 46, { size: 9.2, font: helvB, color: emsRgb() });
+  rule(page, dims.mx, y - 52, dims.pageW - dims.mx, gray(0.85), 0.8);
+  y -= 62;
   // Banda de título
   page.drawRectangle({ x: dims.mx, y: y - 24, width: (dims.pageW - 2*dims.mx), height: 24, color: emsRgb(), opacity: 0.95 });
   const title = `PRECIOS ${year}`;
