@@ -488,7 +488,7 @@ button.btn-mini {
 
 .ems-items-table th,
 .ems-items-table td {
-  padding: var(--space-3);
+  padding: 6px 8px;
   text-align: left;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
@@ -510,13 +510,13 @@ button.btn-mini {
 .ems-items-table input,
 .ems-items-table textarea {
   font-size: 14px;
-  padding: 8px 10px;
-  height: 38px;
+  padding: 6px 8px;
+  height: 34px;
 }
 
 .ems-items-table textarea {
-  min-height: 60px;
-  height: auto;
+  min-height: 34px;
+  height: 40px;
 }
 
 /* Acciones de formulario */
@@ -1481,6 +1481,57 @@ input, textarea, select, button { -webkit-user-select: text; user-select: text; 
 .cot-seccion-table td input[name="precioSec"] { width: 100% !important; max-width: 120px; }
 .cot-seccion-table td input[name="precioUnitSec"] { width: 100% !important; max-width: 120px; }
 .cot-seccion-table td { vertical-align: middle; }
+
+/* Rejilla vertical sutil y borde más visible para tablas de cotización */
+.cot-seccion .ems-items-table { border: 2px solid rgba(0,0,0,0.18); }
+.cot-seccion-table th + th,
+.cot-seccion-table td + td { border-left: 1px solid var(--border); }
+.cot-seccion .ems-items-table tbody tr:nth-child(even) { background: rgba(0,0,0,0.05); }
+
+/* Ultra-compacto y responsive por tamaño de pantalla */
+@media (max-width: 640px) {
+  .cot-seccion .cot-seccion-table { min-width: 520px; }
+  .cot-seccion-table:not([data-mode="det"]) th:nth-child(1),
+  .cot-seccion-table:not([data-mode="det"]) td:nth-child(1) { width: 45%; }
+  .cot-seccion-table:not([data-mode="det"]) th:nth-child(2),
+  .cot-seccion-table:not([data-mode="det"]) td:nth-child(2) { width: 35%; }
+  .cot-seccion-table:not([data-mode="det"]) th:nth-child(3),
+  .cot-seccion-table:not([data-mode="det"]) td:nth-child(3) { width: 20%; }
+  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) th:nth-child(1),
+  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) td:nth-child(1) { width: 65%; }
+  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) th:last-child,
+  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) td:last-child { width: 35%; }
+  .cot-seccion-table td textarea { height: 36px; }
+  .cot-seccion .btn-mini { height: 26px; }
+}
+
+@media (max-width: 360px) {
+  .ems-items-table th, .ems-items-table td { padding: 4px 6px; }
+  .ems-items-table input, .ems-items-table textarea { height: 30px; padding: 4px 6px; font-size: 13px; }
+  .cot-seccion .cot-seccion-table { min-width: 440px; }
+  /* Simple */
+  .cot-seccion-table:not([data-mode="det"]) th:nth-child(1),
+  .cot-seccion-table:not([data-mode="det"]) td:nth-child(1) { width: 50%; }
+  .cot-seccion-table:not([data-mode="det"]) th:nth-child(2),
+  .cot-seccion-table:not([data-mode="det"]) td:nth-child(2) { width: 30%; }
+  .cot-seccion-table:not([data-mode="det"]) th:nth-child(3),
+  .cot-seccion-table:not([data-mode="det"]) td:nth-child(3) { width: 20%; }
+  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) th:nth-child(1),
+  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) td:nth-child(1) { width: 70%; }
+  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) th:last-child,
+  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) td:last-child { width: 30%; }
+  /* Detallada */
+  .cot-seccion-table[data-mode="det"] th:nth-child(1),
+  .cot-seccion-table[data-mode="det"] td:nth-child(1) { width: 42%; }
+  .cot-seccion-table[data-mode="det"] th:nth-child(2),
+  .cot-seccion-table[data-mode="det"] td:nth-child(2) { width: 12%; }
+  .cot-seccion-table[data-mode="det"] th:nth-child(3),
+  .cot-seccion-table[data-mode="det"] td:nth-child(3) { width: 16%; }
+  .cot-seccion-table[data-mode="det"] th:nth-child(4),
+  .cot-seccion-table[data-mode="det"] td:nth-child(4) { width: 15%; }
+  .cot-seccion-table[data-mode="det"] th:nth-child(5),
+  .cot-seccion-table[data-mode="det"] td:nth-child(5) { width: 15%; }
+}
 
 /* Tabla verdaderamente fija (evita que inputs expandan columnas) */
 .cot-seccion-table { table-layout: fixed; width: 100%; }
