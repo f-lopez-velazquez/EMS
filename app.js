@@ -2310,9 +2310,12 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     if (!isDet) {
       // Cabecera normal
       pT.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-    pT.drawText(decodeU("Descripci\\u00F3n"), { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      pT.drawText(decodeU(" Descripci\\\\u00F3n\), { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
- pT.drawText(\Precio\, { x: dims.mx + dims.usableW - 120, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText(decodeU("Descripci\\u00F3n"), { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText("Precio", { x: dims.mx + dims.usableW - 120, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      // Líneas verticales header (normal)
+      pT.drawLine({ start:{ x: (dims.mx + 180) - 6, y: thY - 18 }, end:{ x: (dims.mx + 180) - 6, y: thY + 2 }, thickness: 0.6, color: rgb(1,1,1) });
+      pT.drawLine({ start:{ x: (dims.mx + dims.usableW - 120) - 6, y: thY - 18 }, end:{ x: (dims.mx + dims.usableW - 120) - 6, y: thY + 2 }, thickness: 0.6, color: rgb(1,1,1) });
+    } else {
       // Cabecera detallada
       const widths = { cant: 60, unidad: 90, punit: 100, total: 100 }; const conceptW = dims.usableW - (widths.cant + widths.unidad + widths.punit + widths.total) - 20;
       var xConcept = dims.mx + 6;
