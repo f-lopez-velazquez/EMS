@@ -745,6 +745,32 @@ window.onload = () => {
   } catch (e) {}
   try { applyThemeFromSettings(); } catch {}
   try { typeof showOffline === "function" && showOffline(true); } catch {}
+
+// Delegación global de Acciónes para evitar inline handlers (CSP-friendly)
+function // Delegación global de acciones para evitar inline handlers (CSP-friendly)
+function initActionDelegates() {
+  document.addEventListener('click', async (ev) => {
+    const btn = ev.target && ev.target.closest('[data-action]');
+    if (!btn) return;
+    const act = btn.getAttribute('data-action');
+    try {
+      switch (act) {
+        case 'add-section': ev.preventDefault(); agregarCotSeccion(); break;
+        case 'add-section-det': ev.preventDefault(); agregarCotSeccionDet(); break;
+        case 'add-row': ev.preventDefault(); agregarRubroEnSeccion(btn); break;
+        case 'remove-row': ev.preventDefault(); const tr=btn.closest('tr'); const sec=btn.closest('.cot-seccion'); if(tr) tr.remove(); try{recalcSeccionSubtotal(sec);}catch{} break;
+        case 'remove-section': ev.preventDefault(); eliminarCotSeccion(btn); break;
+        case 'cot-cancel': ev.preventDefault(); try{ localStorage.removeItem('EMS_COT_BORRADOR'); }catch{} renderInicio(); break;
+        case 'cot-undo': ev.preventDefault(); undoCot(); break;
+        case 'cot-preview': ev.preventDefault(); previsualizarPDFCotizacion(); break;
+        case 'cot-pdf': ev.preventDefault(); try{ await guardarCotizacionDraft(); }catch{} generarPDFCotizacion(); break;
+        case 'cot-share': ev.preventDefault(); try{ await guardarCotizacionDraft(); }catch{} generarPDFCotizacion(true); break;
+        case 'del-photo-cot': ev.preventDefault(); const idx = Number(btn.getAttribute('data-idx')); if(!Number.isNaN(idx)) eliminarFotoCot(idx); break;
+        default: break;
+      }
+    } catch(e){ console.warn('Acción fallida', act, e); }
+  });
+}
   try { installUndoHandlers(); } catch {}
   try { schedulePendingNotifications(); } catch {}
 };
@@ -936,7 +962,7 @@ function renderCotSeccion(seccion = {}, rowId) {
   return `
     <div class="cot-seccion" data-secid="${id}">
       <div class="cot-seccion-head">
-        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. RefAcciónes, Mano de obra)" value="${safe(seccion.titulo)}">
         <div class="cot-sec-actions">
           <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
           <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
@@ -1179,8 +1205,8 @@ function nuevaCotizacion() {
           <div style="display:none"><input type="number" name="anticipoPorc" min="0" max="100" placeholder="% Anticipo"> %</div>
         </div>
         <div class="ems-form-group">
-          <label>Mejorar redacci?n con IA</label>
-          <label class="ems-switch" aria-label="Mejorar redacci?n con IA">
+          <label>Mejorar redAcción con IA</label>
+          <label class="ems-switch" aria-label="Mejorar redAcción con IA">
             <input class="ems-toggle" id="corrigeIA" type="checkbox" name="corrigeIA">
             <span class="ems-switch-ui" aria-hidden="true"></span>
           </label>
@@ -2389,7 +2415,7 @@ function renderCotSeccionDet(seccion = {}, rowId) {
   return `
     <div class="cot-seccion" data-secid="${id}" data-mode="det">
       <div class="cot-seccion-head">
-        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. RefAcciónes, Mano de obra)" value="${safe(seccion.titulo)}">
         <div class="cot-sec-actions">
           <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
           <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
@@ -2785,7 +2811,7 @@ async function eliminarCotizacionCompleta(numero) {
     if (form && form.numero && form.numero.value) numero = form.numero.value;
   }
   if (!numero) return showModal("No se encontr? el n?mero de cotizaci?n.", "error");
-  const confirmed = await showConfirm("?Est?s seguro que deseas eliminar esta cotizaci?n? Esta acci?n no se puede deshacer.", "Confirmar eliminaci?n");
+  const confirmed = await showConfirm("?Est?s seguro que deseas eliminar esta cotizaci?n? Esta Acción no se puede deshacer.", "Confirmar eliminaci?n");
   if (!confirmed) return;
   try {
     await db.collection("cotizaciones").doc(numero).delete();
@@ -2802,7 +2828,7 @@ async function eliminarReporteCompleto(numero) {
     if (form && form.numero && form.numero.value) numero = form.numero.value;
   }
   if (!numero) return showModal("No se encontr? el n?mero de reporte.", "error");
-  const confirmed = await showConfirm("?Est?s seguro que deseas eliminar este reporte? Esta acci?n no se puede deshacer.", "Confirmar eliminaci?n");
+  const confirmed = await showConfirm("?Est?s seguro que deseas eliminar este reporte? Esta Acción no se puede deshacer.", "Confirmar eliminaci?n");
   if (!confirmed) return;
   try {
     await db.collection("reportes").doc(numero).delete();
@@ -2840,8 +2866,8 @@ function agregarDictadoMicros() {
   });
 }
 
-// ====== Sobrescrituras de confirmaci?n por palabra en acciones destructivas ======
-function confirmByTyping(seed = 'eliminar', title = 'Confirmar acci?n', onConfirm = ()=>{}) {
+// ====== Sobrescrituras de confirmaci?n por palabra en Acciónes destructivas ======
+function confirmByTyping(seed = 'eliminar', title = 'Confirmar Acción', onConfirm = ()=>{}) {
   const words = ['eliminar','borrar','confirmar','continuar','aprobar','aceptar'];
   const w = words[Math.floor(Math.random()*words.length)];
   const overlay = document.createElement('div');
@@ -2849,7 +2875,7 @@ function confirmByTyping(seed = 'eliminar', title = 'Confirmar acci?n', onConfir
   overlay.innerHTML = `
     <div class="ems-confirm-box">
       <h3>${title}</h3>
-      <p>Escribe <b>${w}</b> para confirmar. Esta acci?n no se puede deshacer.</p>
+      <p>Escribe <b>${w}</b> para confirmar. Esta Acción no se puede deshacer.</p>
       <input type="text" id="emsConfirmInput" placeholder="Escribe la palabra aqu?" style="width:100%;padding:10px;border:1px solid #d2dbe7;border-radius:8px;">
       <div class="ems-confirm-actions">
         <button class="btn-mini" id="emsConfirmCancel">Cancelar</button>
@@ -3203,7 +3229,7 @@ function renderCotSeccionDet(seccion = {}, rowId) {
   return `
     <div class="cot-seccion" data-secid="${id}" data-mode="det">
       <div class="cot-seccion-head">
-        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. RefAcciónes, Mano de obra)" value="${safe(seccion.titulo)}">
         <div class="cot-sec-actions">
           <button type="button" class="btn-mini" onclick="agregarRubroEnSeccion(this)"><i class="fa fa-plus"></i> Agregar rubro</button>
           <button type="button" class="btn-mini" onclick="eliminarCotSeccion(this)"><i class="fa fa-trash"></i></button>
@@ -3238,3 +3264,6 @@ function renderCotSeccionDet(seccion = {}, rowId) {
 
 
 
+
+
+try { if (typeof initActionDelegates === 'function') initActionDelegates(); } catch {}
