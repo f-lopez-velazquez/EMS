@@ -1857,7 +1857,7 @@ function ensureSpace(pdfDoc, ctx, needed) {
   const { dims, logoImg, opts } = ctx;
   const bottomSafe = FOOTER_SAFE; // m?s compacto
   if (ctx.y - needed < bottomSafe) {
-    const page = pdfDoc.addPage([dims.pageW, dims.pageH]);
+    let page = pdfDoc.addPage([dims.pageW, dims.pageH]);
     ctx.pages.push(page);
     if (!opts.dryRun && logoImg) drawWatermark(page, dims, logoImg, WATERMARK_OP);
     // Arranque de P\u00E1gina SIN encabezado: casi al tope
@@ -3425,7 +3425,7 @@ async function generarPDFPrecios(share=false){
   const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helvB= await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
-  const page = pdfDoc.addPage([dims.pageW, dims.pageH]);
+  let page = pdfDoc.addPage([dims.pageW, dims.pageH]);
   // Header minimal (sin cliente, No., fecha ni paginación)
   let y = dims.pageH - dims.my;
   try {
@@ -3440,13 +3440,6 @@ async function generarPDFPrecios(share=false){
   const title = `PRECIOS ${year}`;
   const tw = helvB.widthOfTextAtSize(title, 12.5);
   page.drawText(title, { x: dims.mx + ((dims.pageW - 2*dims.mx) - tw)/2, y: y - 16, size: 12.5, font: helvB, color: PDFLib.rgb(1,1,1) });
-  y -= 34;
-  // Title band
-  page.drawRectangle({ x: dims.mx, y: y-24, width: dims.pageW - 2*dims.mx, height: 24, color: emsRgb(), opacity: 0.95 });
-  const title = 'PRECIOS '+year;
-  const w = helvB.widthOfTextAtSize(title, 12.5);
-  page.drawText(title, { x: dims.mx + (dims.pageW - 2*dims.mx - w)/2, y: y-16, size: 12.5, font: helvB, color: PDFLib.rgb(1,1,1) });
-  y -= 34;
   // Columnas proporcionales (encajan en el ancho útil)
   const cw = (dims.pageW - 2*dims.mx);
   const pad = 8;
@@ -3541,4 +3534,5 @@ function renderPreciosView(){
   `;
   try { renderPriceTable(); } catch {}
 }
+
 
