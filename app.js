@@ -2296,22 +2296,21 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
       pT.drawText("Precio", { x: dims.mx + dims.usableW - 120, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
     } else {
       // Cabecera detallada
-      const widths = { cant: 60, unidad: 90, punit: 100, total: 100 };
-      const conceptW = dims.usableW - (widths.cant + widths.unidad + widths.punit + widths.total) - 18;
+      const widths = { cant: 60, unidad: 90, punit: 100, total: 100 }; const conceptW = dims.usableW - (widths.cant + widths.unidad + widths.punit + widths.total) - 20;
       var xConcept = dims.mx + 6;
       var xCant    = xConcept + conceptW + 6;
       var xUnidad  = xCant + widths.cant + 6;
       var xPunit   = xUnidad + widths.unidad + 6;
       var xTotal   = xPunit + widths.punit + 6;
-      pT.drawText("Concepto", { x: xConcept, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      pT.drawText("Cant.",    { x: xCant,    y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      pT.drawText("Unidad",   { x: xUnidad,  y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      pT.drawText("P. Unit.", { x: xPunit,   y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      pT.drawText("Total",    { x: xTotal,   y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText("Concepto", { x: xConcept + 4, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText("Cant.",    { x: xCant + 4,    y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText("Unidad",   { x: xUnidad + 4,  y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText("P. Unit.", { x: xPunit + 4,   y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText("Total",    { x: xTotal + 4,   y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
       // Guardar en ctx para filas
       ctx.__detCols = { widths, conceptW, xConcept, xCant, xUnidad, xPunit, xTotal };
     }
-    ctx.y = thY - 24;
+    ctx.y = thY - 36;
     let subSec = 0;
     items.forEach((it, idx) => {
       ensureSpace(pdfDoc, ctx, 22);
@@ -2325,7 +2324,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
         const lines = wrapTextLines(String(it.descripcion||""), helv, 10, maxW);
         let yy = ctx.y;
         lines.slice(0,3).forEach((ln)=>{ p.drawText(ln, { x: dims.mx + 180, y: yy, size: 10, font: helv, color: gray(0.28) }); yy -= 12; });
-        drawTextRight(p, mostrarPrecioLimpio(it.precio), dims.mx + dims.usableW - 6, ctx.y, { size: 10, font: helv, color: gray(0.24) });
+        drawTextRight(p, mostrarPrecioLimpio(it.precio), dims.mx + dims.usableW - 4, ctx.y, { size: 10, font: helv, color: gray(0.24) });
         subSec += Number(it.precio)||0;
       } else {
         const cols = ctx.__detCols;
@@ -2334,10 +2333,10 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
         const precioUnit = Number(it.precioUnit)||0;
         const totalRow = (it.total!=null ? Number(it.total) : (cantidad*precioUnit));
         p.drawText(String(it.concepto||""), { x: cols.xConcept, y: ctx.y, size: 10, font: helv, color: gray(0.24) });
-        drawTextRight(p, String(cantidad), (cols.xCant + cols.widths.cant) - 6, ctx.y, { size: 10, font: helv, color: gray(0.28) });
-        p.drawText(unidad, { x: cols.xUnidad, y: ctx.y, size: 10, font: helv, color: gray(0.28) });
-        drawTextRight(p, mostrarPrecioLimpio(precioUnit), (cols.xPunit + cols.widths.punit) - 6, ctx.y, { size: 10, font: helv, color: gray(0.24) });
-        drawTextRight(p, mostrarPrecioLimpio(totalRow), dims.mx + dims.usableW - 6, ctx.y, { size: 10, font: helvB, color: gray(0.24) });
+        drawTextRight(p, String(cantidad), (cols.xCant + cols.widths.cant) - 4, ctx.y, { size: 10, font: helv, color: gray(0.28) });
+        p.drawText(unidad, { x: cols.xUnidad + 4, y: ctx.y, size: 10, font: helv, color: gray(0.28) });
+        drawTextRight(p, mostrarPrecioLimpio(precioUnit), (cols.xPunit + cols.widths.punit) - 4, ctx.y, { size: 10, font: helv, color: gray(0.24) });
+        drawTextRight(p, mostrarPrecioLimpio(totalRow), dims.mx + dims.usableW - 4, ctx.y, { size: 10, font: helvB, color: gray(0.24) });
         subSec += Number(totalRow)||0;
       }
       rule(p, dims.mx, ctx.y - 3, dims.pageW - dims.mx, gray(0.93), 0.4);
@@ -2346,7 +2345,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     ctx.y -= 4;
     const pS = currentPage();
     pS.drawText(decodeU("Subtotal secci\\u00F3n:"), { x: dims.mx + dims.usableW - 180, y: ctx.y, size: 10.5, font: helvB, color: gray(0.3) });
-    drawTextRight(pS, mostrarPrecioLimpio(subSec), dims.mx + dims.usableW - 6, ctx.y, { size: 10.5, font: helvB, color: gray(0.3) });
+    drawTextRight(pS, mostrarPrecioLimpio(subSec), dims.mx + dims.usableW - 4, ctx.y, { size: 10.5, font: helvB, color: gray(0.3) });
     ctx.y -= 16;
     delete ctx.__detCols;
   }
@@ -3320,6 +3319,7 @@ function renderCotSeccionDet(seccion = {}, rowId) {
 
 
 try { if (typeof initActionDelegates === 'function') initActionDelegates(); } catch {}
+
 
 
 
