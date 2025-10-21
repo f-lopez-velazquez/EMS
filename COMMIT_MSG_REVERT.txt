@@ -1,0 +1,5 @@
+﻿Revert UI: sin secciones detalladas (solo normal).
+- Quitar botón 'Sección detallada' y help extra
+- Revertir markup simétrico (ems-price) a estilo previo en filas normal/detallado
+- Mantener Lista de Precios intacta
+- Conservar soporte para render de detallado en datos existentes (solo no exponer en UI)

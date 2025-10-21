@@ -995,11 +995,10 @@ function renderCotSeccion(seccion = {}, rowId) {
       <tr>
         <td><input type="text" name="concepto" value="${safe(it.concepto)}" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
         <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..." spellcheck="true" autocapitalize="sentences">${safe(it.descripcion)}</textarea></td>
-        <td>
-          <div class="ems-price"><span>$</span>
-            <input type="number" name="precioSec" min="0" step="0.01" value="${safe(it.precio)}">
-            <button type="button" class="btn-mini" data-action="remove-row" title="Eliminar fila"><i class="fa fa-trash"></i></button>
-          </div>
+        <td style="white-space:nowrap;display:flex;align-items:center;">
+          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
+          <input type="number" name="precioSec" min="0" step="0.01" value="${safe(it.precio)}" style="width:100px;">
+          <button type="button" class="btn-mini" data-action="remove-row" title="Eliminar fila"><i class="fa fa-trash"></i></button>
         </td>
       </tr>
   `).join('');
@@ -1015,9 +1014,9 @@ function renderCotSeccion(seccion = {}, rowId) {
       <table class="ems-items-table cot-seccion-table">
         <thead>
           <tr>
-            <th>Concepto</th>
+            <th style="width:30%">Concepto</th>
             <th>Descripci\\u00F3n</th>
-            <th>Precio</th>
+            <th style="width:180px">Precio</th>
           </tr>
         </thead>
         <tbody>
@@ -1059,14 +1058,13 @@ function agregarRubroEnSeccion(btn) {
     tbody.insertAdjacentHTML('beforeend', `
       <tr>
         <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
-        <td><input type="number" name="cantidadSec" min="0" step="1" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))"></td>
-        <td><input type="text" name="unidadSec" list="unidadesEMS" autocomplete="off"></td>
-        <td>
-          <div class="ems-price"><span>$</span>
-            <input type="number" name="precioUnitSec" min="0" step="0.01" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))">
-          </div>
+        <td style="width:80px"><input type="number" name="cantidadSec" min="0" step="1" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))"></td>
+        <td style="width:100px"><input type="text" name="unidadSec" list="unidadesEMS" autocomplete="off"></td>
+        <td style="white-space:nowrap;display:flex;align-items:center;">
+          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
+          <input type="number" name="precioUnitSec" min="0" step="0.01" style="width:100px;" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))">
         </td>
-        <td><span class="cot-row-total">$0.00</span></td>
+        <td style="width:110px"><span class="cot-row-total">$0.00</span></td>
         <td><button type="button" class="btn-mini" data-action="remove-row" title="Eliminar fila"><i class="fa fa-trash"></i></button></td>
       </tr>
     `);
@@ -1075,11 +1073,10 @@ function agregarRubroEnSeccion(btn) {
       <tr>
         <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
         <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..." spellcheck="true" autocapitalize="sentences"></textarea></td>
-        <td>
-          <div class="ems-price"><span>$</span>
-            <input type="number" name="precioSec" min="0" step="0.01">
-            <button type="button" class="btn-mini" data-action="remove-row" title="Eliminar fila"><i class="fa fa-trash"></i></button>
-          </div>
+        <td style="white-space:nowrap;display:flex;align-items:center;">
+          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
+          <input type="number" name="precioSec" min="0" step="0.01" style="width:100px;">
+          <button type="button" class="btn-mini" data-action="remove-row" title="Eliminar fila"><i class="fa fa-trash"></i></button>
         </td>
       </tr>
     `);
@@ -1302,15 +1299,14 @@ function nuevaCotizacion() {
         <label>Supert\u00EDtulo general del documento</label>
         <input type="text" name="titulo" placeholder="Ej: Motor de 5 HP, Rebobinado de alternador..." autocomplete="off" spellcheck="true" autocapitalize="sentences">
       </div>
-      <!-- Secciones -->
-            <div class="ems-form-group">
-        <label>Secciones</label>
+      <!-- Conceptos (solo modo normal) -->
+      <div class="ems-form-group">
+        <label>Conceptos</label>
         <div id="cotSeccionesWrap"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-          <button type="button" class="btn-secondary" data-action="add-section"><i class="fa fa-list"></i> Sección (normal)</button>
-          <button type="button" class="btn-secondary" data-action="add-section-det"><i class="fa fa-table"></i> Sección detallada</button>
+          <button type="button" class="btn-secondary" data-action="add-section"><i class="fa fa-list"></i> Agregar sección</button>
         </div>
-        <small>Normal: concepto+descripcion+precio. Detallada: concepto+cantidad+unidad+precio unitario+total.</small>
+        <small>Concepto + descripción + precio.</small>
       </div>
 
       <!-- Resumen Totales -->
@@ -2544,14 +2540,13 @@ function renderCotSeccionDet(seccion = {}, rowId) {
     return `
       <tr>
         <td><input type="text" name="concepto" value="${safe(it.concepto)}" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
-        <td><input type="number" name="cantidadSec" min="0" step="1" value="${safe(cantidad)}" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))"></td>
-        <td><input type="text" name="unidadSec" value="${safe(unidad)}" list="unidadesEMS" autocomplete="off"></td>
-        <td>
-          <div class="ems-price"><span>$</span>
-            <input type="number" name="precioUnitSec" min="0" step="0.01" value="${safe(punit)}" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))">
-          </div>
+        <td style="width:80px"><input type="number" name="cantidadSec" min="0" step="1" value="${safe(cantidad)}" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))"></td>
+        <td style="width:100px"><input type="text" name="unidadSec" value="${safe(unidad)}" list="unidadesEMS" autocomplete="off"></td>
+        <td style="white-space:nowrap;display:flex;align-items:center;">
+          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
+          <input type="number" name="precioUnitSec" min="0" step="0.01" value="${safe(punit)}" style="width:100px;" oninput="recalcSeccionSubtotal(this.closest('.cot-seccion'))">
         </td>
-        <td><span class="cot-row-total">${mostrarPrecioLimpio(tot)}</span></td>
+        <td style="width:110px"><span class="cot-row-total">${mostrarPrecioLimpio(tot)}</span></td>
         <td><button type="button" class="btn-mini" data-action="remove-row" title="Eliminar fila"><i class="fa fa-trash"></i></button></td>
       </tr>
     `;
@@ -2568,12 +2563,12 @@ function renderCotSeccionDet(seccion = {}, rowId) {
       <table class="ems-items-table cot-seccion-table" data-mode="det">
         <thead>
           <tr>
-            <th>Concepto</th>
-            <th>Cant.</th>
-            <th>Unidad</th>
-            <th>P. Unitario</th>
-            <th>Total</th>
-            <th></th>
+            <th style="width:30%">Concepto</th>
+            <th style="width:80px">Cant.</th>
+            <th style="width:100px">Unidad</th>
+            <th style="width:140px">P. Unitario</th>
+            <th style="width:120px">Total</th>
+            <th style="width:40px"></th>
           </tr>
         </thead>
         <tbody>
