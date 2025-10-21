@@ -102,7 +102,7 @@
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
         // Solo usar versión, NO timestamp (evita updates falsos)
-        navigator.serviceWorker.register('./service-worker.js?v=46')
+        navigator.serviceWorker.register('./service-worker.js?v=47')
           .then(function(registration) {
             console.log('SW registered:', registration.scope);
 
