@@ -1442,6 +1442,12 @@ input, textarea, select, button { -webkit-user-select: text; user-select: text; 
 /* Make detailed sections horizontally scrollable without scrolling whole page */
 .cot-seccion { overflow-x: auto; }
 .cot-seccion-table[data-mode="det"] { min-width: 720px; }
+.cot-seccion .cot-seccion-table { min-width: 640px; }
+/* Ocultar columna Descripción cuando la sección no la usa */
+.cot-seccion.no-desc:not([data-mode="det"]) th:nth-child(2),
+.cot-seccion.no-desc:not([data-mode="det"]) td:nth-child(2) { display: none; }
+/* Cantidad más ancha en detallada */
+.cot-seccion-table input[name="cantidadSec"] { width: 110px !important; }
 
 /* Mejor contraste entre secciones */
 .cot-seccion-head { background: rgba(37, 99, 235, 0.08); border: 1px solid var(--azul); border-radius: 6px; padding: 8px; margin-bottom: 6px; }

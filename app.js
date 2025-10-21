@@ -799,6 +799,7 @@ function initActionDelegates() {
         case 'prices-apply': ev.preventDefault(); aplicarAjustePrecios(); break;
         case 'prices-pdf': ev.preventDefault(); generarPDFPrecios(false); break;
         case 'prices-share': ev.preventDefault(); generarPDFPrecios(true); break;
+        case 'toggle-desc': ev.preventDefault(); { const sec = btn.closest('.cot-seccion'); if(sec){ sec.classList.toggle('no-desc'); const on = !sec.classList.contains('no-desc'); const b = sec.querySelector('[data-action="toggle-desc"]'); if (b) b.innerHTML = `<i class=\"fa fa-align-left\"></i> Descripciones: ${on? 'ON':'OFF'}`; } } break;
         case 'back-home': ev.preventDefault(); renderInicio(); break;
         default: break;
       }
@@ -808,6 +809,13 @@ function initActionDelegates() {
   try { initActionDelegates(); } catch {}
   try { installUndoHandlers(); } catch {}
   try { schedulePendingNotifications(); } catch {}
+  // Auto recalcular visibilidad de descripción al escribir
+  document.addEventListener('input', (e)=>{
+    const ta = e.target && e.target.closest('textarea[name="descripcion"]');
+    if (!ta) return;
+    const sec = ta.closest('.cot-seccion');
+    if (sec) refreshDescVisibility(sec);
+  });
 };
 
 let ASYNC_ERR_GUARD = false;
@@ -1026,6 +1034,12 @@ function agregarCotSeccion(preload = null) {
   const html = isDet ? renderCotSeccionDet(preload||{ items:[{},{},] }) : renderCotSeccion(preload||{ items:[{},{},] });
   wrap.insertAdjacentHTML('beforeend', html);
   try { normalizeEscapedTexts(wrap.lastElementChild || wrap); } catch {}
+  try {
+    const sec = wrap.lastElementChild;
+    if (sec && !sec.querySelector('[data-mode="det"]')) {
+      initDescControlsForSection(sec);
+    }
+  } catch {}
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
   recalcTotalesCotizacion();
@@ -1068,7 +1082,38 @@ function agregarRubroEnSeccion(btn) {
   }
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
+  try { initDescControlsForSection(sec); } catch {}
   recalcSeccionSubtotal(sec);
+}
+
+// Inserta el botón de descripciones ON/OFF y calcula visibilidad
+function initDescControlsForSection(sec){
+  if (!sec) return;
+  const actions = sec.querySelector('.cot-sec-actions');
+  if (!actions) return;
+  let btn = actions.querySelector('[data-action="toggle-desc"]');
+  if (!btn){
+    btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-mini';
+    btn.setAttribute('data-action','toggle-desc');
+    btn.innerHTML = '<i class="fa fa-align-left"></i> Descripciones: ON';
+    actions.insertAdjacentElement('afterbegin', btn);
+  }
+  refreshDescVisibility(sec);
+}
+
+// Recalcula si todas las descripciones están vacías para ocultar/mostrar
+function refreshDescVisibility(sec){
+  const textareas = Array.from(sec.querySelectorAll('textarea[name="descripcion"]'));
+  const anyText = textareas.some(t => String(t.value||'').trim() !== '');
+  if (!anyText) {
+    sec.classList.add('no-desc');
+    const b = sec.querySelector('[data-action="toggle-desc"]'); if (b) b.innerHTML = '<i class="fa fa-align-left"></i> Descripciones: OFF';
+  } else {
+    sec.classList.remove('no-desc');
+    const b = sec.querySelector('[data-action="toggle-desc"]'); if (b) b.innerHTML = '<i class="fa fa-align-left"></i> Descripciones: ON';
+  }
 }
 function recalcSeccionSubtotal(sec) {
   if (!sec) return;
