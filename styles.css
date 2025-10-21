@@ -1452,8 +1452,15 @@ input, textarea, select, button { -webkit-user-select: text; user-select: text; 
 
 /* Price list card */
 .ems-price-card { margin: 18px 0; border: 1px solid rgba(0,0,0,0.12); border-radius: 8px; background: #fff; }
-.ems-price-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid rgba(0,0,0,0.08); }
+.ems-price-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid rgba(0,0,0,0.08); flex-wrap: wrap; gap: 8px; }
 .ems-price-head h2 { margin: 0; font-size: 1.05rem; color: var(--text); }
+.price-controls { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
+.price-controls label { font-size: .9rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.price-controls input { width: 84px; height: 32px; padding: 4px 8px; }
+@media (max-width: 640px) {
+  .ems-price-head { gap: 6px; }
+  .price-controls { width: 100%; }
+}
 .price-controls { display: flex; gap: 10px; align-items: center; }
 .price-controls label { font-size: .9rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
 .price-controls input { width: 96px; height: 32px; padding: 4px 8px; }
