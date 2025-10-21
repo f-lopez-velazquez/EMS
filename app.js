@@ -772,6 +772,7 @@ window.onload = () => {
   } catch (e) {}
   try { applyThemeFromSettings(); } catch {}
   try { typeof showOffline === "function" && showOffline(true); } catch {}
+  try { normalizeEscapedTexts(document); } catch {}
 
 // Delegación global de Acciónes para evitar inline handlers (CSP-friendly)
 //function // Delegación global de acciones para evitar inline handlers (CSP-friendly)
@@ -1018,6 +1019,7 @@ function agregarCotSeccion(preload = null) {
   const isDet = (getSettings()?.cotDetallado === true) || (preload && Array.isArray(preload.items) && preload.items.some(it=> it && (it.cantidad!==undefined || it.unidad!==undefined || it.precioUnit!==undefined)));
   const html = isDet ? renderCotSeccionDet(preload||{ items:[{},{},] }) : renderCotSeccion(preload||{ items:[{},{},] });
   wrap.insertAdjacentHTML('beforeend', html);
+  try { normalizeEscapedTexts(wrap.lastElementChild || wrap); } catch {}
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
   recalcTotalesCotizacion();
