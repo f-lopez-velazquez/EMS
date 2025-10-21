@@ -478,7 +478,7 @@ button.btn-mini {
 .ems-items-table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
   background: white;
   border: 1.5px solid var(--border);
   border-radius: var(--radius-md);
@@ -1447,7 +1447,7 @@ input, textarea, select, button { -webkit-user-select: text; user-select: text; 
 .cot-seccion.no-desc:not([data-mode="det"]) th:nth-child(2),
 .cot-seccion.no-desc:not([data-mode="det"]) td:nth-child(2) { display: none; }
 /* Cantidad más ancha en detallada */
-.cot-seccion-table input[name="cantidadSec"] { width: 110px !important; }
+.cot-seccion-table input[name="cantidadSec"] { width: 100%; max-width: 96px; }
 
 /* Distribución en fila tipo tabla (simple) */
 .cot-seccion-table:not([data-mode="det"]) th:nth-child(1),

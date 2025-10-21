@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = 'ems-cache-v52';
+﻿const CACHE_NAME = 'ems-cache-v60';
 const toCache = [
   './',
   './index.html',
@@ -111,5 +111,6 @@ self.addEventListener('message', event => {
     self.skipWaiting();
   }
 });
+
 
 
