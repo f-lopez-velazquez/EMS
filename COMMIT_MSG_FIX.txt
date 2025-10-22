@@ -1,0 +1,5 @@
+﻿Fix rubro duplicado y UI por fila (Concepto + Descripción + Precio)
+- Arreglo: initActionDelegates idempotente (sin doble registro) y remuevo llamada duplicada
+- UI: filas con Concepto, Descripción y Precio alineados
+- Nuevo rubro ya no duplica
+- PDF: oculta columna Descripción si toda vacía por sección

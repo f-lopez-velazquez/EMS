@@ -777,6 +777,8 @@ window.onload = () => {
 // Delegación global de Acciónes para evitar inline handlers (CSP-friendly)
 //function // Delegación global de acciones para evitar inline handlers (CSP-friendly)
 function initActionDelegates() {
+  if (document.__emsDelegatesInstalled) return;
+  document.__emsDelegatesInstalled = true;
   document.addEventListener('click', async (ev) => {
     const btn = ev.target && ev.target.closest('[data-action]');
     if (!btn) return;
@@ -993,8 +995,13 @@ function renderCotSeccion(seccion = {}, rowId) {
   const isDet = (getSettings()?.cotDetallado === true) || items.some(x=> x && (x.cantidad!==undefined || x.unidad!==undefined || x.precioUnit!==undefined));
   const itemsHtml = items.map(it => `
       <tr>
-        <td><input type=\"text\" name=\"concepto\" value=\"${safe(it.concepto)}\" list=\"conceptosEMS\" autocomplete=\"off\" spellcheck=\"true\" autocapitalize=\"sentences\"></td>
-        <td style=\"white-space:nowrap;display:flex;align-items:center;\">\n          <span style=\\\"margin-right:4px;color:#13823b;font-weight:bold;\\\">$</span>\n          <input type=\\\"number\\\" name=\\\"precioSec\\\" min=\\\"0\\\" step=\\\"0.01\\\" value=\\\"${safe(it.precio)}\\\" style=\\\"width:100px;\\\">\n          <button type=\\\"button\\\" class=\\\"btn-mini\\\" data-action=\\\"remove-row\\\" title=\\\"Eliminar fila\\\"><i class=\\\"fa fa-trash\\\"></i></button>\n        </td>
+        <td><input type="text" name="concepto" value="${safe(it.concepto)}" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
+        <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..." spellcheck="true" autocapitalize="sentences">${safe(it.descripcion)}</textarea></td>
+        <td style="white-space:nowrap;display:flex;align-items:center;">
+          <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
+          <input type="number" name="precioSec" min="0" step="0.01" value="${safe(it.precio)}" style="width:100px;">
+          <button type="button" class="btn-mini" data-action="remove-row" title="Eliminar fila"><i class="fa fa-trash"></i></button>
+        </td>
       </tr>
   `).join('');
   return `
@@ -1009,8 +1016,9 @@ function renderCotSeccion(seccion = {}, rowId) {
       <table class="ems-items-table cot-seccion-table">
         <thead>
           <tr>
-            <th>Concepto</th>
-            <th>Precio</th>
+            <th style="width:30%">Concepto</th>
+            <th>Descripci\\u00F3n</th>
+            <th style="width:180px">Precio</th>
           </tr>
         </thead>
         <tbody>
@@ -1029,7 +1037,13 @@ function agregarCotSeccion(preload = null) {
   const html = isDet ? renderCotSeccionDet(preload||{ items:[{}] }) : renderCotSeccion(preload||{ items:[{}] });
   wrap.insertAdjacentHTML('beforeend', html);
   try { normalizeEscapedTexts(wrap.lastElementChild || wrap); } catch {}
-  // Nota: se ha quitado la columna Descripción en UI; no insertamos controles ON/OFF
+  // Controles de descripción se activan en secciones normales
+  try {
+    const sec = wrap.lastElementChild;
+    if (sec && !sec.querySelector('[data-mode="det"]')) {
+      initDescControlsForSection(sec);
+    }
+  } catch {}
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
   recalcTotalesCotizacion();
@@ -1061,6 +1075,7 @@ function agregarRubroEnSeccion(btn) {
     tbody.insertAdjacentHTML('beforeend', `
       <tr>
         <td><input type="text" name="concepto" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
+        <td><textarea name="descripcion" rows="2" placeholder="Detalle del concepto..." spellcheck="true" autocapitalize="sentences"></textarea></td>
         <td style="white-space:nowrap;display:flex;align-items:center;">
           <span style=\"margin-right:4px;color:#13823b;font-weight:bold;\">$</span>
           <input type="number" name="precioSec" min="0" step="0.01" style="width:100px;">
@@ -3356,7 +3371,7 @@ function agregarCotSeccionDet(preload = null) {
 
 
 
-try { if (typeof initActionDelegates === 'function') initActionDelegates(); } catch {}
+// initActionDelegates se invoca en window.onload; evitar doble registro
 
 
 
