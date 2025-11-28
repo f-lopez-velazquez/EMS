@@ -1,0 +1,341 @@
+/* ===== MOBILE ACCORDION CARDS PARA COTIZACIONES ===== */
+
+/* Ocultar tabla tradicional en móvil */
+@media (max-width: 640px) {
+    .cot-seccion-table {
+        display: none !important;
+    }
+}
+
+/* Container de cards móviles */
+.cot-mobile-stack {
+    display: none;
+    /* Oculto por defecto */
+}
+
+@media (max-width: 640px) {
+    .cot-mobile-stack {
+        display: block;
+    }
+}
+
+/* Header de sección móvil */
+.cot-mobile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding: 12px 0;
+}
+
+.cot-mobile-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text);
+    font-weight: 600;
+}
+
+/* Card individual de concepto */
+.cot-mobile-item {
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: all 0.3s var(--ease-in-out);
+}
+
+.cot-mobile-item.expanded {
+    border-color: var(--azul);
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.12);
+    transform: scale(1.02);
+}
+
+/* Summary (estado colapsado) */
+.cot-mobile-summary {
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cot-mobile-concept {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cot-mobile-concept::before {
+    content: '🔧';
+    font-size: 1.2rem;
+}
+
+.cot-mobile-preview {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cot-mobile-price {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.1rem;
+}
+
+.cot-mobile-price b {
+    color: var(--verde);
+}
+
+.cot-mobile-toggle {
+    transition: transform 0.3s var(--ease-in-out);
+    color: var(--azul);
+}
+
+.cot-mobile-toggle.rotated {
+    transform: rotate(180deg);
+}
+
+/* Cálculo en modo detallado */
+.cot-mobile-calc {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.cot-mobile-calc b {
+    color: var(--verde);
+    font-size: 1.05rem;
+}
+
+/* Details (estado expandido) */
+.cot-mobile-details {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 2px solid #f3f4f6;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Labels */
+.cot-mobile-details label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    margin-top: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.cot-mobile-details label:first-child {
+    margin-top: 0;
+}
+
+/* Inputs móviles */
+.cot-mobile-input {
+    width: 100%;
+    min-height: 48px;
+    font-size: 16px !important;
+    /* Evita zoom en iOS */
+    padding: 12px 16px;
+    border: 2px solid #d1d5db;
+    border-radius: 8px;
+    background: white;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.cot-mobile-input:focus {
+    border-color: var(--azul);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.cot-mobile-input::placeholder {
+    color: #9ca3af;
+}
+
+/* Textarea específico */
+textarea.cot-mobile-input {
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+    line-height: 1.5;
+}
+
+/* Input de precio con símbolo $ */
+.cot-mobile-price-input {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.cot-mobile-price-input .price-symbol {
+    position: absolute;
+    left: 16px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: var(--verde);
+    pointer-events: none;
+}
+
+.cot-mobile-price-input input {
+    width: 100%;
+    min-height: 48px;
+    font-size: 16px !important;
+    padding: 12px 16px 12px 36px;
+    /* Espacio para el $ */
+    border: 2px solid #d1d5db;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.cot-mobile-price-input input:focus {
+    border-color: var(--azul);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Total calculado */
+.cot-mobile-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #f9fafb;
+    border-radius: 8px;
+    margin-top: 16px;
+    border: 2px solid #e5e7eb;
+}
+
+.cot-mobile-total span {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.cot-mobile-total b {
+    font-size: 1.2rem;
+    color: var(--verde);
+}
+
+/* Acciones */
+.cot-mobile-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.cot-mobile-actions .btn-sm {
+    flex: 1;
+    min-height: 48px;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 600;
+}
+
+.cot-mobile-actions .btn-danger {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.cot-mobile-actions .btn-danger:active {
+    background: #fecaca;
+    transform: scale(0.96);
+}
+
+.cot-mobile-actions .btn-primary {
+    background: var(--azul);
+    color: white;
+}
+
+.cot-mobile-actions .btn-primary:active {
+    background: #1d4ed8;
+    transform: scale(0.96);
+}
+
+/* Subtotal de sección móvil */
+.cot-mobile-subtotal {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+    border-radius: 12px;
+    margin-top: 16px;
+    border: 2px solid #e5e7eb;
+    font-size: 1.05rem;
+}
+
+.cot-mobile-subtotal b {
+    font-size: 1.3rem;
+    color: var(--azul);
+}
+
+/* Botón agregar nuevo */
+.cot-mobile-add {
+    width: 100%;
+    min-height: 56px;
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: white;
+    border: 2px dashed var(--azul);
+    border-radius: 12px;
+    color: var(--azul);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cot-mobile-add:active {
+    background: #eff6ff;
+    transform: scale(0.98);
+}
+
+/* Estado vacío */
+.cot-mobile-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+}
+
+.cot-mobile-empty i {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    color: #d1d5db;
+}
+
+.cot-mobile-empty p {
+    margin: 8px 0;
+    font-size: 0.95rem;
+}

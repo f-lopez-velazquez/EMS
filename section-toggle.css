@@ -1,0 +1,40 @@
+/* ===== TOGGLE MODO SECCIÓN ===== */
+
+.section-mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.section-mode-toggle:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+
+.section-mode-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    margin: 0;
+}
+
+.section-mode-toggle span {
+    color: #64748b;
+    font-weight: 500;
+}
+
+@media (max-width: 768px) {
+    .section-mode-toggle {
+        width: 100%;
+        justify-content: center;
+        margin: 8px 0;
+    }
+}

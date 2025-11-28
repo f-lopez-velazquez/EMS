@@ -16,7 +16,7 @@ function getSettings() {
   } catch { return {}; }
 }
 function saveSettings(conf) {
-  try { localStorage.setItem('EMS_SETTINGS', JSON.stringify(conf||{})); } catch {}
+  try { localStorage.setItem('EMS_SETTINGS', JSON.stringify(conf || {})); } catch { }
 }
 
 // Decodifica secuencias unicode con barra invertida (soporta "\\uXXXX" y "\uXXXX")
@@ -43,14 +43,14 @@ function normalizeEscapedTexts(root) {
       if (/\\u[0-9a-fA-F]{4}/.test(node.nodeValue)) toFix.push(node);
     }
     toFix.forEach(n => n.nodeValue = decodeU(n.nodeValue));
-  } catch {}
+  } catch { }
 }
 function hexToRgbArray(hex) {
   if (!hex || typeof hex !== 'string') return EMS_COLOR;
-  const m = hex.replace('#','');
+  const m = hex.replace('#', '');
   if (m.length !== 6) return EMS_COLOR;
-  const r = parseInt(m.slice(0,2),16)/255, g = parseInt(m.slice(2,4),16)/255, b = parseInt(m.slice(4,6),16)/255;
-  return [r,g,b];
+  const r = parseInt(m.slice(0, 2), 16) / 255, g = parseInt(m.slice(2, 4), 16) / 255, b = parseInt(m.slice(4, 6), 16) / 255;
+  return [r, g, b];
 }
 function getThemeRgbArray() {
   const s = getSettings();
@@ -61,12 +61,12 @@ function getThemeRgbArray() {
 
 // Aplicar tema (CSS vars y meta theme-color)
 function setCssVar(name, value) {
-  try { document.documentElement.style.setProperty(name, value); } catch {}
+  try { document.documentElement.style.setProperty(name, value); } catch { }
 }
 function shadeHex(hex, percent) {
   // percent: -1..1 (negro..blanco)
   if (!hex) return hex;
-  hex = hex.replace('#','');
+  hex = hex.replace('#', '');
   if (hex.length !== 6) return '#' + hex;
   const num = parseInt(hex, 16);
   let r = (num >> 16) & 0xFF, g = (num >> 8) & 0xFF, b = num & 0xFF;
@@ -75,7 +75,7 @@ function shadeHex(hex, percent) {
   r = Math.round((t - r) * p) + r;
   g = Math.round((t - g) * p) + g;
   b = Math.round((t - b) * p) + b;
-  const toHex = (v)=>('0' + v.toString(16)).slice(-2);
+  const toHex = (v) => ('0' + v.toString(16)).slice(-2);
   return '#' + toHex(Math.max(0, Math.min(255, r))) + toHex(Math.max(0, Math.min(255, g))) + toHex(Math.max(0, Math.min(255, b)));
 }
 function applyThemeFromSettings() {
@@ -120,7 +120,7 @@ function safe(val) { return (val === undefined || val === null) ? "" : String(va
 function formatMoney(val) { return "$" + Number(val || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function hoy() { return (new Date()).toISOString().slice(0, 10); }
 function ahora() { const d = new Date(); return d.toTimeString().slice(0, 5); }
-function newUID(){ return 'i' + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
+function newUID() { return 'i' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4); }
 
 function mostrarPrecio(val) {
   if (val === undefined || val === null) return "";
@@ -185,7 +185,7 @@ function showProgress(visible = true, percent = 0, msg = '') {
     }
     var _txt = mask.querySelector('.ems-busy-text');
     if (_txt) _txt.textContent = msg || 'Cargando?';
-  } catch (e) {}
+  } catch (e) { }
   if (visible) { mask.classList.add('show'); } else { mask.classList.remove('show'); }
 }
 
@@ -689,16 +689,16 @@ async function actualizarPredictsEMSCloud(user = "general") {
   let conceptos = await getPredictEMSCloud("concepto", user);
   let unidades = await getPredictEMSCloud("unidad", user);
   let clientes = await getPredictEMSCloud("cliente", user);
-  let descs    = await getPredictEMSCloud("descripcion", user);
+  let descs = await getPredictEMSCloud("descripcion", user);
 
   const datalistConceptos = document.getElementById("conceptosEMS");
-  if (datalistConceptos) datalistConceptos.innerHTML = conceptos.map(v=>`<option value="${v}">`).join('');
+  if (datalistConceptos) datalistConceptos.innerHTML = conceptos.map(v => `<option value="${v}">`).join('');
   const datalistUnidades = document.getElementById("unidadesEMS");
-  if (datalistUnidades) datalistUnidades.innerHTML = unidades.map(v=>`<option value="${v}">`).join('');
+  if (datalistUnidades) datalistUnidades.innerHTML = unidades.map(v => `<option value="${v}">`).join('');
   const datalistClientes = document.getElementById("clientesEMS");
-  if (datalistClientes) datalistClientes.innerHTML = clientes.map(v=>`<option value="${v}">`).join('');
+  if (datalistClientes) datalistClientes.innerHTML = clientes.map(v => `<option value="${v}">`).join('');
   const datalistDesc = document.getElementById("descEMS");
-  if (datalistDesc) datalistDesc.innerHTML = descs.map(v=>`<option value="${v}">`).join('');
+  if (datalistDesc) datalistDesc.innerHTML = descs.map(v => `<option value="${v}">`).join('');
 }
 function activarPredictivosInstantaneos() {
   document.querySelectorAll('input[name="concepto"]').forEach(input => {
@@ -763,56 +763,56 @@ window.onload = () => {
   renderInicio();
   // Modo app-like: bloquear atr?s y men?s contextuales globales
   try {
-    if (!history.state || !history.state.ems) history.replaceState({ems:'root'}, '');
-    window.addEventListener('popstate', function(e){ e.preventDefault(); history.pushState({ems:'root'}, ''); });
-    document.addEventListener('contextmenu', function(e){
+    if (!history.state || !history.state.ems) history.replaceState({ ems: 'root' }, '');
+    window.addEventListener('popstate', function (e) { e.preventDefault(); history.pushState({ ems: 'root' }, ''); });
+    document.addEventListener('contextmenu', function (e) {
       const tag = (e.target && e.target.tagName) || '';
       if (tag !== 'INPUT' && tag !== 'TEXTAREA') e.preventDefault();
     }, true);
-  } catch (e) {}
-  try { applyThemeFromSettings(); } catch {}
-  try { typeof showOffline === "function" && showOffline(true); } catch {}
-  try { normalizeEscapedTexts(document); } catch {}
+  } catch (e) { }
+  try { applyThemeFromSettings(); } catch { }
+  try { typeof showOffline === "function" && showOffline(true); } catch { }
+  try { normalizeEscapedTexts(document); } catch { }
 
-// Delegación global de Acciónes para evitar inline handlers (CSP-friendly)
-//function // Delegación global de acciones para evitar inline handlers (CSP-friendly)
-function initActionDelegates() {
-  if (document.__emsDelegatesInstalled) return;
-  document.__emsDelegatesInstalled = true;
-  document.addEventListener('click', async (ev) => {
-    const btn = ev.target && ev.target.closest('[data-action]');
-    if (!btn) return;
-    const act = btn.getAttribute('data-action');
-    try {
-      switch (act) {
-        case 'add-section': ev.preventDefault(); agregarCotSeccion(); break;
-        case 'add-section-det': ev.preventDefault(); agregarCotSeccionDet(); break;
-        case 'add-row': ev.preventDefault(); agregarRubroEnSeccion(btn); break;
-        case 'remove-row': ev.preventDefault(); const tr=btn.closest('tr'); const sec=btn.closest('.cot-seccion'); if(tr) tr.remove(); try{recalcSeccionSubtotal(sec);}catch{} break;
-        case 'remove-section': ev.preventDefault(); eliminarCotSeccion(btn); break;
-        case 'cot-cancel': ev.preventDefault(); try{ localStorage.removeItem('EMS_COT_BORRADOR'); }catch{} renderInicio(); break;
-        case 'cot-undo': ev.preventDefault(); undoCot(); break;
-        case 'cot-preview': ev.preventDefault(); previsualizarPDFCotizacion(); break;
-        case 'cot-pdf': ev.preventDefault(); try{ await guardarCotizacionDraft(); }catch{} generarPDFCotizacion(); break;
-        case 'cot-share': ev.preventDefault(); try{ await guardarCotizacionDraft(); }catch{} generarPDFCotizacion(true); break;
-        case 'del-photo-cot': ev.preventDefault(); const idx = Number(btn.getAttribute('data-idx')); if(!Number.isNaN(idx)) eliminarFotoCot(idx); break;
-        // Lista de precios
-        case 'open-prices': ev.preventDefault(); renderPreciosView(); break;
-        case 'prices-apply': ev.preventDefault(); aplicarAjustePrecios(); break;
-        case 'prices-pdf': ev.preventDefault(); generarPDFPrecios(false); break;
-        case 'prices-share': ev.preventDefault(); generarPDFPrecios(true); break;
-        case 'toggle-desc': ev.preventDefault(); { const sec = btn.closest('.cot-seccion'); if(sec){ sec.classList.toggle('no-desc'); const on = !sec.classList.contains('no-desc'); const b = sec.querySelector('[data-action="toggle-desc"]'); if (b) b.innerHTML = `<i class=\"fa fa-align-left\"></i> Descripciones: ${on? 'ON':'OFF'}`; } } break;
-        case 'back-home': ev.preventDefault(); renderInicio(); break;
-        default: break;
-      }
-    } catch(e){ console.warn('Acción fallida', act, e); }
-  });
-}
-  try { initActionDelegates(); } catch {}
-  try { installUndoHandlers(); } catch {}
-  try { schedulePendingNotifications(); } catch {}
+  // Delegación global de Acciónes para evitar inline handlers (CSP-friendly)
+  //function // Delegación global de acciones para evitar inline handlers (CSP-friendly)
+  function initActionDelegates() {
+    if (document.__emsDelegatesInstalled) return;
+    document.__emsDelegatesInstalled = true;
+    document.addEventListener('click', async (ev) => {
+      const btn = ev.target && ev.target.closest('[data-action]');
+      if (!btn) return;
+      const act = btn.getAttribute('data-action');
+      try {
+        switch (act) {
+          case 'add-section': ev.preventDefault(); agregarCotSeccion(); break;
+          case 'add-section-det': ev.preventDefault(); agregarCotSeccionDet(); break;
+          case 'add-row': ev.preventDefault(); agregarRubroEnSeccion(btn); break;
+          case 'remove-row': ev.preventDefault(); const tr = btn.closest('tr'); const sec = btn.closest('.cot-seccion'); if (tr) tr.remove(); try { recalcSeccionSubtotal(sec); } catch { } break;
+          case 'remove-section': ev.preventDefault(); eliminarCotSeccion(btn); break;
+          case 'cot-cancel': ev.preventDefault(); try { localStorage.removeItem('EMS_COT_BORRADOR'); } catch { } renderInicio(); break;
+          case 'cot-undo': ev.preventDefault(); undoCot(); break;
+          case 'cot-preview': ev.preventDefault(); previsualizarPDFCotizacion(); break;
+          case 'cot-pdf': ev.preventDefault(); try { await guardarCotizacionDraft(); } catch { } generarPDFCotizacion(); break;
+          case 'cot-share': ev.preventDefault(); try { await guardarCotizacionDraft(); } catch { } generarPDFCotizacion(true); break;
+          case 'del-photo-cot': ev.preventDefault(); const idx = Number(btn.getAttribute('data-idx')); if (!Number.isNaN(idx)) eliminarFotoCot(idx); break;
+          // Lista de precios
+          case 'open-prices': ev.preventDefault(); renderPreciosView(); break;
+          case 'prices-apply': ev.preventDefault(); aplicarAjustePrecios(); break;
+          case 'prices-pdf': ev.preventDefault(); generarPDFPrecios(false); break;
+          case 'prices-share': ev.preventDefault(); generarPDFPrecios(true); break;
+          case 'toggle-desc': ev.preventDefault(); { const sec = btn.closest('.cot-seccion'); if (sec) { sec.classList.toggle('no-desc'); const on = !sec.classList.contains('no-desc'); const b = sec.querySelector('[data-action="toggle-desc"]'); if (b) b.innerHTML = `<i class=\"fa fa-align-left\"></i> Descripciones: ${on ? 'ON' : 'OFF'}`; } } break;
+          case 'back-home': ev.preventDefault(); renderInicio(); break;
+          default: break;
+        }
+      } catch (e) { console.warn('Acción fallida', act, e); }
+    });
+  }
+  try { initActionDelegates(); } catch { }
+  try { installUndoHandlers(); } catch { }
+  try { schedulePendingNotifications(); } catch { }
   // Auto recalcular visibilidad de descripción al escribir
-  document.addEventListener('input', (e)=>{
+  document.addEventListener('input', (e) => {
     const ta = e.target && e.target.closest('textarea[name="descripcion"]');
     if (!ta) return;
     const sec = ta.closest('.cot-seccion');
@@ -825,7 +825,7 @@ let ASYNC_ERR_GUARD = false;
 // ===== Notificaciones espor?dicas de pendientes =====
 function schedulePendingNotifications() {
   const MIN_MINUTES = 15; // m?nimo cada 15 min
-  const JITTER_MIN  = 10; // ?10 min aleatorio
+  const JITTER_MIN = 10; // ?10 min aleatorio
   const keyLast = 'EMS_LAST_PENDING_NOTIFY';
   const keyCounts = 'EMS_LAST_PENDING_COUNTS';
 
@@ -833,15 +833,15 @@ function schedulePendingNotifications() {
     try {
       if ('Notification' in window) {
         if (Notification.permission === 'default') {
-          try { await Notification.requestPermission(); } catch {}
+          try { await Notification.requestPermission(); } catch { }
         }
         if (Notification.permission === 'granted') {
           new Notification('EMS', { body: msg });
           return;
         }
       }
-    } catch {}
-    try { showToast(msg, 'info', 5000); } catch {}
+    } catch { }
+    try { showToast(msg, 'info', 5000); } catch { }
   }
 
   async function checkNow() {
@@ -853,33 +853,33 @@ function schedulePendingNotifications() {
       // Consultas: estado='pendiente' o pendiente=true (dos consultas simples)
       let cotPend = 0, repPend = 0;
       try {
-        const q1 = await db.collection('cotizaciones').where('estado','==','pendiente').limit(20).get();
+        const q1 = await db.collection('cotizaciones').where('estado', '==', 'pendiente').limit(20).get();
         cotPend += q1.size;
-      } catch {}
+      } catch { }
       try {
-        const q2 = await db.collection('cotizaciones').where('pendiente','==',true).limit(20).get();
+        const q2 = await db.collection('cotizaciones').where('pendiente', '==', true).limit(20).get();
         cotPend = Math.max(cotPend, q2.size);
-      } catch {}
+      } catch { }
       try {
-        const q3 = await db.collection('reportes').where('estado','==','pendiente').limit(20).get();
+        const q3 = await db.collection('reportes').where('estado', '==', 'pendiente').limit(20).get();
         repPend += q3.size;
-      } catch {}
+      } catch { }
       try {
-        const q4 = await db.collection('reportes').where('pendiente','==',true).limit(20).get();
+        const q4 = await db.collection('reportes').where('pendiente', '==', true).limit(20).get();
         repPend = Math.max(repPend, q4.size);
-      } catch {}
+      } catch { }
 
       const prev = JSON.parse(localStorage.getItem(keyCounts) || '{"cot":0,"rep":0}');
       // Notificar solo si hay al menos 1 y cambi? vs ?ltima vez
-      if (cotPend > 0 && cotPend !== Number(prev.cot||0)) {
+      if (cotPend > 0 && cotPend !== Number(prev.cot || 0)) {
         await notify(`Tienes ${cotPend} COTIZACI\u00D3N(es) pendiente(s).`);
       }
-      if (repPend > 0 && repPend !== Number(prev.rep||0)) {
+      if (repPend > 0 && repPend !== Number(prev.rep || 0)) {
         await notify(`Tienes ${repPend} reporte(s) pendiente(s).`);
       }
       localStorage.setItem(keyCounts, JSON.stringify({ cot: cotPend, rep: repPend }));
       localStorage.setItem(keyLast, String(now));
-    } catch {}
+    } catch { }
   }
 
   // primera comprobaci?n diferida
@@ -888,7 +888,7 @@ function schedulePendingNotifications() {
   // programar siguientes con jitter
   (function loop() {
     const jitter = (Math.random() * (JITTER_MIN * 2) - JITTER_MIN) * 60000; // ?JITTER
-    const delay = MIN_MINUTES * 60000 + Math.max(-JITTER_MIN*60000, Math.min(jitter, JITTER_MIN*60000));
+    const delay = MIN_MINUTES * 60000 + Math.max(-JITTER_MIN * 60000, Math.min(jitter, JITTER_MIN * 60000));
     setTimeout(async () => { await checkNow(); loop(); }, delay);
   })();
 }
@@ -946,19 +946,19 @@ function renderCotItemRow(item = {}) {
   return `
     <tr>
       <td>
-        <input type="text" name="concepto" list="conceptosEMS" value="${item.concepto||""}" required autocomplete="off">
+        <input type="text" name="concepto" list="conceptosEMS" value="${item.concepto || ""}" required autocomplete="off">
         <datalist id="conceptosEMS"></datalist>
       </td>
       <td>
-        <input type="text" name="unidad" list="unidadesEMS" value="${item.unidad||""}" required autocomplete="off">
+        <input type="text" name="unidad" list="unidadesEMS" value="${item.unidad || ""}" required autocomplete="off">
         <datalist id="unidadesEMS"></datalist>
       </td>
       <td>
-        <input type="number" name="cantidad" min="0" value="${item.cantidad||""}" required>
+        <input type="number" name="cantidad" min="0" value="${item.cantidad || ""}" required>
       </td>
       <td style="white-space:nowrap;display:flex;align-items:center;">
         <span style="margin-right:4px;color:#13823b;font-weight:bold;">$</span>
-        <input type="number" name="precio" min="0" step="0.01" value="${item.precio||""}" required style="width:90px;">
+        <input type="number" name="precio" min="0" step="0.01" value="${item.precio || ""}" required style="width:90px;">
       </td>
       <td>
         <button type="button" class="btn-mini" onclick="eliminarCotItemRow(this)"><i class="fa fa-trash"></i></button>
@@ -984,7 +984,7 @@ function toggleCotMode(flag) {
     // Re-render conservando datos actuales
     const snap = serializeCotizacionForm();
     editarCotizacion({ ...snap, tipo: 'cotizacion' });
-    showSaved(flag? 'Modo detallado activo' : 'Modo normal activo');
+    showSaved(flag ? 'Modo detallado activo' : 'Modo normal activo');
   } catch (e) { console.warn('toggleCotMode', e); }
 }
 
@@ -992,7 +992,7 @@ function toggleCotMode(flag) {
 function renderCotSeccion(seccion = {}, rowId) {
   const id = rowId || newUID();
   const items = Array.isArray(seccion.items) ? seccion.items : [];
-  const isDet = (getSettings()?.cotDetallado === true) || items.some(x=> x && (x.cantidad!==undefined || x.unidad!==undefined || x.precioUnit!==undefined));
+  const isDet = (getSettings()?.cotDetallado === true) || items.some(x => x && (x.cantidad !== undefined || x.unidad !== undefined || x.precioUnit !== undefined));
   const itemsHtml = items.map(it => `
       <tr>
         <td><input type="text" name="concepto" value="${safe(it.concepto)}" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
@@ -1007,7 +1007,11 @@ function renderCotSeccion(seccion = {}, rowId) {
   return `
     <div class="cot-seccion" data-secid="${id}">
       <div class="cot-seccion-head">
-        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="Título de sección (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
+        <label class="section-mode-toggle">
+          <input type="checkbox" onchange="toggleSeccionMode(this)">
+          <span>Detallado</span>
+        </label>
         <div class="cot-sec-actions">
           <button type="button" class="btn-mini" data-action="add-row"><i class="fa fa-plus"></i> Agregar rubro</button>
           <button type="button" class="btn-mini" data-action="remove-section"><i class="fa fa-trash"></i></button>
@@ -1017,7 +1021,7 @@ function renderCotSeccion(seccion = {}, rowId) {
         <thead>
           <tr>
             <th style="width:30%">Concepto</th>
-            <th>Descripci\\u00F3n</th>
+            <th>Descripción</th>
             <th style="width:180px">Precio</th>
           </tr>
         </thead>
@@ -1025,27 +1029,29 @@ function renderCotSeccion(seccion = {}, rowId) {
           ${itemsHtml}
         </tbody>
       </table>
-      <div class="cot-seccion-subtotal"><span>Subtotal secci\\u00F3n:</span> <b class="cot-subtotal-val">$0.00</b></div>
+      <div class="cot-seccion-subtotal"><span>Subtotal sección:</span> <b class="cot-subtotal-val">$0.00</b></div>
     </div>
   `;
 }
 function agregarCotSeccion(preload = null) {
   const wrap = document.getElementById('cotSeccionesWrap');
   if (!wrap) return;
-  const isDet = (getSettings()?.cotDetallado === true) || (preload && Array.isArray(preload.items) && preload.items.some(it=> it && (it.cantidad!==undefined || it.unidad!==undefined || it.precioUnit!==undefined)));
-  // Default: 1 rubro en nueva sección (antes agregaba 2 por defecto)
-  const html = isDet ? renderCotSeccionDet(preload||{ items:[{}] }) : renderCotSeccion(preload||{ items:[{}] });
+  const isDet = (getSettings()?.cotDetallado === true) || (preload && Array.isArray(preload.items) && preload.items.some(it => it && (it.cantidad !== undefined || it.unidad !== undefined || it.precioUnit !== undefined)));
+
+  const html = isDet ? renderCotSeccionDet(preload || { items: [{}] }) : renderCotSeccion(preload || { items: [{}] });
   wrap.insertAdjacentHTML('beforeend', html);
-  try { normalizeEscapedTexts(wrap.lastElementChild || wrap); } catch {}
-  // Controles de descripción se activan en secciones normales
+  try { normalizeEscapedTexts(wrap.lastElementChild || wrap); } catch { }
+
+  // Controles de descripción
   try {
     const sec = wrap.lastElementChild;
     if (sec && !sec.querySelector('[data-mode="det"]')) {
       initDescControlsForSection(sec);
     }
-  } catch {}
+  } catch { }
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
+
   recalcTotalesCotizacion();
 }
 function eliminarCotSeccion(btn) {
@@ -1091,16 +1097,16 @@ function agregarRubroEnSeccion(btn) {
 }
 
 // Inserta el botón de descripciones ON/OFF y calcula visibilidad
-function initDescControlsForSection(sec){
+function initDescControlsForSection(sec) {
   if (!sec) return;
   const actions = sec.querySelector('.cot-sec-actions');
   if (!actions) return;
   let btn = actions.querySelector('[data-action="toggle-desc"]');
-  if (!btn){
+  if (!btn) {
     btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'btn-mini';
-    btn.setAttribute('data-action','toggle-desc');
+    btn.setAttribute('data-action', 'toggle-desc');
     btn.innerHTML = '<i class="fa fa-align-left"></i> Descripciones: ON';
     actions.insertAdjacentElement('afterbegin', btn);
   }
@@ -1108,9 +1114,9 @@ function initDescControlsForSection(sec){
 }
 
 // Recalcula si todas las descripciones están vacías para ocultar/mostrar
-function refreshDescVisibility(sec){
+function refreshDescVisibility(sec) {
   const textareas = Array.from(sec.querySelectorAll('textarea[name="descripcion"]'));
-  const anyText = textareas.some(t => String(t.value||'').trim() !== '');
+  const anyText = textareas.some(t => String(t.value || '').trim() !== '');
   if (!anyText) {
     sec.classList.add('no-desc');
     const b = sec.querySelector('[data-action="toggle-desc"]'); if (b) b.innerHTML = '<i class="fa fa-align-left"></i> Descripciones: OFF';
@@ -1126,20 +1132,20 @@ function recalcSeccionSubtotal(sec) {
   if (unitarios.length) {
     const rows = Array.from(sec.querySelectorAll('tbody tr'));
     rows.forEach(tr => {
-      const c = Number(tr.querySelector('input[name="cantidadSec"]')?.value||0);
-      const pu = Number(tr.querySelector('input[name="precioUnitSec"]')?.value||0);
-      const tot = c*pu;
+      const c = Number(tr.querySelector('input[name="cantidadSec"]')?.value || 0);
+      const pu = Number(tr.querySelector('input[name="precioUnitSec"]')?.value || 0);
+      const tot = c * pu;
       const span = tr.querySelector('.cot-row-total');
       if (span) span.textContent = mostrarPrecioLimpio(tot);
       subtotal += tot;
     });
   } else {
     const precios = Array.from(sec.querySelectorAll('input[name="precioSec"]'));
-    subtotal = precios.reduce((a,inp)=>{
-      const v = String(inp.value||"").trim();
-      if (v===''||v==='.'||v==='-') return a;
-      const n = Number(v); return a + (isNaN(n)?0:n);
-    },0);
+    subtotal = precios.reduce((a, inp) => {
+      const v = String(inp.value || "").trim();
+      if (v === '' || v === '.' || v === '-') return a;
+      const n = Number(v); return a + (isNaN(n) ? 0 : n);
+    }, 0);
   }
   const el = sec.querySelector('.cot-subtotal-val');
   if (el) el.textContent = mostrarPrecioLimpio(subtotal);
@@ -1176,7 +1182,7 @@ async function subirFotosCot(input) {
     const file = files[i];
     if (!file.type.startsWith("image/")) continue;
     const pct = Math.round(((i) / Math.max(1, files.length)) * 80) + 10;
-    showProgress(true, pct, `Subiendo imagen ${i+1} de ${files.length}...`);
+    showProgress(true, pct, `Subiendo imagen ${i + 1} de ${files.length}...`);
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_PRESET);
@@ -1202,7 +1208,7 @@ async function subirFotosCot(input) {
   input.value = "";
   showProgress(false, 100, "Listo");
 
-  try { guardarCotizacionDraft(); } catch(e) {}
+  try { guardarCotizacionDraft(); } catch (e) { }
 }
 function renderCotFotosPreview() {
   const cont = document.getElementById('cotFotosPreview');
@@ -1227,7 +1233,7 @@ function renderCotFotosPreview() {
 function eliminarFotoCot(index) {
   fotosCotizacion.splice(index, 1);
   renderCotFotosPreview();
-  try { guardarCotizacionDraft(); } catch(e) {}
+  try { guardarCotizacionDraft(); } catch (e) { }
 }
 
 function nuevaCotizacion() {
@@ -1362,7 +1368,7 @@ function nuevaCotizacion() {
     if (Array.isArray(draft.secciones) && draft.secciones.length) {
       draft.secciones.forEach(sec => agregarCotSeccion(sec));
     } else if (Array.isArray(draft.items) && draft.items.length) {
-      const sec = { titulo: 'General', items: draft.items.map(it=>({ concepto: it.concepto, descripcion: '', precio: it.precio })) };
+      const sec = { titulo: 'General', items: draft.items.map(it => ({ concepto: it.concepto, descripcion: '', precio: it.precio })) };
       agregarCotSeccion(sec);
     } else {
       agregarCotSeccion({ titulo: 'General', items: [{}] });
@@ -1383,7 +1389,7 @@ function nuevaCotizacion() {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
-    try { pushUndoCotSnapshot(); } catch {}
+    try { pushUndoCotSnapshot(); } catch { }
   }, 100);
 
   form.onsubmit = async (e) => {
@@ -1399,14 +1405,14 @@ function nuevaCotizacion() {
 
   // eliminar si ya existe
   setTimeout(() => {
-    if(form && form.numero && form.numero.value && !document.getElementById('btnEliminarCot')){
+    if (form && form.numero && form.numero.value && !document.getElementById('btnEliminarCot')) {
       let btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn-danger";
       btn.id = "btnEliminarCot";
       btn.style.float = "right";
       btn.innerHTML = '<i class="fa fa-trash"></i> Eliminar';
-      btn.onclick = function(){ eliminarCotizacionCompleta(); };
+      btn.onclick = function () { eliminarCotizacionCompleta(); };
       form.querySelector(".ems-form-actions").appendChild(btn);
     }
   }, 300);
@@ -1435,7 +1441,7 @@ function renderRepItemRow(item = {}, rowId, modoEdicion = true) {
   return `
     <tr data-rowid="${id}">
       <td>
-        <textarea name="descripcion" list="descEMS" rows="2" required placeholder="Describe la actividad" style="width:97%" spellcheck="true" autocapitalize="sentences">${item.descripcion||""}</textarea>
+        <textarea name="descripcion" list="descEMS" rows="2" required placeholder="Describe la actividad" style="width:97%" spellcheck="true" autocapitalize="sentences">${item.descripcion || ""}</textarea>
         <datalist id="descEMS"></datalist>
       </td>
       <td>
@@ -1459,7 +1465,7 @@ function agregarRepItemRow() {
   const tbody = document.getElementById('repItemsTable').querySelector('tbody');
   const id = newUID();
   fotosItemsReporteMap[id] = [];
-  tbody.insertAdjacentHTML('beforeend', renderRepItemRow({_id:id}, id, true));
+  tbody.insertAdjacentHTML('beforeend', renderRepItemRow({ _id: id }, id, true));
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
 }
@@ -1477,7 +1483,7 @@ async function subirFotoRepItem(input, id) {
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     if (!file.type.startsWith("image/")) continue;
-    showSaved(`Subiendo imagen ${i+1} de ${files.length}...`);
+    showSaved(`Subiendo imagen ${i + 1} de ${files.length}...`);
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_PRESET);
@@ -1496,7 +1502,7 @@ async function subirFotoRepItem(input, id) {
   // Re-renderiza la fila
   const tr = document.querySelector(`#repItemsTable tbody tr[data-rowid="${id}"]`);
   const desc = tr?.querySelector("textarea")?.value || "";
-  if (tr) tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
+  if (tr) tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id: id }, id, true);
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
   showSaved("?Imagen(es) subida(s)!");
@@ -1508,7 +1514,7 @@ function eliminarFotoRepItem(btn, id, fidx) {
   fotosItemsReporteMap[id].splice(fidx, 1);
   const tr = btn.closest('tr');
   const desc = tr?.querySelector("textarea")?.value || "";
-  tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
+  tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id: id }, id, true);
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
 }
@@ -1609,7 +1615,7 @@ function nuevoReporte() {
     (draft.items || []).forEach((item) => {
       const id = item._id || newUID();
       fotosItemsReporteMap[id] = Array.isArray(item.fotos) ? [...item.fotos] : [];
-      tbody.insertAdjacentHTML("beforeend", renderRepItemRow({ ...item, _id:id }, id, true));
+      tbody.insertAdjacentHTML("beforeend", renderRepItemRow({ ...item, _id: id }, id, true));
     });
     if ((draft.items || []).length === 0) agregarRepItemRow();
   } else {
@@ -1619,7 +1625,7 @@ function nuevoReporte() {
     actualizarPredictsEMSCloud();
     agregarDictadoMicros();
     activarPredictivosInstantaneos();
-    try { pushUndoRepSnapshot(); } catch {}
+    try { pushUndoRepSnapshot(); } catch { }
   }, 100);
   form.onsubmit = async (e) => {
     e.preventDefault();
@@ -1633,14 +1639,14 @@ function nuevoReporte() {
   }, 15000);
 
   setTimeout(() => {
-    if(form && form.numero && form.numero.value && !document.getElementById('btnEliminarRep')){
+    if (form && form.numero && form.numero.value && !document.getElementById('btnEliminarRep')) {
       let btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn-danger";
       btn.id = "btnEliminarRep";
       btn.style.float = "right";
       btn.innerHTML = '<i class="fa fa-trash"></i> Eliminar';
-      btn.onclick = function(){ eliminarReporteCompleto(); };
+      btn.onclick = function () { eliminarReporteCompleto(); };
       form.querySelector(".ems-form-actions").appendChild(btn);
     }
   }, 300);
@@ -1657,17 +1663,17 @@ async function enviarCotizacion(e) {
   document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
     const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
     const items = [];
-    sec.querySelectorAll('tbody tr').forEach(tr=>{
+    sec.querySelectorAll('tbody tr').forEach(tr => {
       const concepto = tr.querySelector('input[name="concepto"]').value;
       if (tr.querySelector('input[name="precioUnitSec"]')) {
-        const cantidad = Number(tr.querySelector('input[name="cantidadSec"]').value||0);
-        const unidad = tr.querySelector('input[name="unidadSec"]').value||'';
-        const precioUnit = Number(tr.querySelector('input[name="precioUnitSec"]').value||0);
+        const cantidad = Number(tr.querySelector('input[name="cantidadSec"]').value || 0);
+        const unidad = tr.querySelector('input[name="unidadSec"]').value || '';
+        const precioUnit = Number(tr.querySelector('input[name="precioUnitSec"]').value || 0);
         const total = cantidad * precioUnit;
         if (concepto || cantidad || unidad || precioUnit) items.push({ concepto, cantidad, unidad, precioUnit, total });
       } else {
         const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
-        const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
+        const precio = Number(tr.querySelector('input[name="precioSec"]').value || 0);
         if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
       }
     });
@@ -1679,11 +1685,11 @@ async function enviarCotizacion(e) {
     return;
   }
   savePredictEMSCloud("cliente", datos.cliente);
-  secciones.forEach(sec => (sec.items||[]).forEach(it => { savePredictEMSCloud("concepto", it.concepto); }));
+  secciones.forEach(sec => (sec.items || []).forEach(it => { savePredictEMSCloud("concepto", it.concepto); }));
   // C?lculos
-  const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (it.total!=null? Number(it.total): Number(it.precio)||0),0), 0);
+  const subtotal = secciones.reduce((a, sec) => a + (sec.items || []).reduce((s, it) => s + (it.total != null ? Number(it.total) : Number(it.precio) || 0), 0), 0);
   const incluyeIVA = form.incluyeIVA && form.incluyeIVA.checked;
-  const iva = incluyeIVA ? subtotal*0.16 : 0;
+  const iva = incluyeIVA ? subtotal * 0.16 : 0;
   const total = subtotal + iva;
   const cotizacion = {
     ...datos,
@@ -1691,7 +1697,7 @@ async function enviarCotizacion(e) {
     subtotal,
     iva,
     total,
-    fotos: fotosCotizacion.slice(0,5),
+    fotos: fotosCotizacion.slice(0, 5),
     tipo: 'cotizacion',
     fecha: datos.fecha,
     hora: datos.hora || ahora(),
@@ -1716,31 +1722,31 @@ async function guardarCotizacionDraft() {
   document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
     const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
     const items = [];
-    sec.querySelectorAll('tbody tr').forEach(tr=>{
+    sec.querySelectorAll('tbody tr').forEach(tr => {
       const concepto = tr.querySelector('input[name="concepto"]').value;
       if (tr.querySelector('input[name="precioUnitSec"]')) {
-        const cantidad = Number(tr.querySelector('input[name="cantidadSec"]').value||0);
-        const unidad = tr.querySelector('input[name="unidadSec"]').value||'';
-        const precioUnit = Number(tr.querySelector('input[name="precioUnitSec"]').value||0);
+        const cantidad = Number(tr.querySelector('input[name="cantidadSec"]').value || 0);
+        const unidad = tr.querySelector('input[name="unidadSec"]').value || '';
+        const precioUnit = Number(tr.querySelector('input[name="precioUnitSec"]').value || 0);
         const total = cantidad * precioUnit;
         if (concepto || cantidad || unidad || precioUnit) items.push({ concepto, cantidad, unidad, precioUnit, total });
       } else {
         const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
-        const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
+        const precio = Number(tr.querySelector('input[name="precioSec"]').value || 0);
         if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
       }
     });
     if (titulo || items.length) secciones.push({ titulo, items });
   });
-  const subtotal = secciones.reduce((a,sec)=> a + (sec.items||[]).reduce((s,it)=> s + (it.total!=null? Number(it.total): Number(it.precio)||0), 0), 0);
+  const subtotal = secciones.reduce((a, sec) => a + (sec.items || []).reduce((s, it) => s + (it.total != null ? Number(it.total) : Number(it.precio) || 0), 0), 0);
   const incluyeIVA = datos.incluyeIVA === 'on';
-  const iva = incluyeIVA ? subtotal*0.16 : 0;
+  const iva = incluyeIVA ? subtotal * 0.16 : 0;
   const total = subtotal + iva;
   const cotizacion = {
     ...datos,
     secciones,
     subtotal, iva, total,
-    fotos: fotosCotizacion.slice(0,5),
+    fotos: fotosCotizacion.slice(0, 5),
     tipo: 'cotizacion',
     fecha: datos.fecha,
     hora: datos.hora || ahora(),
@@ -1773,7 +1779,7 @@ function rule(page, x1, y, x2, color = gray(0.85), thickness = 0.6) {
 
 // Dibuja texto envuelto en hasta 2 líneas dentro de un ancho máximo
 function drawWrapped(page, text, x, y, { font, size, color }, maxW) {
-  const words = String(text||'').split(/\s+/);
+  const words = String(text || '').split(/\s+/);
   const lines = [];
   let line = '';
   const measure = s => font.widthOfTextAtSize(s, size);
@@ -1889,7 +1895,7 @@ function applyFooters(pdfDoc, pages, fonts, dims) {
       if (s.showCredit !== false) {
         page.drawText('Programado por: Francisco L\u00F3pez Vel\u00E1zquez.', { x: dims.mx + 8, y: y - 24, size: 8.8, font: fonts.reg, color: gray(0.55) });
       }
-    } catch {}
+    } catch { }
   }
 }
 
@@ -1915,7 +1921,7 @@ async function embedSmart(pdfDoc, url) {
 
 // === Watermark tenue
 function drawWatermark(page, dims, logoImg, op = WATERMARK_OP) {
-  try { page.drawImage(logoImg, { x: (dims.pageW - WATERMARK_W) / 2, y: (dims.pageH - WATERMARK_H) / 2, width: WATERMARK_W, height: WATERMARK_H, opacity: op }); } catch {}
+  try { page.drawImage(logoImg, { x: (dims.pageW - WATERMARK_W) / 2, y: (dims.pageH - WATERMARK_H) / 2, width: WATERMARK_W, height: WATERMARK_H, opacity: op }); } catch { }
 }
 
 // === Control de salto de P\u00E1gina (sin encabezado en P\u00E1ginas siguientes)
@@ -1944,9 +1950,9 @@ function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10, re
 
   const page = ctx.pages[ctx.pages.length - 1];
   const labelTxt = String(label || "").toUpperCase();
-  const bodyTxt  = String(text || "").trim();
-  const lines = wrapTextLines(bodyTxt, fonts.reg, fontSize, dims.usableW - 2*pad);
-  const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2*pad);
+  const bodyTxt = String(text || "").trim();
+  const lines = wrapTextLines(bodyTxt, fonts.reg, fontSize, dims.usableW - 2 * pad);
+  const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2 * pad);
   const cardSelfHeight = 22 + 6 + bodyH + (opts.cardGap || 8);
   const needed = cardSelfHeight + (reserveBelow || 0);
 
@@ -1955,7 +1961,7 @@ function drawLabeledCard(pdfDoc, ctx, { label, text, fontSize = 11, pad = 10, re
   const pillW = Math.min(dims.usableW, fonts.bold.widthOfTextAtSize(labelTxt, 10.5) + 14);
   if (!opts.dryRun) {
     page.drawRectangle({ x: dims.mx, y: ctx.y - 18, width: pillW, height: 18, color: emsRgb(), opacity: 0.95 });
-    page.drawText(labelTxt, { x: dims.mx + 7, y: ctx.y - 14, size: 10.5, font: fonts.bold, color: PDFLib.rgb(1,1,1) });
+    page.drawText(labelTxt, { x: dims.mx + 7, y: ctx.y - 14, size: 10.5, font: fonts.bold, color: PDFLib.rgb(1, 1, 1) });
 
     const topBodyY = ctx.y - 18 - 5;
     page.drawRectangle({ x: dims.mx, y: topBodyY - bodyH, width: dims.usableW, height: bodyH, color: gray(0.985), borderColor: gray(0.90), borderWidth: 0.8 });
@@ -1978,14 +1984,14 @@ function parseObservaciones(raw) {
   let t = String(raw || "").trim();
   if (!t) return [];
   t = t.replace(/\r\n/g, "\n")
-       .replace(/[;?]/g, "\n")
-       .replace(/\n{2,}/g, "\n")
-       .replace(/\t/g, " ");
+    .replace(/[;?]/g, "\n")
+    .replace(/\n{2,}/g, "\n")
+    .replace(/\t/g, " ");
   const lines = t.split("\n").map(s => s.trim()).filter(Boolean);
   const items = [];
   for (let ln of lines) {
     ln = ln.replace(/^\s*[-*?]\s+/, "")
-           .replace(/^\s*\d+[\.\)]\s+/, "");
+      .replace(/^\s*\d+[\.\)]\s+/, "");
     if (ln) items.push(ln);
   }
   return items;
@@ -2060,17 +2066,17 @@ async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 8, pad
   const { dims, opts } = ctx;
 
   const emb1 = [], emb2 = [];
-  for (const u of row1Imgs) { const e = await embedSmart(pdfDoc, u); if (e) emb1.push({img:e, r:e.width/e.height}); }
-  for (const u of row2Imgs) { const e = await embedSmart(pdfDoc, u); if (e) emb2.push({img:e, r:e.width/e.height}); }
+  for (const u of row1Imgs) { const e = await embedSmart(pdfDoc, u); if (e) emb1.push({ img: e, r: e.width / e.height }); }
+  for (const u of row2Imgs) { const e = await embedSmart(pdfDoc, u); if (e) emb2.push({ img: e, r: e.width / e.height }); }
   if (emb1.length + emb2.length === 0) return;
 
-  const sumR1 = emb1.reduce((a,b)=>a+b.r,0) || 1;
-  const sumR2 = emb2.reduce((a,b)=>a+b.r,0) || 1;
+  const sumR1 = emb1.reduce((a, b) => a + b.r, 0) || 1;
+  const sumR2 = emb2.reduce((a, b) => a + b.r, 0) || 1;
 
-  let h1 = Math.floor((dims.usableW - gutter*(emb1.length-1)) / sumR1);
-  let h2 = Math.floor((dims.usableW - gutter*(emb2.length-1)) / sumR2);
+  let h1 = Math.floor((dims.usableW - gutter * (emb1.length - 1)) / sumR1);
+  let h2 = Math.floor((dims.usableW - gutter * (emb2.length - 1)) / sumR2);
 
-  const boxH = pad*2 + h1 + vGap + h2 + pad*2 + (opts.blockGap || 6);
+  const boxH = pad * 2 + h1 + vGap + h2 + pad * 2 + (opts.blockGap || 6);
   let avail = availablePageHeight(ctx) - 8;
   if (boxH > avail) {
     const s = (avail) / boxH;
@@ -2078,7 +2084,7 @@ async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 8, pad
     h2 = Math.floor(h2 * s);
   }
 
-  const needed = pad*2 + h1 + vGap + h2 + pad*2 + (opts.blockGap || 6);
+  const needed = pad * 2 + h1 + vGap + h2 + pad * 2 + (opts.blockGap || 6);
   ensureSpace(pdfDoc, ctx, needed);
 
   if (!opts.dryRun) {
@@ -2086,19 +2092,19 @@ async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 8, pad
     const topY = ctx.y;
 
     // fila 1
-    let x = dims.mx + Math.round((dims.usableW - (emb1.reduce((a,b)=>a+Math.round(b.r*h1),0) + gutter*(emb1.length-1)))/2);
+    let x = dims.mx + Math.round((dims.usableW - (emb1.reduce((a, b) => a + Math.round(b.r * h1), 0) + gutter * (emb1.length - 1))) / 2);
     let y = topY - pad - h1;
-    for (let i=0;i<emb1.length;i++) {
-      const w = Math.round(emb1[i].r*h1);
+    for (let i = 0; i < emb1.length; i++) {
+      const w = Math.round(emb1[i].r * h1);
       p.drawImage(emb1[i].img, { x, y, width: w, height: h1 });
       x += w + gutter;
     }
 
     // fila 2
-    x = dims.mx + Math.round((dims.usableW - (emb2.reduce((a,b)=>a+Math.round(b.r*h2),0) + gutter*(emb2.length-1)))/2);
+    x = dims.mx + Math.round((dims.usableW - (emb2.reduce((a, b) => a + Math.round(b.r * h2), 0) + gutter * (emb2.length - 1))) / 2);
     y = topY - pad - h1 - vGap - h2;
-    for (let i=0;i<emb2.length;i++) {
-      const w = Math.round(emb2[i].r*h2);
+    for (let i = 0; i < emb2.length; i++) {
+      const w = Math.round(emb2[i].r * h2);
       p.drawImage(emb2[i].img, { x, y, width: w, height: h2 });
       x += w + gutter;
     }
@@ -2106,16 +2112,16 @@ async function drawFourUpGrid(pdfDoc, ctx, row1Imgs, row2Imgs, { gutter = 8, pad
     // marco sutil de bloque
     p.drawRectangle({
       x: dims.mx,
-      y: topY - (pad*2 + h1 + vGap + h2),
+      y: topY - (pad * 2 + h1 + vGap + h2),
       width: dims.usableW,
-      height: pad*2 + h1 + vGap + h2,
+      height: pad * 2 + h1 + vGap + h2,
       color: gray(0.99),
       borderColor: gray(0.90),
       borderWidth: 0.6
     });
   }
 
-  ctx.y -= (pad*2 + h1 + vGap + h2 + (opts.blockGap || 6));
+  ctx.y -= (pad * 2 + h1 + vGap + h2 + (opts.blockGap || 6));
   ctx._atPageStart = false;
   ctx.state.prevBlock = "grid2x2";
 }
@@ -2209,8 +2215,8 @@ async function drawSmartGallery(
     // Si estamos al inicio de P\u00E1gina y hay >= 4 im?genes, aplicar grid 2x2
     if (ctx._atPageStart && (emb.length - i) >= 4) {
       await drawFourUpGrid(pdfDoc, ctx,
-        [images[i], images[i+1]],
-        [images[i+2], images[i+3]],
+        [images[i], images[i + 1]],
+        [images[i + 2], images[i + 3]],
         { gutter: 8, pad: 6, vGap: 8 }
       );
       i += 4;
@@ -2313,7 +2319,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   const secciones = (snap && Array.isArray(snap.secciones)) ? snap.secciones : [];
 
   // Subtotal soporta filas normales (precio) y detalladas (total)
-  let subtotal = secciones.reduce((acc, sec)=> acc + (sec.items||[]).reduce((a,it)=> a + (it.total!=null ? Number(it.total) : Number(it.precio)||0), 0), 0);
+  let subtotal = secciones.reduce((acc, sec) => acc + (sec.items || []).reduce((a, it) => a + (it.total != null ? Number(it.total) : Number(it.precio) || 0), 0), 0);
   const form = document.getElementById('cotForm');
   const incluyeIVA = form && form.incluyeIVA && form.incluyeIVA.checked;
   const iva = incluyeIVA ? subtotal * 0.16 : 0;
@@ -2321,8 +2327,8 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
 
   const { PDFDocument, rgb, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
-  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
   const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
   dims.usableW = dims.pageW - dims.mx * 2;
@@ -2330,8 +2336,8 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   const fonts = { reg: helv, bold: helvB };
   const logoImg = await getLogoImage(pdfDoc);
 
-  const ctx = { 
-    pages: [], y: 0, dims, fonts, datos, 
+  const ctx = {
+    pages: [], y: 0, dims, fonts, datos,
     typeLabel: decodeU("COTIZACI\u00D3N"), logoImg, _atPageStart: true,
     opts: { dryRun: false, titleGap: 8, cardGap: 8, blockGap: 6 },
     state: { prevBlock: 'start', inGallery: false, currentSection: null }
@@ -2362,41 +2368,41 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     const items = sec.items || [];
     const isDet = items.some(it => it && (it.precioUnit != null || it.cantidad != null || it.unidad != null || it.total != null));
     // Banda de seccion
-    drawSectionBand(pdfDoc, ctx, sec.titulo || `Seccion ${s+1}`);
+    drawSectionBand(pdfDoc, ctx, sec.titulo || `Seccion ${s + 1}`);
     ensureSpace(pdfDoc, ctx, 24);
     const pT = currentPage();
     const thY = ctx.y;
     pT.drawRectangle({ x: dims.mx, y: thY - 18, width: dims.usableW, height: 20, color: emsRgb(), opacity: 0.98 });
     if (!isDet) {
       // Cabecera normal (omite Descripción si todos vacíos)
-      const hasDesc = items.some(it => String(it.descripcion||'').trim() !== '');
+      const hasDesc = items.some(it => String(it.descripcion || '').trim() !== '');
       ctx.__normalHasDesc = hasDesc;
       const xPrecio = dims.mx + dims.usableW - 120;
       ctx.__normalXPrecio = xPrecio;
-      pT.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      if (hasDesc) pT.drawText(decodeU("Descripci\\u00F3n"), { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      pT.drawText("Precio", { x: xPrecio, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      pT.drawText("Concepto", { x: dims.mx + 6, y: thY - 12, size: 11, font: helvB, color: rgb(1, 1, 1) });
+      if (hasDesc) pT.drawText(decodeU("Descripci\\u00F3n"), { x: dims.mx + 180, y: thY - 12, size: 11, font: helvB, color: rgb(1, 1, 1) });
+      pT.drawText("Precio", { x: xPrecio, y: thY - 12, size: 11, font: helvB, color: rgb(1, 1, 1) });
       // Líneas verticales header (normal)
-      if (hasDesc) pT.drawLine({ start:{ x: (dims.mx + 180) - 6, y: thY - 18 }, end:{ x: (dims.mx + 180) - 6, y: thY + 2 }, thickness: 0.6, color: rgb(1,1,1) });
-      pT.drawLine({ start:{ x: (xPrecio) - 6, y: thY - 18 }, end:{ x: (xPrecio) - 6, y: thY + 2 }, thickness: 0.6, color: rgb(1,1,1) });
+      if (hasDesc) pT.drawLine({ start: { x: (dims.mx + 180) - 6, y: thY - 18 }, end: { x: (dims.mx + 180) - 6, y: thY + 2 }, thickness: 0.6, color: rgb(1, 1, 1) });
+      pT.drawLine({ start: { x: (xPrecio) - 6, y: thY - 18 }, end: { x: (xPrecio) - 6, y: thY + 2 }, thickness: 0.6, color: rgb(1, 1, 1) });
     } else {
       // Cabecera detallada
       const widths = { cant: 60, unidad: 90, punit: 100, total: 100 }; const conceptW = dims.usableW - (widths.cant + widths.unidad + widths.punit + widths.total) - 20;
       var xConcept = dims.mx + 6;
-      var xCant    = xConcept + conceptW + 6;
-      var xUnidad  = xCant + widths.cant + 6;
-      var xPunit   = xUnidad + widths.unidad + 6;
-      var xTotal   = xPunit + widths.punit + 6;
-      pT.drawText("Concepto", { x: xConcept + 4, y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      pT.drawText("Cant.",    { x: xCant + 4,    y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      pT.drawText("Unidad",   { x: xUnidad + 4,  y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      pT.drawText("P. Unit.", { x: xPunit + 4,   y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
-      pT.drawText("Total",    { x: xTotal + 4,   y: thY - 12, size: 11, font: helvB, color: rgb(1,1,1) });
+      var xCant = xConcept + conceptW + 6;
+      var xUnidad = xCant + widths.cant + 6;
+      var xPunit = xUnidad + widths.unidad + 6;
+      var xTotal = xPunit + widths.punit + 6;
+      pT.drawText("Concepto", { x: xConcept + 4, y: thY - 12, size: 11, font: helvB, color: rgb(1, 1, 1) });
+      pT.drawText("Cant.", { x: xCant + 4, y: thY - 12, size: 11, font: helvB, color: rgb(1, 1, 1) });
+      pT.drawText("Unidad", { x: xUnidad + 4, y: thY - 12, size: 11, font: helvB, color: rgb(1, 1, 1) });
+      pT.drawText("P. Unit.", { x: xPunit + 4, y: thY - 12, size: 11, font: helvB, color: rgb(1, 1, 1) });
+      pT.drawText("Total", { x: xTotal + 4, y: thY - 12, size: 11, font: helvB, color: rgb(1, 1, 1) });
       // Guardar en ctx para filas
       ctx.__detCols = { widths, conceptW, xConcept, xCant, xUnidad, xPunit, xTotal };
       // Líneas verticales en la cabecera (separadores de columnas)
       [xCant - 3, xUnidad - 3, xPunit - 3, xTotal - 3].forEach(x => {
-        pT.drawLine({ start: { x, y: thY - 18 }, end: { x, y: thY + 2 }, thickness: 0.6, color: rgb(1,1,1) });
+        pT.drawLine({ start: { x, y: thY - 18 }, end: { x, y: thY + 2 }, thickness: 0.6, color: rgb(1, 1, 1) });
       });
     }
     ctx.y = thY - 36;
@@ -2405,31 +2411,31 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
       ensureSpace(pdfDoc, ctx, 22);
       const p = currentPage();
       if (idx % 2 === 0) {
-        p.drawRectangle({ x: dims.mx, y: ctx.y - 2, width: dims.usableW, height: 18, color: rgb(0.98,0.91,0.75), opacity: 0.16 });
+        p.drawRectangle({ x: dims.mx, y: ctx.y - 2, width: dims.usableW, height: 18, color: rgb(0.98, 0.91, 0.75), opacity: 0.16 });
       }
       if (!isDet) {
         const hasDesc = !!ctx.__normalHasDesc;
         if (hasDesc) {
-          p.drawText(String(it.concepto||""), { x: dims.mx + 6, y: ctx.y, size: 10, font: helv, color: gray(0.24) });
+          p.drawText(String(it.concepto || ""), { x: dims.mx + 6, y: ctx.y, size: 10, font: helv, color: gray(0.24) });
           const maxW = dims.usableW - 120 - (180 - 6);
-          const lines = wrapTextLines(String(it.descripcion||""), helv, 10, maxW);
+          const lines = wrapTextLines(String(it.descripcion || ""), helv, 10, maxW);
           let yy = ctx.y;
-          lines.slice(0,3).forEach((ln)=>{ p.drawText(ln, { x: dims.mx + 180, y: yy, size: 10, font: helv, color: gray(0.28) }); yy -= 12; });
+          lines.slice(0, 3).forEach((ln) => { p.drawText(ln, { x: dims.mx + 180, y: yy, size: 10, font: helv, color: gray(0.28) }); yy -= 12; });
         } else {
           const maxW2 = dims.usableW - 120 - 12;
-          const lines2 = wrapTextLines(String(it.concepto||""), helv, 10, maxW2);
+          const lines2 = wrapTextLines(String(it.concepto || ""), helv, 10, maxW2);
           let yy2 = ctx.y;
-          lines2.slice(0,3).forEach((ln)=>{ p.drawText(ln, { x: dims.mx + 6, y: yy2, size: 10, font: helv, color: gray(0.24) }); yy2 -= 12; });
+          lines2.slice(0, 3).forEach((ln) => { p.drawText(ln, { x: dims.mx + 6, y: yy2, size: 10, font: helv, color: gray(0.24) }); yy2 -= 12; });
         }
         drawTextRight(p, mostrarPrecioLimpio(it.precio), dims.mx + dims.usableW - 4, ctx.y, { size: 10, font: helv, color: gray(0.24) });
-        subSec += Number(it.precio)||0;
+        subSec += Number(it.precio) || 0;
       } else {
         const cols = ctx.__detCols;
-        const cantidad = Number(it.cantidad)||0;
-        const unidad = String(it.unidad||"");
-        const precioUnit = Number(it.precioUnit)||0;
-        const totalRow = (it.total!=null ? Number(it.total) : (cantidad*precioUnit));
-        p.drawText(String(it.concepto||""), { x: cols.xConcept, y: ctx.y, size: 10, font: helv, color: gray(0.24) });
+        const cantidad = Number(it.cantidad) || 0;
+        const unidad = String(it.unidad || "");
+        const precioUnit = Number(it.precioUnit) || 0;
+        const totalRow = (it.total != null ? Number(it.total) : (cantidad * precioUnit));
+        p.drawText(String(it.concepto || ""), { x: cols.xConcept, y: ctx.y, size: 10, font: helv, color: gray(0.24) });
         drawTextRight(p, String(cantidad), (cols.xCant + cols.widths.cant) - 4, ctx.y, { size: 10, font: helv, color: gray(0.28) });
         p.drawText(unidad, { x: cols.xUnidad + 4, y: ctx.y, size: 10, font: helv, color: gray(0.28) });
         drawTextRight(p, mostrarPrecioLimpio(precioUnit), (cols.xPunit + cols.widths.punit) - 4, ctx.y, { size: 10, font: helv, color: gray(0.24) });
@@ -2439,7 +2445,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
         [cols.xCant - 3, cols.xUnidad - 3, cols.xPunit - 3, cols.xTotal - 3].forEach(x => {
           p.drawLine({ start: { x, y: yBot }, end: { x, y: yTop }, thickness: 0.3, color: gray(0.88) });
         });
-        subSec += Number(totalRow)||0;
+        subSec += Number(totalRow) || 0;
       }
       rule(p, dims.mx, ctx.y - 3, dims.pageW - dims.mx, gray(0.93), 0.4);
       ctx.y -= 18;
@@ -2476,9 +2482,9 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     await drawSmartGallery(pdfDoc, ctx, fotosCotizacion.slice(0, 10), {
       title: "Anexos fotogr\u00E1ficos",
       captions: false,
-      baseTargetRowH: Number(pdfCfg.galleryBase)||200,
-      minRowH: Number(pdfCfg.galleryMin)||160,
-      maxRowH: Number(pdfCfg.galleryMax)||235,
+      baseTargetRowH: Number(pdfCfg.galleryBase) || 200,
+      minRowH: Number(pdfCfg.galleryMin) || 160,
+      maxRowH: Number(pdfCfg.galleryMax) || 235,
       minImgW: 150,
       gutter: 8,
       rowPad: 5
@@ -2504,7 +2510,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
       ctx.y = drawSectionTitle(currentPage(), dims.mx, ctx.y, "T\u00E9rminos y Condiciones", fonts, { titleGap: 8, dryRun: false });
       drawLabeledCard(pdfDoc, ctx, { label: "T\u00E9rminos", text: String(tc).trim(), fontSize: 10 });
     }
-  } catch {}
+  } catch { }
 
   applyFooters(pdfDoc, ctx.pages, fonts, dims);
 
@@ -2519,7 +2525,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
   // Si no es preview, proceder con download y luego compartir (si fue solicitado)
   showProgress(true, 90, "Exportando...");
   const blob = new Blob([pdfBytes], { type: "application/pdf" });
-  const file = new File([blob], `Cotizacion_${datos.numero||"cotizacion"}.pdf`, { type: "application/pdf" });
+  const file = new File([blob], `Cotizacion_${datos.numero || "cotizacion"}.pdf`, { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   try {
     // Descargar
@@ -2534,7 +2540,7 @@ async function generarPDFCotizacion(share = false, isPreview = false) {
     // Compartir (si aplica y est\u00E1 soportado)
     if (share && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: "COTIZACI\u00D3N", text: `COTIZACI\u00D3N ${datos.numero||""} de Electromotores Santana` });
+        await navigator.share({ files: [file], title: "COTIZACI\u00D3N", text: `COTIZACI\u00D3N ${datos.numero || ""} de Electromotores Santana` });
       } catch (_) { /* usuario cancel? o no disponible */ }
     }
   } finally {
@@ -2551,7 +2557,7 @@ function renderCotSeccionDet(seccion = {}, rowId) {
     const cantidad = it.cantidad ?? '';
     const unidad = it.unidad ?? '';
     const punit = it.precioUnit ?? '';
-    const tot = (Number(cantidad)||0) * (Number(punit)||0);
+    const tot = (Number(cantidad) || 0) * (Number(punit) || 0);
     return `
       <tr>
         <td><input type="text" name="concepto" value="${safe(it.concepto)}" list="conceptosEMS" autocomplete="off" spellcheck="true" autocapitalize="sentences"></td>
@@ -2569,7 +2575,11 @@ function renderCotSeccionDet(seccion = {}, rowId) {
   return `
     <div class="cot-seccion" data-secid="${id}" data-mode="det">
       <div class="cot-seccion-head">
-        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="T\\u00EDtulo de secci\\u00F3n (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
+        <input type="text" class="cot-sec-title" name="sec_titulo" placeholder="Título de sección (ej. Refacciones, Mano de obra)" value="${safe(seccion.titulo)}">
+        <label class="section-mode-toggle">
+          <input type="checkbox" checked onchange="toggleSeccionMode(this)">
+          <span>Detallado</span>
+        </label>
         <div class="cot-sec-actions">
           <button type="button" class="btn-mini" data-action="add-row"><i class="fa fa-plus"></i> Agregar rubro</button>
           <button type="button" class="btn-mini" data-action="remove-section"><i class="fa fa-trash"></i></button>
@@ -2590,7 +2600,7 @@ function renderCotSeccionDet(seccion = {}, rowId) {
           ${itemsHtml}
         </tbody>
       </table>
-      <div class="cot-seccion-subtotal"><span>Subtotal secci\\u00F3n:</span> <b class="cot-subtotal-val">$0.00</b></div>
+      <div class="cot-seccion-subtotal"><span>Subtotal sección:</span> <b class="cot-subtotal-val">$0.00</b></div>
     </div>
   `;
 }
@@ -2616,7 +2626,7 @@ function editarCotizacion(datos) {
   if (Array.isArray(datos.secciones) && datos.secciones.length) {
     datos.secciones.forEach(sec => agregarCotSeccion(sec));
   } else if (Array.isArray(datos.items) && datos.items.length) {
-    const sec = { titulo: 'General', items: datos.items.map(it=>({ concepto: it.concepto, descripcion: '', precio: it.precio })) };
+    const sec = { titulo: 'General', items: datos.items.map(it => ({ concepto: it.concepto, descripcion: '', precio: it.precio })) };
     agregarCotSeccion(sec);
   } else {
     agregarCotSeccion({ titulo: 'General', items: [{}] });
@@ -2650,7 +2660,7 @@ async function abrirReporte(numero) {
   (datos.items || []).forEach((item) => {
     const id = item._id || newUID();
     fotosItemsReporteMap[id] = Array.isArray(item.fotos) ? [...item.fotos] : [];
-    tbody.insertAdjacentHTML("beforeend", renderRepItemRow({ ...item, _id:id }, id, true));
+    tbody.insertAdjacentHTML("beforeend", renderRepItemRow({ ...item, _id: id }, id, true));
   });
   if ((datos.items || []).length === 0) agregarRepItemRow();
   form.notas.value = datos.notas || "";
@@ -2675,8 +2685,8 @@ async function abrirDetalleEMS(tipo, numero) {
 // ======= (NUEVO) Medidor de altura de tarjeta de descripci?n =======
 function measureCardHeight(ctx, text, fontSize = 11, pad = 10) {
   const { fonts, dims, opts } = ctx;
-  const lines = wrapTextLines(String(text||"").trim(), fonts.reg, fontSize, dims.usableW - 2*pad);
-  const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2*pad);
+  const lines = wrapTextLines(String(text || "").trim(), fonts.reg, fontSize, dims.usableW - 2 * pad);
+  const bodyH = Math.max(22, lines.length * (fontSize + 3) + 2 * pad);
   return 22 + 6 + bodyH + (opts.cardGap || 8); // altura total de la tarjeta
 }
 
@@ -2684,18 +2694,18 @@ function measureCardHeight(ctx, text, fontSize = 11, pad = 10) {
 async function composeReportePDF({ datos, items, params, dryRun = false }) {
   const { PDFDocument, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
-  const helv   = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helvB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helvB = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
   const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
-  dims.usableW = dims.pageW - dims.mx*2;
+  dims.usableW = dims.pageW - dims.mx * 2;
   const fonts = { reg: helv, bold: helvB };
   const logoImg = await getLogoImage(pdfDoc);
 
-  const ctx = { 
-    pages: [], y: 0, dims, fonts, datos, 
+  const ctx = {
+    pages: [], y: 0, dims, fonts, datos,
     typeLabel: "REPORTE DE SERVICIO", logoImg, _atPageStart: true,
-    opts: { 
+    opts: {
       dryRun,
       titleGap: params.titleGap,
       cardGap: params.cardGap,
@@ -2729,7 +2739,7 @@ async function composeReportePDF({ datos, items, params, dryRun = false }) {
     const cardH = measureCardHeight(ctx, descText, 11, 10);
     const bandH = 26 + 8; // alto de la banda + respiro
     // Reserva conservadora para la 1? fila (pero compacta)
-    const reserveFirstRow = fotos.length > 0 ? (params.maxRowH + 2*5 + (ctx.opts.blockGap || 6) + 18) : 0;
+    const reserveFirstRow = fotos.length > 0 ? (params.maxRowH + 2 * 5 + (ctx.opts.blockGap || 6) + 18) : 0;
 
     // Garantiza que todo el bloque inicial del ?tem entre junto
     ensureSpace(pdfDoc, ctx, bandH + cardH + reserveFirstRow);
@@ -2876,12 +2886,12 @@ async function generarPDFReporte(share = false, isPreview = false) {
   const s = getSettings();
   const pdfCfg = s?.pdf || {};
   let params = {
-    baseRowH: Number(pdfCfg.galleryBase)||200,
-    minRowH: Number(pdfCfg.galleryMin)||160,
-    maxRowH: Number(pdfCfg.galleryMax)||235,
-    titleGap: Number(pdfCfg.titleGap)||8,
-    cardGap: Number(pdfCfg.cardGap)||8,
-    blockGap: Number(pdfCfg.blockGap)||6
+    baseRowH: Number(pdfCfg.galleryBase) || 200,
+    minRowH: Number(pdfCfg.galleryMin) || 160,
+    maxRowH: Number(pdfCfg.galleryMax) || 235,
+    titleGap: Number(pdfCfg.titleGap) || 8,
+    cardGap: Number(pdfCfg.cardGap) || 8,
+    blockGap: Number(pdfCfg.blockGap) || 6
   };
 
   // --- Pre-flight con hasta 2 ajustes autom?ticos ---
@@ -2890,9 +2900,9 @@ async function generarPDFReporte(share = false, isPreview = false) {
     if (ctx.audit.pages >= 6) {
       // documento muy largo: compactar m?s
       params.baseRowH = Math.max(180, params.baseRowH - 10);
-      params.minRowH  = Math.max(150, params.minRowH - 8);
-      params.maxRowH  = Math.max(210, params.maxRowH - 12);
-      params.cardGap  = Math.max(6, params.cardGap - 2);
+      params.minRowH = Math.max(150, params.minRowH - 8);
+      params.maxRowH = Math.max(210, params.maxRowH - 12);
+      params.cardGap = Math.max(6, params.cardGap - 2);
       params.blockGap = Math.max(6, params.blockGap - 2);
       params.titleGap = Math.max(6, params.titleGap - 2);
       continue;
@@ -2914,7 +2924,7 @@ async function generarPDFReporte(share = false, isPreview = false) {
       ctx.y = drawSectionTitle(ctx.pages[ctx.pages.length - 1], ctx.dims.mx, ctx.y, "T\u00E9rminos y Condiciones", ctx.fonts, { titleGap: 8, dryRun: false });
       drawLabeledCard(pdfDoc, ctx, { label: "T\u00E9rminos", text: String(tc).trim(), fontSize: 10 });
     }
-  } catch {}
+  } catch { }
 
   // Pie de P\u00E1gina en todas
   applyFooters(pdfDoc, ctx.pages, ctx.fonts, ctx.dims);
@@ -2950,7 +2960,7 @@ async function generarPDFReporte(share = false, isPreview = false) {
     }
     // Compartir si fue solicitado y est\u00E1 soportado
     if (share && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero||""} de Electromotores Santana` }); } catch {}
+      try { await navigator.share({ files: [file], title: "Reporte", text: `Reporte ${datos.numero || ""} de Electromotores Santana` }); } catch { }
     }
   } finally {
     setTimeout(() => URL.revokeObjectURL(url), 3000);
@@ -2998,7 +3008,7 @@ async function eliminarReporteCompleto(numero) {
 function agregarDictadoMicros() {
   document.querySelectorAll(".mic-btn:not(.ems-mic-init)").forEach(btn => {
     btn.classList.add("ems-mic-init");
-    btn.onclick = function() {
+    btn.onclick = function () {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition;
       if (!SpeechRecognition) { showModal("Tu navegador no soporta dictado por voz.", "warning"); return; }
       const recog = new SpeechRecognition();
@@ -3021,9 +3031,9 @@ function agregarDictadoMicros() {
 }
 
 // ====== Sobrescrituras de confirmaci?n por palabra en Acciónes destructivas ======
-function confirmByTyping(seed = 'eliminar', title = 'Confirmar Acción', onConfirm = ()=>{}) {
-  const words = ['eliminar','borrar','confirmar','continuar','aprobar','aceptar'];
-  const w = words[Math.floor(Math.random()*words.length)];
+function confirmByTyping(seed = 'eliminar', title = 'Confirmar Acción', onConfirm = () => { }) {
+  const words = ['eliminar', 'borrar', 'confirmar', 'continuar', 'aprobar', 'aceptar'];
+  const w = words[Math.floor(Math.random() * words.length)];
   const overlay = document.createElement('div');
   overlay.className = 'ems-confirm-overlay';
   overlay.innerHTML = `
@@ -3037,9 +3047,9 @@ function confirmByTyping(seed = 'eliminar', title = 'Confirmar Acción', onConfi
       </div>
     </div>`;
   document.body.appendChild(overlay);
-  const close = ()=>{ try { document.body.removeChild(overlay); } catch {} };
+  const close = () => { try { document.body.removeChild(overlay); } catch { } };
   overlay.querySelector('#emsConfirmCancel').onclick = close;
-  overlay.querySelector('#emsConfirmOk').onclick = ()=>{
+  overlay.querySelector('#emsConfirmOk').onclick = () => {
     const val = overlay.querySelector('#emsConfirmInput').value.trim().toLowerCase();
     if (val === w) { try { onConfirm(); } finally { close(); } }
     else { showToast('Palabra incorrecta. Intenta nuevamente.', 'error'); }
@@ -3048,62 +3058,62 @@ function confirmByTyping(seed = 'eliminar', title = 'Confirmar Acción', onConfi
 
 // Re-definir eliminaciones puntuales para requerir confirmaci?n por palabra
 const __orig_eliminarCotItemRow = typeof eliminarCotItemRow === 'function' ? eliminarCotItemRow : null;
-function eliminarCotItemRow(btn){
-  confirmByTyping('eliminar','Eliminar este elemento de COTIZACI\u00D3N',()=>{
-    try{ const tr = btn.closest('tr'); tr && tr.remove(); recalcTotalesCotizacion?.(); }catch{}
+function eliminarCotItemRow(btn) {
+  confirmByTyping('eliminar', 'Eliminar este elemento de COTIZACI\u00D3N', () => {
+    try { const tr = btn.closest('tr'); tr && tr.remove(); recalcTotalesCotizacion?.(); } catch { }
   });
 }
 
 const __orig_eliminarRepItemRow = typeof eliminarRepItemRow === 'function' ? eliminarRepItemRow : null;
-function eliminarRepItemRow(btn){
-  confirmByTyping('eliminar','Eliminar esta actividad del reporte',()=>{
-    try{
+function eliminarRepItemRow(btn) {
+  confirmByTyping('eliminar', 'Eliminar esta actividad del reporte', () => {
+    try {
       const tr = btn.closest('tr');
       const id = tr?.getAttribute('data-rowid');
       if (id && fotosItemsReporteMap[id]) delete fotosItemsReporteMap[id];
       tr && tr.remove();
-    }catch{}
+    } catch { }
   });
 }
 
 const __orig_eliminarFotoRepItem = typeof eliminarFotoRepItem === 'function' ? eliminarFotoRepItem : null;
-function eliminarFotoRepItem(btn, id, fidx){
-  confirmByTyping('borrar','Eliminar esta imagen del item',()=>{
-    try{
+function eliminarFotoRepItem(btn, id, fidx) {
+  confirmByTyping('borrar', 'Eliminar esta imagen del item', () => {
+    try {
       if (!fotosItemsReporteMap[id]) return;
-      fotosItemsReporteMap[id].splice(fidx,1);
+      fotosItemsReporteMap[id].splice(fidx, 1);
       const tr = btn.closest('tr');
       const desc = tr?.querySelector('textarea')?.value || '';
-      tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id:id }, id, true);
+      tr.outerHTML = renderRepItemRow({ descripcion: desc, fotos: fotosItemsReporteMap[id], _id: id }, id, true);
       agregarDictadoMicros(); activarPredictivosInstantaneos();
-    }catch{}
+    } catch { }
   });
 }
 
 const __orig_eliminarFotoCot = typeof eliminarFotoCot === 'function' ? eliminarFotoCot : null;
-function eliminarFotoCot(index){
-  confirmByTyping('borrar','Eliminar esta imagen de la COTIZACI\u00D3N',()=>{
-    try{ fotosCotizacion.splice(index,1); renderCotFotosPreview(); guardarCotizacionDraft?.(); }catch{}
+function eliminarFotoCot(index) {
+  confirmByTyping('borrar', 'Eliminar esta imagen de la COTIZACI\u00D3N', () => {
+    try { fotosCotizacion.splice(index, 1); renderCotFotosPreview(); guardarCotizacionDraft?.(); } catch { }
   });
 }
 
 const __orig_eliminarCotizacionCompleta = typeof eliminarCotizacionCompleta === 'function' ? eliminarCotizacionCompleta : null;
-async function eliminarCotizacionCompleta(numero){
-  if (!numero){ const form = document.getElementById('cotForm'); if (form && form.numero && form.numero.value) numero=form.numero.value; }
+async function eliminarCotizacionCompleta(numero) {
+  if (!numero) { const form = document.getElementById('cotForm'); if (form && form.numero && form.numero.value) numero = form.numero.value; }
   if (!numero) return showModal('No se encontr? el n\u00FAmero de COTIZACI\u00D3N.', 'error');
-  confirmByTyping('eliminar','Para confirmar escribe la palabra indicada', async ()=>{
-    try{ await db.collection('cotizaciones').doc(numero).delete(); showSaved('COTIZACI\u00D3N eliminada'); localStorage.removeItem('EMS_COT_BORRADOR'); renderInicio(); }
-    catch(e){ showModal('Error eliminando COTIZACI\u00D3N: '+(e?.message||e), 'error'); }
+  confirmByTyping('eliminar', 'Para confirmar escribe la palabra indicada', async () => {
+    try { await db.collection('cotizaciones').doc(numero).delete(); showSaved('COTIZACI\u00D3N eliminada'); localStorage.removeItem('EMS_COT_BORRADOR'); renderInicio(); }
+    catch (e) { showModal('Error eliminando COTIZACI\u00D3N: ' + (e?.message || e), 'error'); }
   });
 }
 
 const __orig_eliminarReporteCompleto = typeof eliminarReporteCompleto === 'function' ? eliminarReporteCompleto : null;
-async function eliminarReporteCompleto(numero){
-  if (!numero){ const form = document.getElementById('repForm'); if (form && form.numero && form.numero.value) numero=form.numero.value; }
+async function eliminarReporteCompleto(numero) {
+  if (!numero) { const form = document.getElementById('repForm'); if (form && form.numero && form.numero.value) numero = form.numero.value; }
   if (!numero) return showModal('No se encontr? el n\u00FAmero de reporte.', 'error');
-  confirmByTyping('eliminar','Para confirmar escribe la palabra indicada', async ()=>{
-    try{ await db.collection('reportes').doc(numero).delete(); showSaved('Reporte eliminado'); localStorage.removeItem('EMS_REP_BORRADOR'); renderInicio(); }
-    catch(e){ showModal('Error eliminando reporte: '+(e?.message||e), 'error'); }
+  confirmByTyping('eliminar', 'Para confirmar escribe la palabra indicada', async () => {
+    try { await db.collection('reportes').doc(numero).delete(); showSaved('Reporte eliminado'); localStorage.removeItem('EMS_REP_BORRADOR'); renderInicio(); }
+    catch (e) { showModal('Error eliminando reporte: ' + (e?.message || e), 'error'); }
   });
 }
 // ===== Panel de Ajustes (tema/pdf) =====
@@ -3122,21 +3132,21 @@ function openSettings() {
       <div class="ems-settings-body">
         <div class="ems-form-row">
           <div class="ems-form-group"><label>Color principal</label><input type="color" id="setThemeColor" value="${themeHex}"></div>
-          <div class="ems-form-group"><label>Mostrar cr?dito (pie de P\u00E1gina)</label><select id="setShowCredit"><option value="1" ${s.showCredit!==false?'selected':''}>S?</option><option value="0" ${s.showCredit===false?'selected':''}>No</option></select></div>
+          <div class="ems-form-group"><label>Mostrar cr?dito (pie de P\u00E1gina)</label><select id="setShowCredit"><option value="1" ${s.showCredit !== false ? 'selected' : ''}>S?</option><option value="0" ${s.showCredit === false ? 'selected' : ''}>No</option></select></div>
         </div>
         <div class="ems-form-row">
-          <div class="ems-form-group"><label>Tama?o base de fotos (px)</label><input type="number" id="setGalBase" min="120" max="300" value="${pdf.galleryBase||200}"></div>
-          <div class="ems-form-group"><label>Tama?o m?nimo (px)</label><input type="number" id="setGalMin" min="120" max="260" value="${pdf.galleryMin||160}"></div>
-          <div class="ems-form-group"><label>Tama?o m?ximo (px)</label><input type="number" id="setGalMax" min="160" max="300" value="${pdf.galleryMax||235}"></div>
+          <div class="ems-form-group"><label>Tama?o base de fotos (px)</label><input type="number" id="setGalBase" min="120" max="300" value="${pdf.galleryBase || 200}"></div>
+          <div class="ems-form-group"><label>Tama?o m?nimo (px)</label><input type="number" id="setGalMin" min="120" max="260" value="${pdf.galleryMin || 160}"></div>
+          <div class="ems-form-group"><label>Tama?o m?ximo (px)</label><input type="number" id="setGalMax" min="160" max="300" value="${pdf.galleryMax || 235}"></div>
         </div>
         <div class="ems-form-row">
-          <div class="ems-form-group"><label>Espaciado de t\u00EDtulos</label><input type="number" id="setTitleGap" min="4" max="20" value="${pdf.titleGap||8}"></div>
-          <div class="ems-form-group"><label>Espaciado entre tarjetas</label><input type="number" id="setCardGap" min="4" max="20" value="${pdf.cardGap||8}"></div>
-          <div class="ems-form-group"><label>Espaciado entre bloques</label><input type="number" id="setBlockGap" min="4" max="20" value="${pdf.blockGap||6}"></div>
+          <div class="ems-form-group"><label>Espaciado de t\u00EDtulos</label><input type="number" id="setTitleGap" min="4" max="20" value="${pdf.titleGap || 8}"></div>
+          <div class="ems-form-group"><label>Espaciado entre tarjetas</label><input type="number" id="setCardGap" min="4" max="20" value="${pdf.cardGap || 8}"></div>
+          <div class="ems-form-group"><label>Espaciado entre bloques</label><input type="number" id="setBlockGap" min="4" max="20" value="${pdf.blockGap || 6}"></div>
         </div>
         <div class="ems-form-group">
           <label>T\u00E9rminos y Condiciones (aparecen al final del PDF)</label>
-          <textarea id="setTC" rows="4" placeholder="Escribe aqu? tus T\u00E9rminos...">${(s.tc||'')}</textarea>
+          <textarea id="setTC" rows="4" placeholder="Escribe aqu? tus T\u00E9rminos...">${(s.tc || '')}</textarea>
           <small>Se guardan en el dispositivo y se incluyen en Cotizaciones y Reportes.</small>
         </div>
       </div>
@@ -3154,11 +3164,11 @@ function openSettings() {
       const row = document.createElement('div');
       row.className = 'ems-form-row';
       row.innerHTML = `<div class="ems-form-group"><label>Tabla detallada de COTIZACI\u00D3N</label>
-        <label class="ems-switch"><input type="checkbox" id="setCotDet" ${getSettings()?.cotDetallado? 'checked':''}><span class="ems-switch-ui" aria-hidden="true"></span></label>
+        <label class="ems-switch"><input type="checkbox" id="setCotDet" ${getSettings()?.cotDetallado ? 'checked' : ''}><span class="ems-switch-ui" aria-hidden="true"></span></label>
       </div>`;
       body.insertBefore(row, body.firstElementChild?.nextElementSibling || null);
     }
-  } catch {}
+  } catch { }
   // Ayudas r\u00E1pidas (??)
   try {
     const addHelpFor = (sel, tip) => {
@@ -3182,29 +3192,29 @@ function openSettings() {
     addHelpFor('#setBlockGap', 'Separaci?n general entre secciones.');
     // Default de T&C si vac?o
     const tc = overlay.querySelector('#setTC');
-    if (tc && !String(tc.value||'').trim()) {
+    if (tc && !String(tc.value || '').trim()) {
       tc.value = 'Vigencia: 15 d\u00EDas naturales a partir de la fecha de COTIZACI\u00D3N.\nPrecios en MXN. El IVA se incluye s\u00F3lo si est\u00E1 indicado.\nTiempo de entrega sujeto a confirmaci?n. Garant?a limitada por defecto de fabricaci?n y/o servicio seg?n aplique.';
     }
     addHelpFor('#setTC', 'Se insertan al final del PDF (COTIZACI\u00D3N y reporte).');
-  } catch {}
+  } catch { }
   overlay.querySelector('#btnSaveSettings').onclick = () => {
     const next = {
       themeColor: overlay.querySelector('#setThemeColor').value,
       showCredit: overlay.querySelector('#setShowCredit').value === '1',
       pdf: {
-        galleryBase: Number(overlay.querySelector('#setGalBase').value)||200,
-        galleryMin: Number(overlay.querySelector('#setGalMin').value)||160,
-        galleryMax: Number(overlay.querySelector('#setGalMax').value)||235,
-        titleGap: Number(overlay.querySelector('#setTitleGap').value)||8,
-        cardGap: Number(overlay.querySelector('#setCardGap').value)||8,
-        blockGap: Number(overlay.querySelector('#setBlockGap').value)||6,
+        galleryBase: Number(overlay.querySelector('#setGalBase').value) || 200,
+        galleryMin: Number(overlay.querySelector('#setGalMin').value) || 160,
+        galleryMax: Number(overlay.querySelector('#setGalMax').value) || 235,
+        titleGap: Number(overlay.querySelector('#setTitleGap').value) || 8,
+        cardGap: Number(overlay.querySelector('#setCardGap').value) || 8,
+        blockGap: Number(overlay.querySelector('#setBlockGap').value) || 6,
       },
-      tc: String(overlay.querySelector('#setTC').value||'').trim()
+      tc: String(overlay.querySelector('#setTC').value || '').trim()
     };
-    try { next.cotDetallado = !!overlay.querySelector('#setCotDet')?.checked; } catch {}
+    try { next.cotDetallado = !!overlay.querySelector('#setCotDet')?.checked; } catch { }
     saveSettings(next);
     showSaved('Ajustes guardados');
-    try { applyThemeFromSettings(); } catch {}
+    try { applyThemeFromSettings(); } catch { }
     overlay.remove();
   };
 }
@@ -3218,15 +3228,15 @@ function serializeCotizacionForm() {
   document.querySelectorAll('#cotSeccionesWrap .cot-seccion').forEach(sec => {
     const titulo = sec.querySelector('input[name="sec_titulo"]').value.trim();
     const items = [];
-    sec.querySelectorAll('tbody tr').forEach(tr=>{
+    sec.querySelectorAll('tbody tr').forEach(tr => {
       const concepto = tr.querySelector('input[name="concepto"]').value;
       const descripcion = tr.querySelector('textarea[name="descripcion"]').value;
-      const precio = Number(tr.querySelector('input[name="precioSec"]').value||0);
+      const precio = Number(tr.querySelector('input[name="precioSec"]').value || 0);
       if (concepto || descripcion || precio) items.push({ concepto, descripcion, precio });
     });
     if (titulo || items.length) secciones.push({ titulo, items });
   });
-  return { ...datos, secciones, fotos: (fotosCotizacion||[]).slice(0) };
+  return { ...datos, secciones, fotos: (fotosCotizacion || []).slice(0) };
 }
 function applyCotSnapshot(snap) {
   if (!snap) return;
@@ -3243,7 +3253,7 @@ function undoCot() {
   const stack = window.__EMS_UNDO_COT || [];
   if (stack.length < 2) { showSaved('Nada que deshacer'); return; }
   stack.pop();
-  const prev = stack[stack.length-1];
+  const prev = stack[stack.length - 1];
   applyCotSnapshot(prev);
   showSaved('Deshecho');
 }
@@ -3274,7 +3284,7 @@ function serializeCotizacionForm() {
     });
     if (titulo || items.length) secciones.push({ titulo, items });
   });
-  return { ...datos, secciones, fotos: (window.fotosCotizacion||[]).slice(0) };
+  return { ...datos, secciones, fotos: (window.fotosCotizacion || []).slice(0) };
 }
 
 function serializeReporteForm() {
@@ -3284,7 +3294,7 @@ function serializeReporteForm() {
   const items = [];
   form.querySelectorAll('#repItemsTable tbody tr').forEach(tr => {
     const id = tr.getAttribute('data-rowid') || newUID();
-    items.push({ _id: id, descripcion: tr.querySelector('textarea[name="descripcion"]').value, fotos: (fotosItemsReporteMap[id]||[]).slice(0) });
+    items.push({ _id: id, descripcion: tr.querySelector('textarea[name="descripcion"]').value, fotos: (fotosItemsReporteMap[id] || []).slice(0) });
   });
   return { ...datos, items };
 }
@@ -3292,21 +3302,21 @@ function applyRepSnapshot(snap) {
   if (!snap) return;
   nuevoReporte();
   const form = document.getElementById('repForm');
-  form.numero.value = snap.numero||'';
-  form.fecha.value = snap.fecha||'';
-  form.cliente.value = snap.cliente||'';
-  form.hora.value = snap.hora||'';
-  form.concepto.value = snap.concepto||'';
+  form.numero.value = snap.numero || '';
+  form.fecha.value = snap.fecha || '';
+  form.cliente.value = snap.cliente || '';
+  form.hora.value = snap.hora || '';
+  form.concepto.value = snap.concepto || '';
   const tbody = form.querySelector('#repItemsTable tbody');
-  tbody.innerHTML='';
+  tbody.innerHTML = '';
   fotosItemsReporteMap = {};
-  (snap.items||[]).forEach((item)=>{
+  (snap.items || []).forEach((item) => {
     const id = item._id || newUID();
-    fotosItemsReporteMap[id] = Array.isArray(item.fotos)? [...item.fotos]:[];
-    tbody.insertAdjacentHTML('beforeend', renderRepItemRow({ ...item, _id:id }, id, true));
+    fotosItemsReporteMap[id] = Array.isArray(item.fotos) ? [...item.fotos] : [];
+    tbody.insertAdjacentHTML('beforeend', renderRepItemRow({ ...item, _id: id }, id, true));
   });
-  form.notas.value = snap.notas||'';
-  setTimeout(()=>{ actualizarPredictsEMSCloud(); agregarDictadoMicros(); activarPredictivosInstantaneos(); }, 100);
+  form.notas.value = snap.notas || '';
+  setTimeout(() => { actualizarPredictsEMSCloud(); agregarDictadoMicros(); activarPredictivosInstantaneos(); }, 100);
 }
 function pushUndoRepSnapshot() {
   const snap = serializeReporteForm();
@@ -3319,14 +3329,14 @@ function undoRep() {
   const stack = window.__EMS_UNDO_REP || [];
   if (stack.length < 2) { showSaved('Nada que deshacer'); return; }
   stack.pop();
-  const prev = stack[stack.length-1];
+  const prev = stack[stack.length - 1];
   applyRepSnapshot(prev);
   showSaved('Deshecho');
 }
 
 function installUndoHandlers() {
   // Ctrl+Z global
-  window.addEventListener('keydown', (e)=>{
+  window.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
       if (document.getElementById('cotForm')) { e.preventDefault(); return undoCot(); }
       if (document.getElementById('repForm')) { e.preventDefault(); return undoRep(); }
@@ -3334,9 +3344,9 @@ function installUndoHandlers() {
   });
   // Snapshots on input changes (debounced)
   let t;
-  document.addEventListener('input', ()=>{
+  document.addEventListener('input', () => {
     clearTimeout(t);
-    t = setTimeout(()=>{
+    t = setTimeout(() => {
       if (document.getElementById('cotForm')) pushUndoCotSnapshot();
       if (document.getElementById('repForm')) pushUndoRepSnapshot();
     }, 400);
@@ -3352,7 +3362,7 @@ function agregarCotSeccionDet(preload = null) {
   const wrap = document.getElementById('cotSeccionesWrap');
   if (!wrap) return;
   // Default: 1 rubro por sección (antes eran 2 y causaba duplicado)
-  wrap.insertAdjacentHTML('beforeend', renderCotSeccionDet(preload||{ items:[{}] }));
+  wrap.insertAdjacentHTML('beforeend', renderCotSeccionDet(preload || { items: [{}] }));
   agregarDictadoMicros();
   activarPredictivosInstantaneos();
   recalcTotalesCotizacion();
@@ -3406,60 +3416,60 @@ function getPriceList() {
   try { return JSON.parse(localStorage.getItem('EMS_PRICE_LIST')) || {}; } catch { return {}; }
 }
 function savePriceList(pl) {
-  try { localStorage.setItem('EMS_PRICE_LIST', JSON.stringify(pl||{})); } catch {}
+  try { localStorage.setItem('EMS_PRICE_LIST', JSON.stringify(pl || {})); } catch { }
 }
 function seedPriceList() {
   const seed = [
-    {hp:'1 (0.75)'},{hp:'1.5 (1.1)'},{hp:'2 (1.5)'},{hp:'3 (2.2)'},{hp:'5 (4)'},{hp:'7.5 (5)'},{hp:'10 (7.5)'},{hp:'15 (11.2)'},{hp:'20 (15)'},{hp:'25 (18.5)'},{hp:'30 (22)'},{hp:'40 (30)'},{hp:'50 (37.5)'},{hp:'60 (45)'},{hp:'75 (55)'},{hp:'100 (75)'},{hp:'125 (93.3)'},{hp:'150 (112)'},{hp:'175 (132)'},{hp:'200 (150)'},{hp:'250 (190)'},{hp:'300 (255)'}
-  ].map((r,i)=>{
-    const hp = [1,1.5,2,3,5,7.5,10,15,20,25,30,40,50,60,75,100,125,150,175,200,250,300][i];
-    const prev = 2800 + hp*450;
-    const corr = Math.round(prev*1.75);
-    const fan  = 380 + hp*20;
-    return { hp:r.hp, prev: prev, corr: corr, fan: fan };
+    { hp: '1 (0.75)' }, { hp: '1.5 (1.1)' }, { hp: '2 (1.5)' }, { hp: '3 (2.2)' }, { hp: '5 (4)' }, { hp: '7.5 (5)' }, { hp: '10 (7.5)' }, { hp: '15 (11.2)' }, { hp: '20 (15)' }, { hp: '25 (18.5)' }, { hp: '30 (22)' }, { hp: '40 (30)' }, { hp: '50 (37.5)' }, { hp: '60 (45)' }, { hp: '75 (55)' }, { hp: '100 (75)' }, { hp: '125 (93.3)' }, { hp: '150 (112)' }, { hp: '175 (132)' }, { hp: '200 (150)' }, { hp: '250 (190)' }, { hp: '300 (255)' }
+  ].map((r, i) => {
+    const hp = [1, 1.5, 2, 3, 5, 7.5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150, 175, 200, 250, 300][i];
+    const prev = 2800 + hp * 450;
+    const corr = Math.round(prev * 1.75);
+    const fan = 380 + hp * 20;
+    return { hp: r.hp, prev: prev, corr: corr, fan: fan };
   });
   return { year: new Date().getFullYear(), rows: seed };
 }
-function renderPriceTable(percent=0) {
+function renderPriceTable(percent = 0) {
   const wrap = document.getElementById('priceTableWrap');
   if (!wrap) return;
   const pl = Object.assign(seedPriceList(), getPriceList());
   const year = document.getElementById('plYear');
   if (year) year.value = pl.year || new Date().getFullYear();
-  const adj = Number(document.getElementById('plAdj')?.value||percent||0);
-  const mul = 1 + (adj/100);
-  const fmt = v => mostrarPrecioLimpio(Math.round(Number(v||0)*mul));
+  const adj = Number(document.getElementById('plAdj')?.value || percent || 0);
+  const mul = 1 + (adj / 100);
+  const fmt = v => mostrarPrecioLimpio(Math.round(Number(v || 0) * mul));
   const head = `<div class="price-table-wrap"><table class="ems-price-table"><thead><tr>
     <th>Potencia en HP/KW</th>
     <th>Mantenimiento Preventivo</th>
     <th>Mantenimiento Correctivo (Embobinado)</th>
     <th>Abanico de Enfriamiento</th>
   </tr></thead><tbody>`;
-  const body = (pl.rows||[]).map(r=>`<tr><td>${r.hp||''}</td><td>${fmt(r.prev)}</td><td>${fmt(r.corr)}</td><td>${fmt(r.fan)}</td></tr>`).join('');
+  const body = (pl.rows || []).map(r => `<tr><td>${r.hp || ''}</td><td>${fmt(r.prev)}</td><td>${fmt(r.corr)}</td><td>${fmt(r.fan)}</td></tr>`).join('');
   const foot = `</tbody></table><div class="price-note">Nota: Los precios no incluyen IVA. El precio incluye recolección de equipo dentro del área de Santiago de Querétaro, desarmado, diagnóstico y extracción de baleros.</div></div>`;
-  wrap.innerHTML = `<div class="price-title">PRECIOS ${year?.value||pl.year}</div>` + head + body + foot;
+  wrap.innerHTML = `<div class="price-title">PRECIOS ${year?.value || pl.year}</div>` + head + body + foot;
 }
-function aplicarAjustePrecios(){
-  try { const y = Number(document.getElementById('plYear').value||new Date().getFullYear()); const pl = Object.assign(seedPriceList(), getPriceList()); pl.year = y; savePriceList(pl); } catch {}
+function aplicarAjustePrecios() {
+  try { const y = Number(document.getElementById('plYear').value || new Date().getFullYear()); const pl = Object.assign(seedPriceList(), getPriceList()); pl.year = y; savePriceList(pl); } catch { }
   renderPriceTable();
 }
-async function generarPDFPrecios(share=false){
+async function generarPDFPrecios(share = false) {
   showProgress(true, 10, 'Generando PDF...');
   const pl = Object.assign(seedPriceList(), getPriceList());
-  const year = Number(document.getElementById('plYear')?.value||pl.year||new Date().getFullYear());
-  const adj = Number(document.getElementById('plAdj')?.value||0);
-  const mul = 1 + (adj/100);
+  const year = Number(document.getElementById('plYear')?.value || pl.year || new Date().getFullYear());
+  const adj = Number(document.getElementById('plAdj')?.value || 0);
+  const mul = 1 + (adj / 100);
   const { PDFDocument, StandardFonts } = PDFLib;
   const pdfDoc = await PDFDocument.create();
   const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helvB= await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const helvB = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const dims = { pageW: 595.28, pageH: 841.89, mx: 32, my: 38 };
   let page = pdfDoc.addPage([dims.pageW, dims.pageH]);
   // Header minimal (sin cliente, No., fecha ni paginación)
   let y = dims.pageH - dims.my;
   const wmLogo = await getLogoImage(pdfDoc);
-  try { if (wmLogo) page.drawImage(wmLogo, { x: dims.mx, y: y - 44, width: 44, height: 44 }); } catch {}
-  try { if (wmLogo) drawWatermark(page, dims, wmLogo, WATERMARK_OP); } catch {}
+  try { if (wmLogo) page.drawImage(wmLogo, { x: dims.mx, y: y - 44, width: 44, height: 44 }); } catch { }
+  try { if (wmLogo) drawWatermark(page, dims, wmLogo, WATERMARK_OP); } catch { }
   // Bloque derecho con textos (idéntico al ejemplo)
   const xRight = dims.pageW - dims.mx;
   drawTextRight(page, decodeU('Electromotores Santana.'), xRight, y - 6, { size: 12, font: helvB, color: gray(0.22) });
@@ -3469,12 +3479,12 @@ async function generarPDFPrecios(share=false){
   rule(page, dims.mx, y - 52, dims.pageW - dims.mx, gray(0.85), 0.8);
   y -= 62;
   // Banda de título
-  page.drawRectangle({ x: dims.mx, y: y - 24, width: (dims.pageW - 2*dims.mx), height: 24, color: emsRgb(), opacity: 0.95 });
+  page.drawRectangle({ x: dims.mx, y: y - 24, width: (dims.pageW - 2 * dims.mx), height: 24, color: emsRgb(), opacity: 0.95 });
   const title = `PRECIOS ${year}`;
   const tw = helvB.widthOfTextAtSize(title, 12.5);
-  page.drawText(title, { x: dims.mx + ((dims.pageW - 2*dims.mx) - tw)/2, y: y - 16, size: 12.5, font: helvB, color: PDFLib.rgb(1,1,1) });
+  page.drawText(title, { x: dims.mx + ((dims.pageW - 2 * dims.mx) - tw) / 2, y: y - 16, size: 12.5, font: helvB, color: PDFLib.rgb(1, 1, 1) });
   // Columnas proporcionales (encajan en el ancho útil)
-  const cw = (dims.pageW - 2*dims.mx);
+  const cw = (dims.pageW - 2 * dims.mx);
   const pad = 8;
   const w1 = Math.round(cw * 0.22); // HP/KW
   const w2 = Math.round(cw * 0.26); // Preventivo
@@ -3484,77 +3494,77 @@ async function generarPDFPrecios(share=false){
   // Encabezado de tabla (alto 34px para 2 líneas reales)
   const headerH = 34;
   page.drawRectangle({ x: dims.mx, y: y - headerH + 6, width: cw, height: headerH, color: emsRgb(), opacity: 0.98 });
-  const headerStyle = { font: helvB, size: 9.2, color: PDFLib.rgb(1,1,1) };
-  drawWrapped(page, 'Potencia en HP/KW', b1 + pad, y - 12, headerStyle, w1 - pad*2);
-  drawWrapped(page, 'Mantenimiento Preventivo', b2 + pad, y - 12, headerStyle, w2 - pad*2);
-  drawWrapped(page, 'Mantenimiento Correctivo (Embobinado)', b3 + pad, y - 12, headerStyle, w3 - pad*2);
-  drawWrapped(page, 'Abanico de Enfriamiento', b4 + pad, y - 12, headerStyle, w4 - pad*2);
+  const headerStyle = { font: helvB, size: 9.2, color: PDFLib.rgb(1, 1, 1) };
+  drawWrapped(page, 'Potencia en HP/KW', b1 + pad, y - 12, headerStyle, w1 - pad * 2);
+  drawWrapped(page, 'Mantenimiento Preventivo', b2 + pad, y - 12, headerStyle, w2 - pad * 2);
+  drawWrapped(page, 'Mantenimiento Correctivo (Embobinado)', b3 + pad, y - 12, headerStyle, w3 - pad * 2);
+  drawWrapped(page, 'Abanico de Enfriamiento', b4 + pad, y - 12, headerStyle, w4 - pad * 2);
   // Separadores verticales del header
-  [b2, b3, b4].forEach(x=> page.drawLine({ start:{x, y:y - headerH + 6}, end:{x, y:y + 4}, thickness:0.6, color: PDFLib.rgb(1,1,1)}));
+  [b2, b3, b4].forEach(x => page.drawLine({ start: { x, y: y - headerH + 6 }, end: { x, y: y + 4 }, thickness: 0.6, color: PDFLib.rgb(1, 1, 1) }));
   y -= headerH + 8;
   // Rows
-  const fmt = v => mostrarPrecioLimpio(Math.round(Number(v||0)*mul));
-  (pl.rows||[]).forEach((r,idx)=>{
-    if (y < 90){ // new page
+  const fmt = v => mostrarPrecioLimpio(Math.round(Number(v || 0) * mul));
+  (pl.rows || []).forEach((r, idx) => {
+    if (y < 90) { // new page
       const p2 = pdfDoc.addPage([dims.pageW, dims.pageH]);
-      try { if (wmLogo) drawWatermark(p2, dims, wmLogo, WATERMARK_OP); } catch {}
+      try { if (wmLogo) drawWatermark(p2, dims, wmLogo, WATERMARK_OP); } catch { }
       // Header mínimo en páginas siguientes
       y = dims.pageH - dims.my - 10;
       rule(p2, dims.mx, y - 12, dims.pageW - dims.mx, gray(0.85), 0.6);
       y -= 22;
       // Duplicar encabezado de tabla en nueva página
       p2.drawRectangle({ x: dims.mx, y: y - headerH + 6, width: cw, height: headerH, color: emsRgb(), opacity: 0.98 });
-      drawWrapped(p2, 'Potencia en HP/KW', b1 + pad, y - 12, headerStyle, w1 - pad*2);
-      drawWrapped(p2, 'Mantenimiento Preventivo', b2 + pad, y - 12, headerStyle, w2 - pad*2);
-      drawWrapped(p2, 'Mantenimiento Correctivo (Embobinado)', b3 + pad, y - 12, headerStyle, w3 - pad*2);
-      drawWrapped(p2, 'Abanico de Enfriamiento', b4 + pad, y - 12, headerStyle, w4 - pad*2);
-      [b2, b3, b4].forEach(x=> p2.drawLine({ start:{x, y:y - headerH + 6}, end:{x, y:y + 4}, thickness:0.6, color: PDFLib.rgb(1,1,1)}));
+      drawWrapped(p2, 'Potencia en HP/KW', b1 + pad, y - 12, headerStyle, w1 - pad * 2);
+      drawWrapped(p2, 'Mantenimiento Preventivo', b2 + pad, y - 12, headerStyle, w2 - pad * 2);
+      drawWrapped(p2, 'Mantenimiento Correctivo (Embobinado)', b3 + pad, y - 12, headerStyle, w3 - pad * 2);
+      drawWrapped(p2, 'Abanico de Enfriamiento', b4 + pad, y - 12, headerStyle, w4 - pad * 2);
+      [b2, b3, b4].forEach(x => p2.drawLine({ start: { x, y: y - headerH + 6 }, end: { x, y: y + 4 }, thickness: 0.6, color: PDFLib.rgb(1, 1, 1) }));
       y -= headerH + 8;
       page = p2;
     }
-    if (idx % 2 === 0) page.drawRectangle({ x: dims.mx, y: y-2, width: cw, height: 16, color: PDFLib.rgb(0.97,0.97,0.97) });
+    if (idx % 2 === 0) page.drawRectangle({ x: dims.mx, y: y - 2, width: cw, height: 16, color: PDFLib.rgb(0.97, 0.97, 0.97) });
     // Contenido de celdas
-    page.drawText(String(r.hp||''), { x: b1 + pad, y, size: 10, font: helv, color: gray(0.26) });
+    page.drawText(String(r.hp || ''), { x: b1 + pad, y, size: 10, font: helv, color: gray(0.26) });
     drawTextRight(page, fmt(r.prev), b3 - pad, y, { size: 10, font: helv, color: gray(0.26) });
     drawTextRight(page, fmt(r.corr), b4 - pad, y, { size: 10, font: helv, color: gray(0.26) });
-    drawTextRight(page, fmt(r.fan),  b5 - pad, y, { size: 10, font: helv, color: gray(0.26) });
+    drawTextRight(page, fmt(r.fan), b5 - pad, y, { size: 10, font: helv, color: gray(0.26) });
     // Verticales por fila
-    const yTop = y+8, yBot = y-10;
-    [b2, b3, b4].forEach(x=> page.drawLine({ start:{x, y:yBot}, end:{x, y:yTop}, thickness:0.3, color: gray(0.88)}));
-    rule(page, dims.mx, y-3, dims.pageW - dims.mx, gray(0.92), 0.4);
+    const yTop = y + 8, yBot = y - 10;
+    [b2, b3, b4].forEach(x => page.drawLine({ start: { x, y: yBot }, end: { x, y: yTop }, thickness: 0.3, color: gray(0.88) }));
+    rule(page, dims.mx, y - 3, dims.pageW - dims.mx, gray(0.92), 0.4);
     y -= 18;
   });
   // Note (envuelta dentro del ancho útil y sin salirse de la hoja)
   y -= 10;
   const note = 'Nota: Los precios no incluyen IVA. El precio incluye recolección de equipo dentro del área de Santiago de Querétaro, desarmado, diagnóstico y extracción de baleros.';
   const noteSize = 9.6;
-  const noteCw = (dims.pageW - 2*dims.mx);
+  const noteCw = (dims.pageW - 2 * dims.mx);
   const noteLines = wrapTextLines(String(note), helvB, noteSize, noteCw - 16);
   const noteRectH = 14 + (noteLines.length * 12);
   // Salto si no cabe
   if (y - noteRectH < 60) {
     page = pdfDoc.addPage([dims.pageW, dims.pageH]);
-    try { if (wmLogo) drawWatermark(page, dims, wmLogo, WATERMARK_OP); } catch {}
+    try { if (wmLogo) drawWatermark(page, dims, wmLogo, WATERMARK_OP); } catch { }
     y = dims.pageH - dims.my - 24;
   }
-  page.drawRectangle({ x: dims.mx, y: y - noteRectH + 10, width: noteCw, height: noteRectH, color: PDFLib.rgb(0.96,0.6,0.6), opacity: 0.15, borderColor: PDFLib.rgb(0.86,0.1,0.1), borderWidth: 1 });
+  page.drawRectangle({ x: dims.mx, y: y - noteRectH + 10, width: noteCw, height: noteRectH, color: PDFLib.rgb(0.96, 0.6, 0.6), opacity: 0.15, borderColor: PDFLib.rgb(0.86, 0.1, 0.1), borderWidth: 1 });
   let ny = y - 12;
-  noteLines.forEach(line => { page.drawText(line, { x: dims.mx + 8, y: ny, size: noteSize, font: helvB, color: PDFLib.rgb(0.86,0.1,0.1) }); ny -= 12; });
+  noteLines.forEach(line => { page.drawText(line, { x: dims.mx + 8, y: ny, size: noteSize, font: helvB, color: PDFLib.rgb(0.86, 0.1, 0.1) }); ny -= 12; });
   // No aplicar pie con numeración para precios (requisito)
   const pdfBytes = await pdfDoc.save({ useObjectStreams: true });
   showProgress(false);
   if (share && navigator.canShare) {
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     const file = new File([blob], `Lista_precios_${year}.pdf`, { type: 'application/pdf' });
-    try { await navigator.share({ files: [file], title: `Precios ${year}` }); } catch {}
+    try { await navigator.share({ files: [file], title: `Precios ${year}` }); } catch { }
     return;
   }
-  const url = URL.createObjectURL(new Blob([pdfBytes], { type:'application/pdf' }));
-  const a = document.createElement('a'); a.href = url; a.download = `Lista_precios_${year}.pdf`; a.click(); setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  const url = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
+  const a = document.createElement('a'); a.href = url; a.download = `Lista_precios_${year}.pdf`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
 // Vista SPA para Lista de Precios (sin salir de la app)
-function renderPreciosView(){
+function renderPreciosView() {
   if (window.autoSaveTimer) clearInterval(window.autoSaveTimer);
   const root = document.getElementById('root');
   root.innerHTML = `
@@ -3580,7 +3590,7 @@ function renderPreciosView(){
       <div id="priceTableWrap"></div>
     </div>
   `;
-  try { renderPriceTable(); } catch {}
+  try { renderPriceTable(); } catch { }
 }
 
 

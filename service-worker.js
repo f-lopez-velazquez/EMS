@@ -1,9 +1,13 @@
-const CACHE_NAME = 'ems-cache-v61';
+const CACHE_NAME = 'ems-cache-v77';
 const toCache = [
   './',
   './index.html',
   './app.js',
   './styles.css',
+  './section-toggle.css',
+  './section-toggle.js',
+  './mobile-cards.css',
+  './mobile-cards.js',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -62,7 +66,7 @@ self.addEventListener('fetch', event => {
         .then(r => {
           if (r && r.ok) {
             const copy = r.clone();
-            caches.open(CACHE_NAME).then(c => c.put('./', copy)).catch(() => {});
+            caches.open(CACHE_NAME).then(c => c.put('./', copy)).catch(() => { });
           }
           return r;
         })
@@ -88,7 +92,7 @@ self.addEventListener('fetch', event => {
               const clone = networkResp.clone();
               caches.open(CACHE_NAME)
                 .then(c => c.put(req, clone))
-                .catch(() => {}); // Silently fail cache update
+                .catch(() => { }); // Silently fail cache update
             }
             return networkResp;
           })

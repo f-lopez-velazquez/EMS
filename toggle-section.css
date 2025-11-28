@@ -1,0 +1,81 @@
+/* ===== TOGGLE MODO DETALLADO/SIMPLE EN SECCIONES ===== */
+
+.cot-mode-toggle {
+    display: flex !important;
+    align-items: center;
+    margin: 0 8px;
+}
+
+.toggle-switch-label {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s ease;
+}
+
+.toggle-switch-label:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+
+.toggle-switch-label input[type="checkbox"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 36px;
+    height: 20px;
+    background: #cbd5e1;
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.3s ease;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.toggle-switch-label input[type="checkbox"]::before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    background: white;
+    transition: transform 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch-label input[type="checkbox"]:checked {
+    background: #64748b;
+}
+
+.toggle-switch-label input[type="checkbox"]:checked::before {
+    transform: translateX(16px);
+}
+
+.toggle-text {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .cot-mode-toggle {
+        width: 100%;
+        justify-content: center;
+        margin: 8px 0;
+    }
+
+    .toggle-switch-label {
+        flex: 1;
+        justify-content: center;
+    }
+}
