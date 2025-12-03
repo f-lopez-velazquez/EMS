@@ -1843,46 +1843,6 @@ button {
     width: 20%;
   }
 
-  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) th:nth-child(1),
-  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) td:nth-child(1) {
-    width: 70%;
-  }
-
-  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) th:last-child,
-  .cot-seccion.no-desc .cot-seccion-table:not([data-mode="det"]) td:last-child {
-    width: 30%;
-  }
-
-  /* Detallada */
-  .cot-seccion-table[data-mode="det"] th:nth-child(1),
-  .cot-seccion-table[data-mode="det"] td:nth-child(1) {
-    width: 42%;
-  }
-
-  .cot-seccion-table[data-mode="det"] th:nth-child(2),
-  .cot-seccion-table[data-mode="det"] td:nth-child(2) {
-    width: 12%;
-  }
-
-  .cot-seccion-table[data-mode="det"] th:nth-child(3),
-  .cot-seccion-table[data-mode="det"] td:nth-child(3) {
-    width: 16%;
-  }
-
-  .cot-seccion-table[data-mode="det"] th:nth-child(4),
-  .cot-seccion-table[data-mode="det"] td:nth-child(4) {
-    width: 15%;
-  }
-
-  .cot-seccion-table[data-mode="det"] th:nth-child(5),
-  .cot-seccion-table[data-mode="det"] td:nth-child(5) {
-    width: 15%;
-  }
-}
-
-/* Tabla verdaderamente fija (evita que inputs expandan columnas) */
-.cot-seccion-table {
-  table-layout: fixed;
   width: 100%;
 }
 
